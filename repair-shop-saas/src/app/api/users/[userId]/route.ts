@@ -16,9 +16,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { userId: st
     const body = await req.json();
 
     // Ensure the user belongs to the same tenant for security
+    const { name, email, role, isActive } = body;
+
     const updatedUser = await User.findOneAndUpdate(
       { _id: userId, tenantId },
-      { $set: body },
+      { $set: { name, email, role, isActive } }, // never touch tenantId or password here
       { new: true }
     ).select('-password');
 

@@ -1,12 +1,15 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css"; // This import is what makes Tailwind work
-
-const inter = Inter({ subsets: ["latin"] });
+/**
+ * app/layout.tsx
+ *
+ * AuthGuard has been removed. Route protection is now handled entirely
+ * by middleware.ts at the edge, before the page ever renders.
+ */
+import type { Metadata } from 'next';
+import './globals.css'; // keep your existing global styles
 
 export const metadata: Metadata = {
-  title: "Repair Shop SaaS",
-  description: "Multi-tenant repair shop management system",
+  title: 'Repair Shop SaaS',
+  description: 'Multi-tenant repair shop management',
 };
 
 export default function RootLayout({
@@ -16,12 +19,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} bg-gray-50 antialiased`}>
-        {/* The 'children' will render your Register and Login pages */}
-        <main>
-          {children}
-        </main>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
