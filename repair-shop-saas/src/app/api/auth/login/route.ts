@@ -4,6 +4,10 @@ import connectDB from '../../../../lib/db';
 import { AuthService } from '../../../../modules/auth/auth.service';
 import { sendResponse } from '../../../../utils/apiResponse';
 
+// ✅ CORRECTED IMPORTS: createAuditLog comes from service, AUDIT_ACTIONS comes from model
+import { createAuditLog } from '../../../../services/auditLog.service';
+import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
+
 /**
  * POST: /api/auth/login
  * Core authentication logic: Connects to DB, validates credentials, 
@@ -20,6 +24,22 @@ export async function POST(req: NextRequest) {
     // 3. Authenticate user via AuthService
     // This service handles password hashing and JWT signing
     const { token, user } = await AuthService.loginUser(email, password);
+
+    /**
+     * NEW: Audit Log Integration
+     * We trigger this immediately after successful authentication.
+     * It does not block the response (no 'await' used here for speed).
+     */
+    createAuditLog({
+      tenantId: user.tenantId, // Assuming user object has tenantId
+      userId: user._id || user.id,
+      action: AUDIT_ACTIONS.AUTH_LOGIN,
+      entity: 'user',
+      entityId: user._id || user.id,
+      details: { email: user.email },
+      ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+      userAgent: req.headers.get('user-agent') || 'unknown'
+    });
     
     /**
      * 4. Standardized Success Response
