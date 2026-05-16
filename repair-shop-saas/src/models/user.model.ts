@@ -14,6 +14,11 @@ export interface IUser extends Document {
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
+  resetPasswordToken?: string;
+  resetPasswordExpiry?: number;
+  failedLoginAttempts: number;
+  lockoutUntil?: Date;
+  tokenVersion: number;
 }
 
 /**
@@ -50,6 +55,24 @@ const userSchema = new Schema<IUser>(
       type: Boolean, 
       default: true 
     },
+    resetPasswordToken: {
+      type: String
+    },
+    resetPasswordExpiry: {
+      type: Number
+    },
+    failedLoginAttempts: { 
+      type: Number, 
+      default: 0 
+    },
+    lockoutUntil: { 
+      type: Date, 
+      default: null 
+    },
+    tokenVersion: { 
+      type: Number, 
+      default: 0 
+    }
   },
   { 
     timestamps: true 

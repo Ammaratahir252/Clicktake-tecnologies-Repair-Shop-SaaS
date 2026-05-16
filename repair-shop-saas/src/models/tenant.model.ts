@@ -7,7 +7,9 @@ import mongoose, { Schema, Document, Model } from 'mongoose';
  */
 export interface ITenant extends Document {
   name: string;
+  ownerName: string;
   subdomain: string; // The unique URL identifier (e.g., 'fast-fix')
+  email: string;
   plan: 'free' | 'pro' | 'enterprise';
   isActive: boolean;
   createdAt: Date;
@@ -27,6 +29,15 @@ const tenantSchema = new Schema<ITenant>(
       unique: true, 
       lowercase: true, 
       trim: true 
+    },
+    ownerName: {
+      type: String,
+      required: true
+    },
+    email: {
+      type: String,
+      required: true,
+      unique: true
     },
     // REMOVED: Email field is removed here because it belongs to the User/Owner.
     // Having it here as 'required' was causing your terminal error.

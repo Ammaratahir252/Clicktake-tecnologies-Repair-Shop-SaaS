@@ -1,18 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
-// Routes that logged-in users should NOT be able to visit
+// ─── Route Definitions ────────────────────────────────────────────────────────
+
+/** Routes logged-in users should NOT visit (redirect to dashboard) */
 const AUTH_ROUTES = ['/login', '/register'];
 
-// Route prefixes that require a valid token
-const PROTECTED_ROUTES = ['/dashboard', '/api/tickets'];
+/** Password flow routes — always public, no auth required */
+const PUBLIC_ROUTES = ['/forgot-password', '/reset-password'];
 
+// ─── Main Middleware ───────────────────────────────────────────────────────────
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+  const requestHeaders = new Headers(req.headers);
 
-  // ─── Grab token from cookie or Authorization header ───────────────────────
+  // ─── 0. Subdomain Extraction ────────────────────────────────────────────────
+  const host = req.headers.get('host') || '';
+  const hostWithoutPort = host.split(':')[0];
+  let subdomain = null;
+  
+  if (hostWithoutPort !== 'localhost' && hostWithoutPort !== 'dibnow.com' && hostWithoutPort !== 'www.dibnow.com') {
+    const parts = hostWithoutPort.split('.');
+    if ((parts.length > 2 && hostWithoutPort.endsWith('dibnow.com')) || (parts.length > 1 && hostWithoutPort.endsWith('localhost'))) {
+      subdomain = parts[0] === 'www' ? null : parts[0];
+    }
+  }
+
+  if (subdomain) {
+    requestHeaders.set('x-subdomain', subdomain);
+  }
+
+  // ── Grab token from cookie OR Authorization header ────────────────────────
   let token = req.cookies.get('token')?.value;
-
   if (!token) {
     const authHeader = req.headers.get('authorization');
     if (authHeader?.startsWith('Bearer ')) {
@@ -20,7 +39,7 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // ─── Helper: verify JWT and return payload (or null) ──────────────────────
+  // ── JWT verifier ──────────────────────────────────────────────────────────
   const verifyToken = async () => {
     if (!token) return null;
     try {
@@ -28,16 +47,51 @@ export async function middleware(req: NextRequest) {
         process.env.JWT_SECRET || 'fallback_secret_key'
       );
       const { payload } = await jwtVerify(token, secret);
+      
+      // Edge-compatible database session validation
+      try {
+        const verifyUrl = new URL(`/api/auth/verify-session?userId=${payload.userId}`, req.url);
+        const res = await fetch(verifyUrl.toString(), { cache: 'no-store' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.tokenVersion !== undefined && data.tokenVersion !== payload.tokenVersion) {
+            return null; // Invalidated session
+          }
+        }
+      } catch (err) {
+        // Fallback gracefully if internal fetch fails
+      }
+
       return payload;
     } catch {
       return null;
     }
   };
 
-  // ─── 1. API ROUTES — return JSON errors, never redirect ───────────────────
+  // ─── 1. PUBLIC ROUTES — always allow, no token check ─────────────────────
+  if (PUBLIC_ROUTES.some((route) => pathname.startsWith(route))) {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── 2. API: /api/tickets — requires valid JWT ────────────────────────────
   if (pathname.startsWith('/api/tickets')) {
     const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
+  // ─── 3. API: /api/users — requires valid JWT ─────────────────────────────
+  if (pathname.startsWith('/api/users')) {
+    const payload = await verifyToken();
     if (!payload) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized: missing or invalid token' },
@@ -45,61 +99,77 @@ export async function middleware(req: NextRequest) {
       );
     }
 
-    // Forward decoded claims to route handlers via request headers
-    const requestHeaders = new Headers(req.headers);
-    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
-    requestHeaders.set('x-user-id', String(payload.userId ?? ''));
-    requestHeaders.set('x-role', String(payload.role ?? ''));
-    requestHeaders.set('x-user-name', String(payload.name ?? 'Staff'));
+    // Protect POST requests to only allow owners and managers
+    if (req.method === 'POST') {
+      const allowedRoles = ['owner', 'manager', 'super_admin'];
+      if (!allowedRoles.includes(String(payload.role))) {
+        return NextResponse.json(
+          { success: false, message: 'Forbidden: insufficient permissions to create users' },
+          { status: 403 }
+        );
+      }
+    }
 
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── 2. DASHBOARD ROUTES — redirect to /login if not authenticated ────────
+  // ─── 3.5. API: /api/audit-logs — requires valid JWT ───────────────────────
+  if (pathname.startsWith('/api/audit-logs')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── 4. DASHBOARD ROUTES — redirect to /login if not authenticated ────────
   if (pathname.startsWith('/dashboard')) {
     const payload = await verifyToken();
-
     if (!payload) {
       const loginUrl = new URL('/login', req.url);
-      // Preserve the intended destination so login can redirect back
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
     }
-
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── 3. AUTH ROUTES (/login, /register) — redirect to /dashboard if already
-  //        logged in so users don't land on the login page unnecessarily ──────
+  // ─── 5. AUTH ROUTES — redirect logged-in users to dashboard ──────────────
   if (AUTH_ROUTES.some((route) => pathname.startsWith(route))) {
     const payload = await verifyToken();
-
     if (payload) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
-
-    return NextResponse.next();
+    return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── 4. Everything else — pass through ───────────────────────────────────
-  return NextResponse.next();
+  // ─── 6. Everything else — pass through ────────────────────────────────────
+  return NextResponse.next({ request: { headers: requestHeaders } });
 }
 
 export const config = {
-  /*
-   * Match:
-   *   - /dashboard and every sub-path
-   *   - /login and /register
-   *   - /api/tickets and every sub-path
-   *
-   * Exclude Next.js internals and static assets so the middleware
-   * doesn't run on every _next/static or favicon request.
-   */
   matcher: [
     '/dashboard/:path*',
     '/login',
     '/register',
+    '/forgot-password',
+    '/reset-password',
     '/api/tickets',
     '/api/tickets/:path*',
+    '/api/users',
+    '/api/users/:path*',
+    '/api/audit-logs',
+    '/api/audit-logs/:path*',
   ],
 };

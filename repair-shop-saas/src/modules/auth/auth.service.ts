@@ -10,6 +10,37 @@ export const AuthService = {
    * Creates a new Shop (Tenant) and an Admin User (Owner) in one transaction.
    */
   registerTenant: async (data: any) => {
+    // === NEW: Handle Staff & Customer Registration ===
+    if (data.role && data.role !== 'owner') {
+      const { name, email, password, tenantId, role, phone } = data;
+      
+      // Staff validation: tenantId must be valid and exist
+      if (['technician', 'frontdesk', 'manager', 'driver'].includes(role)) {
+        if (!tenantId) throw new Error("Shop ID is required for staff roles.");
+        try {
+          const existingTenant = await Tenant.findById(tenantId);
+          if (!existingTenant) throw new Error("Shop ID not found. Please check with your shop owner.");
+        } catch (err) {
+          throw new Error("Shop ID not found. Please check with your shop owner.");
+        }
+      }
+
+      const existingUser = await User.findOne({ email });
+      if (existingUser) throw new Error('Email already registered');
+      
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await User.create({
+        name, 
+        email, 
+        password: hashedPassword, 
+        tenantId: tenantId || new mongoose.Types.ObjectId(), // customers might not have tenantId initially
+        role, 
+        phone
+      });
+      return { user };
+    }
+
+    // === EXISTING: Handle Shop Owner Registration ===
     const { shopName, ownerName, email, password, subdomain } = data;
 
     // 1. Check for duplicates

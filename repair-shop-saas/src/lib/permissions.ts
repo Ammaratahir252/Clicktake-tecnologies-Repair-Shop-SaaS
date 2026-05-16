@@ -78,7 +78,7 @@ export const PERMISSIONS: Record<string, string[]> = {
     'auth:login', 'auth:resetPassword', 'tickets:viewAll', 'tickets:create', 'tickets:assign',
     'tickets:updateStatus', 'estimates:createEdit', 'estimates:approveAll', 'invoices:viewAll',
     'payments:process', 'inventory:view', 'inventory:adjust', 'customers:viewEditAll',
-    'reports:financial', 'reports:techPerf', 'ai:diagnostic', 'leads:viewOwn', 'leads:claim',
+    'reports:financial', 'reports:techPerf', 'settings:userMgmt', 'ai:diagnostic', 'leads:viewOwn', 'leads:claim',
     'leads:analytics', 'delivery:viewJobs', 'audit:view'
   ],
   frontdesk: [

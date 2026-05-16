@@ -5,13 +5,15 @@ import { TicketStatus } from '@/lib/enums';
 
 // ─── POST /api/tickets ────────────────────────────────────────────────────────
 export const CreateTicketSchema = z.object({
-  customerId:  z.string().min(24, 'Invalid customerId — must be a MongoDB ObjectId'),
-  deviceBrand: z.string().min(1, 'Device brand is required').max(100),
-  deviceModel: z.string().min(1, 'Device model is required').max(100),
-  issue:       z.string().min(5, 'Issue must be at least 5 characters').max(1000),
-  deviceColor: z.string().max(50).optional(),
-  deviceIMEI:  z.string().max(20).optional(),
-  photos:      z.array(z.string().url('Each photo must be a valid URL')).max(10).optional(),
+  customerName:  z.string().min(2, 'Customer name must be at least 2 characters').max(100),
+  customerPhone: z.string().min(5, 'Customer phone must be at least 5 characters').max(20),
+  deviceBrand:   z.string().min(1, 'Device brand is required').max(100),
+  deviceModel:   z.string().min(1, 'Device model is required').max(100),
+  issue:         z.string().min(5, 'Issue must be at least 5 characters').max(1000),
+  estimateAmount: z.number().min(0).optional().nullable(),
+  deviceColor:   z.string().max(50).optional(),
+  deviceIMEI:    z.string().max(20).optional(),
+  photos:        z.array(z.string().url('Each photo must be a valid URL')).max(10).optional(),
 });
 
 // ─── PATCH /api/tickets/:id/status ───────────────────────────────────────────

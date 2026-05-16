@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server';
 import crypto from 'crypto';
 import User from '../../../../models/user.model';
-import { connectDB } from '../../../../lib/db';
-import { errorResponse, successResponse } from '../../../../utils/response.helper';
-import { createAuditLog, AUDIT_ACTIONS } from '../../../../services/auditLog.service';
+import connectDB from '../../../../lib/db';
+import { sendResponse } from '../../../../utils/apiResponse';
+import { createAuditLog } from '../../../../services/auditLog.service';
+import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return errorResponse("User not found", 404);
+      return sendResponse(false, "User not found", null, 404);
     }
 
     // 1. Create a random reset token
@@ -27,18 +28,18 @@ export async function POST(req: NextRequest) {
 
     // 3. Log the request
     createAuditLog({
-      tenantId: user.tenantId,
-      userId: user._id,
+      tenantId: user.tenantId.toString(),
+      userId: user._id.toString(),
       action: AUDIT_ACTIONS.AUTH_PASSWORD_RESET_REQUEST,
       entity: 'user',
-      entityId: user._id
+      entityId: user._id.toString()
     });
 
     // In a real app, send the raw 'resetToken' via email. 
     // For now, returning in response for testing.
-    return successResponse("Reset link generated", { resetToken });
+    return sendResponse(true, "Reset link generated", { resetToken });
 
   } catch (error: any) {
-    return errorResponse(error.message, 500);
+    return sendResponse(false, error.message, null, 500);
   }
 }

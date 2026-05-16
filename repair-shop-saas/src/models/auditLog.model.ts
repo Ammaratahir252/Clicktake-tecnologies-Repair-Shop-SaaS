@@ -28,6 +28,7 @@ export const AUDIT_ACTIONS = {
   USER_ROLE_UPDATED: 'USER_ROLE_UPDATED',
   USER_DEACTIVATED: 'USER_DEACTIVATED',
   USER_PROFILE_UPDATED: 'USER_PROFILE_UPDATED',
+  USER_VIEWED: 'USER_VIEWED',
   TICKET_CREATED: 'TICKET_CREATED',
   TICKET_ASSIGNED: 'TICKET_ASSIGNED',
   TICKET_STATUS_UPDATED: 'TICKET_STATUS_UPDATED',
@@ -60,4 +61,4 @@ const AuditLogSchema: Schema = new Schema(
   }
 );
 
-export const AuditLog = mongoose.models.AuditLog || mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);
+export const AuditLog = (mongoose.models.AuditLog as mongoose.Model<IAuditLog>) || mongoose.model<IAuditLog>('AuditLog', AuditLogSchema);

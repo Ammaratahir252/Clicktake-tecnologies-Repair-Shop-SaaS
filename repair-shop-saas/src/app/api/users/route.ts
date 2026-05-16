@@ -15,22 +15,12 @@ import { AUDIT_ACTIONS } from '@/models/auditLog.model';
  * Helper function to safely inject user context from Bearer token into req object
  */
 function injectUserContext(req: NextRequest) {
-  try {
-    const authHeader = req.headers.get('Authorization');
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      const token = authHeader.split(' ')[1];
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret') as any;
-      
-      // Mutate request safely so permissionMiddleware can read it
-      (req as any).user = {
-        id: decoded.userId,
-        role: decoded.role,
-        tenantId: decoded.tenantId
-      };
-    }
-  } catch (err) {
-    // Fail silently; permissionMiddleware will naturally throw 403 if role injection fails
-  }
+  // Use the headers securely injected by middleware.ts
+  (req as any).user = {
+    id: req.headers.get('x-user-id'),
+    role: req.headers.get('x-role'),
+    tenantId: req.headers.get('x-tenant-id')
+  };
 }
 
 /**
@@ -54,6 +44,16 @@ export async function GET(req: NextRequest) {
 
     // Security: Fetch users excluding sensitive password field
     const users = await User.find({ tenantId }).select('-password'); 
+
+    createAuditLog({
+      tenantId: tenantId as string,
+      userId: req.headers.get('x-user-id') || 'system',
+      action: AUDIT_ACTIONS.USER_VIEWED,
+      entity: 'user',
+      ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+      userAgent: req.headers.get('user-agent') || 'unknown'
+    });
+
     return sendResponse(true, 'Users fetched successfully', users);
   } catch (error: any) {
     return sendResponse(false, 'Failed to fetch users', null, 500);

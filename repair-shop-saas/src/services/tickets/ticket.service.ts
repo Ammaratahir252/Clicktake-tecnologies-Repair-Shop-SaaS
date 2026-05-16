@@ -9,7 +9,9 @@ import { TicketStatus, TICKET_STATUS_TRANSITIONS } from '@/lib/enums';
 
 interface CreateTicketInput {
   tenantId: string;
-  customerId: string;
+  customerName: string;
+  customerPhone: string;
+  estimateAmount?: number;
   deviceBrand: string;
   deviceModel: string;
   issue: string;
@@ -94,7 +96,7 @@ export const TicketService = {
    */
   createTicket: async (data: CreateTicketInput) => {
     const {
-      tenantId, customerId, deviceBrand, deviceModel,
+      tenantId, customerName, customerPhone, estimateAmount, deviceBrand, deviceModel,
       issue, deviceColor, deviceIMEI, photos,
       createdByUserId, createdByName,
     } = data;
@@ -108,13 +110,28 @@ export const TicketService = {
 
     const ticketNumber = await generateTicketNumber(tenantId);
 
+    // Find or Create Customer
+    let customer = await mongoose.models.Customer.findOne({
+      tenantId: new mongoose.Types.ObjectId(tenantId),
+      phone: customerPhone
+    });
+
+    if (!customer) {
+      customer = await mongoose.models.Customer.create({
+        tenantId: new mongoose.Types.ObjectId(tenantId),
+        name: customerName,
+        phone: customerPhone
+      });
+    }
+
     const ticket = await Ticket.create({
       tenantId: new mongoose.Types.ObjectId(tenantId),
-      customerId: new mongoose.Types.ObjectId(customerId),
+      customerId: customer._id,
       ticketNumber,
       deviceBrand,
       deviceModel,
       issue,
+      estimateAmount: estimateAmount ?? null,
       deviceColor: deviceColor ?? undefined,
       deviceIMEI: deviceIMEI ?? undefined,
       photos: photos ?? [],

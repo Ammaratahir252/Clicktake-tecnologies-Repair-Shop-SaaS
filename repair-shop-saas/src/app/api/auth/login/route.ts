@@ -1,65 +1,107 @@
 import { NextRequest } from 'next/server';
-// Using direct relative paths for reliable module resolution
 import connectDB from '../../../../lib/db';
-import { AuthService } from '../../../../modules/auth/auth.service';
+import User from '../../../../models/user.model';
 import { sendResponse } from '../../../../utils/apiResponse';
-
-// ✅ CORRECTED IMPORTS: createAuditLog comes from service, AUDIT_ACTIONS comes from model
+import { getTenantBySubdomain } from '../../../../lib/subdomain';
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 import { createAuditLog } from '../../../../services/auditLog.service';
 import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
 
-/**
- * POST: /api/auth/login
- * Core authentication logic: Connects to DB, validates credentials, 
- * and issues a secure session token.
- */
 export async function POST(req: NextRequest) {
   try {
-    // 1. Establish database connection
     await connectDB();
-
-    // 2. Parse incoming credentials from the request body
     const { email, password } = await req.json();
     
-    // 3. Authenticate user via AuthService
-    // This service handles password hashing and JWT signing
-    const { token, user } = await AuthService.loginUser(email, password);
+    const user = await User.findOne({ email });
+    if (!user) {
+      return sendResponse(false, 'Invalid email or password.', null, 401);
+    }
 
-    /**
-     * NEW: Audit Log Integration
-     * We trigger this immediately after successful authentication.
-     * It does not block the response (no 'await' used here for speed).
-     */
+    // Subdomain Tenant Enforcement
+    const xTenantId = req.headers.get('x-tenant-id');
+    const xSubdomain = req.headers.get('x-subdomain');
+
+    let requestTenantId = xTenantId;
+    if (!requestTenantId && xSubdomain) {
+      const tenant = await getTenantBySubdomain(xSubdomain);
+      if (tenant) {
+        requestTenantId = tenant._id.toString();
+      }
+    }
+
+    if (requestTenantId && user.tenantId && user.tenantId.toString() !== requestTenantId) {
+      return sendResponse(false, 'Invalid email or password.', null, 401);
+    }
+
+    // Step 1 — Check if account is currently locked
+    if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+      const minutesLeft = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 60000);
+      return sendResponse(false, `Account locked. Try again in ${minutesLeft} minute(s).`, null, 423);
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    
+    // Step 2 — If password is WRONG
+    if (!isMatch) {
+      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
+      if (user.failedLoginAttempts >= 5) {
+        user.lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+        user.failedLoginAttempts = 0;
+        user.markModified('lockoutUntil');
+        user.markModified('failedLoginAttempts');
+        await user.save();
+        return sendResponse(false, "Too many failed attempts. Account locked for 15 minutes.", null, 423);
+      }
+      await user.save();
+      return sendResponse(false, "Invalid email or password.", null, 401);
+    }
+
+    // Step 3 — If password is CORRECT
+    user.failedLoginAttempts = 0;
+    user.lockoutUntil = undefined;
+    await user.save();
+
+    const token = jwt.sign(
+      { 
+        userId: user._id, 
+        tenantId: user.tenantId, 
+        role: user.role,
+        tokenVersion: user.tokenVersion || 0
+      },
+      process.env.JWT_SECRET || 'fallback_secret_key',
+      { expiresIn: '1d' }
+    );
+
+    const userData = {
+      id: user._id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      tenantId: user.tenantId
+    };
+
     createAuditLog({
-      tenantId: user.tenantId, // Assuming user object has tenantId
-      userId: user._id || user.id,
+      tenantId: user.tenantId.toString(),
+      userId: user._id.toString(),
       action: AUDIT_ACTIONS.AUTH_LOGIN,
       entity: 'user',
-      entityId: user._id || user.id,
+      entityId: user._id.toString(),
       details: { email: user.email },
       ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
       userAgent: req.headers.get('user-agent') || 'unknown'
     });
     
-    /**
-     * 4. Standardized Success Response
-     * IMPORTANT: We explicitly pass the token in the data object 
-     * so the Frontend can save it to LocalStorage.
-     */
     const response = sendResponse(true, 'Login successful. Welcome back!', { 
-      user, 
-      token // Sent to frontend for LocalStorage
+      user: userData, 
+      token 
     });
     
-    /**
-     * 5. Enhanced Security Layer (HTTP-Only Cookie)
-     * Provides an extra layer of protection against XSS attacks.
-     */
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
-      maxAge: 86400, // Token valid for 24 hours
+      maxAge: 86400,
       path: '/',
     });
 
