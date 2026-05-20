@@ -42,6 +42,7 @@ function ManagerContent({ user }: { user: any }) {
   const [team, setTeam] = useState<any[]>([]);
   const [loadingTeam, setLoadingTeam] = useState(true);
   const [teamError, setTeamError] = useState("");
+  const [lowStockCount, setLowStockCount] = useState(0);
 
   useEffect(() => {
     api.get("/api/users")
@@ -51,6 +52,11 @@ function ManagerContent({ user }: { user: any }) {
       })
       .catch((err) => setTeamError(err.response?.data?.message || "Failed to load team."))
       .finally(() => setLoadingTeam(false));
+
+    // Fetch low stock count for inventory badge
+    api.get("/api/parts?lowStock=true&limit=1")
+      .then((res) => setLowStockCount(res.data?.data?.lowStockCount ?? 0))
+      .catch(() => { /* non-critical */ });
   }, []);
 
   return (
@@ -61,7 +67,7 @@ function ManagerContent({ user }: { user: any }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {MODULES.map(({ key, icon: Icon, title, desc, href, color }) => (
             <a key={key} href={href}
-              className="bg-white border border-slate-100 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all group active:scale-[0.98]">
+              className="bg-white border border-slate-100 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all group active:scale-[0.98] relative">
               <div className={`${color} w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-md`}>
                 <Icon className="text-white w-5 h-5" />
               </div>
@@ -69,6 +75,12 @@ function ManagerContent({ user }: { user: any }) {
                 <p className="font-bold text-slate-800 text-sm">{title}</p>
                 <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
               </div>
+              {/* Low stock badge on Inventory card */}
+              {key === "inventory" && lowStockCount > 0 && (
+                <span className="absolute top-3 right-3 inline-flex items-center gap-1 bg-red-500 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-sm">
+                  {lowStockCount} low
+                </span>
+              )}
               <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
             </a>
           ))}

@@ -73,7 +73,24 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── 2. API: /api/tickets — requires valid JWT ────────────────────────────
+  // ─── 2. API: /api/parts + /api/stock-movements — requires valid JWT ────────
+  if (pathname.startsWith('/api/parts') || pathname.startsWith('/api/stock-movements')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── 3. API: /api/tickets — requires valid JWT ────────────────────────────
   if (pathname.startsWith('/api/tickets')) {
     const payload = await verifyToken();
     if (!payload) {
@@ -171,5 +188,9 @@ export const config = {
     '/api/users/:path*',
     '/api/audit-logs',
     '/api/audit-logs/:path*',
+    '/api/parts',
+    '/api/parts/:path*',
+    '/api/stock-movements',
+    '/api/stock-movements/:path*',
   ],
 };

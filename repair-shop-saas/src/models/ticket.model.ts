@@ -12,6 +12,15 @@ export interface ITicketNote {
   createdAt:  Date;
 }
 
+// M3 — Part usage on a ticket
+export interface ITicketPartUsed {
+  partId:   mongoose.Types.ObjectId;
+  name:     string;
+  sku:      string;
+  quantity: number;
+  addedAt:  Date;
+}
+
 export interface ITicketHistoryEntry {
   changedBy:     mongoose.Types.ObjectId;
   changedByName: string;
@@ -39,6 +48,7 @@ export interface ITicket extends Document {
   photos:         string[];
   notes:          ITicketNote[];
   statusHistory:  ITicketHistoryEntry[];
+  partsUsed:      ITicketPartUsed[];  // M3 — parts consumed in this repair
   createdAt:      Date;
   updatedAt:      Date;
 }
@@ -137,6 +147,22 @@ const TicketSchema = new Schema<ITicket>(
     },
     statusHistory: {
       type: [TicketHistoryEntrySchema],
+      default: [],
+    },
+    // M3 — parts consumed in this repair (append only via /api/tickets/:id/parts)
+    partsUsed: {
+      type: [
+        new Schema(
+          {
+            partId:   { type: Schema.Types.ObjectId, ref: 'Part', required: true },
+            name:     { type: String, required: true },
+            sku:      { type: String, required: true },
+            quantity: { type: Number, required: true, min: 1 },
+            addedAt:  { type: Date, default: Date.now },
+          },
+          { _id: true }
+        ),
+      ],
       default: [],
     },
   },
