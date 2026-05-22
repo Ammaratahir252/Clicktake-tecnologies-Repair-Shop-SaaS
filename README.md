@@ -1,59 +1,64 @@
 # DibnowRepairSaaS — Core Backend Engine (M5 & M12)
 
-The high-performance, multi-tenant backend engine powering **DibnowRepairSaaS**. This codebase unifies **Module 5 (Billing, Payments & Finance)** and **Module 12 (Security, Compliance & Reliability)** using Fastify and TypeScript.
+The enterprise-grade, high-performance, multi-tenant backend engine powering **DibnowRepairSaaS**. This codebase implements a fully unified infrastructure combining **Module 5 (Billing, Payments & Finance)** and **Module 12 (Security, Compliance & Reliability)** built on Fastify, TypeScript, and a robust multi-database layout.
 
 ---
 
-## 🏗️ Multi-Database Architecture
+## 🏗️ Multi-Database & Storage Architecture
 
-To balance extreme document flexibility with strict financial ACID compliance, data is split across three isolated tiers:
+To achieve extreme document schema flexibility for repair variants while maintaining absolute financial ACID guarantees, data operations are strictly isolated across three database layers:
 
-| Database Engine | Provider / Tooling | Target Collections & Tables | Operational Purpose |
+| Database Engine | Provider / Tooling | Target Collections & Tables | Operational Purpose & Scoping |
 | :--- | :--- | :--- | :--- |
-| **MongoDB Atlas** | Mongoose ODM | `tenants`, `users`, `customers`, `tickets`, `devices`, `inventory_items`, `leads`, `notifications` | **Primary Store:** Multi-tenant schemas, high-volume operational documents, configurations, and dynamic custom fields. |
-| **PostgreSQL** | Supabase / PG Pool | `invoices`, `payments`, `estimates`, `audit_logs_immutable`, `subscriptions` | **Financial Ledger:** Legally compliant ACID transactions, revenue logging, and tamper-proof billing records. |
-| **Redis Cloud** | Node-Redis Client | Active login tokens, session caches, rate-limit counters, system queues, and concurrent stock locks. | **Performance Layer:** Distributed session management, pub/sub adapters, and query cache-warming. |
+| **MongoDB Atlas** | Mongoose ODM | `tenants`, `users`, `customers`, `tickets`, `devices`, `inventory_items`, `leads`, `notifications` | **Primary Operational Store:** Manages flexible multi-tenant schemas, high-volume documents, workspace configurations, and dynamic custom field layouts. |
+| **PostgreSQL** | Supabase / PG Pool | `invoices`, `payments`, `estimates`, `audit_logs_immutable`, `subscriptions` | **Financial Ledger:** Mandated for legally compliant ACID transactions, revenue recording, and tamper-proof billing history. |
+| **Redis Cloud** | Node-Redis Client | Token blocklists, active session cache keys, rate-limit counters, system queues, and microsecond concurrency locks. | **Performance & Performance Layer:** In-memory session tracking, pub/sub communication routing, and concurrent stock reservation safeguards. |
+| **Cloudinary** | Cloudinary CDN | Secure URL binaries, static corporate branding assets, PDF structures | **Binary Storage:** Highly optimized endpoint for storing customer device damage pictures, before/after records, and generated invoice sheets. |
 
 ---
 
-## 🛠️ Feature Modules Summary
+## 🛠️ Advanced Module & Logic Deep-Dive
 
-### 💳 Module 5: Billing & Payments
-* **One-Click Generation:** Instantly builds immutable invoices derived from customer-approved line-item estimates.
-* **Localized Payment Gateways:** Dedicated integration endpoints matching global processing (Stripe, PayPal) alongside native Pakistani mobile wallets (JazzCash, EasyPaisa).
-* **Split Settlements:** Core engines tracking pending due structures, partial token entries, installment plans, and manager-approved refunds.
+### 💳 Module 5: Billing & Payments Core
+* **Automated Invoice Generation:** Converts customer-approved line-item estimates into immutable financial records with one click, securely pulling nested arrays of labor and parts directly to the SQL ledger.
+* **Idempotency Safeguards:** Every single incoming transaction request generates an internal `idempotencyKey` string formatted directly as `tenantId:invoiceId:gateway:amount` to entirely eliminate double-charging under unstable network dropouts.
+* **Gateway State Splitting:** Dynamically routes application logic based on the user's chosen payment processor:
+  * *Offline Gateways (Cash/Bank Transfer):* Instantly flags state as `paid`, populates `paidAt` logs, and appends reference notes.
+  * *Online Gateways (Stripe/PayPal):* Triggers automated processing pipelines, yields valid cryptographic signatures (`clientSecret`), and shifts states to `pending` while awaiting secure webhook resolutions.
+  * *Localized Mobile Wallets:* Custom routing paths designed for Pakistani transaction structures (**JazzCash** and **EasyPaisa**), handling mobile number validation prompts and interactive verification simulations.
+* **Privileged Rollback Controls:** Enforces rigid role boundaries on `/api/payments/refund` controllers, entirely dropping execution payloads unless the request is signed by an authenticated `owner` or `manager`.
 
-### 🚨 Module 12: Security & Compliance
-* **Append-Only Auditing:** Immutable system logging tracking administrator behaviors, access locations, user agents, and explicit schema data diff changes (`oldValues` vs `newValues`) with absolute zero update/delete permissions.
-* **Session Telemetry:** Real-time visibility into active login instances allowing explicit token revocations via an immediate Redis blocklist.
-* **Tenant Isolation Middleware:** Layer 1 route-level middleware stripping incoming JWT credentials to automatically enforce `tenant_id` query validation boundaries.
-
----
-
-## 📡 API Routing Registry
-
-### 🟢 Platform Health
-* `GET /health` — Verifies engine uptime, environment variables state, and container health metrics.
-
-### 🟣 Module 5: Financial Services
-* `GET /api/billing/invoices` — Pulls tenant-scoped billing documents matching active route authorizations.
-* `POST /api/billing/invoices` — Spins up a fresh compliance ledger record from an active approved estimate.
-* `POST /api/payments` — Fires the automated payment intent parser (mounts Stripe client secrets or triggers mobile wallet verification steps).
-* `POST /api/payments/refund` — Validates role permissions and maps transaction rollbacks directly against the primary ledger.
-
-### 🔵 Module 12: Compliance Infrastructure
-* `GET /api/security/audit-logs` — Administrative tracking stream segmented cleanly by target error levels (`info`, `warning`, `critical`).
-* `GET /api/security/sessions` — Pulls active token device metadata mapped to your workspace.
-* `DELETE /api/security/sessions` — Invalidates target session keys, instantly expelling unauthorized hardware from the server cache.
+### 🚨 Module 12: Security, Compliance & System Reliability
+* **Tamper-Proof Audit Tracking:** Writes comprehensive operational tracking streams to an append-only configuration database using localized severities (`info`, `warning`, `critical`). Stores full historical delta objects containing a complete side-by-side snapshot:
+  * `oldValues`: The raw system record snapshot *before* the structural modification.
+  * `newValues`: The updated system record state *after* the structural execution was validated.
+* **Strict SQL Invariant:** The database client strictly blocks all incoming `UPDATE` or `DELETE` requests aimed at the immutable security tables, assuring unalterable logs for compliance.
+* **Session Jail & Active Revocation:** Tracks active computing hardware signatures, browser engines, IP strings, and approximate locations. Revoking a session pushes the user's active `sessionId` straight into a sliding Redis blocklist, instantly dropping their API request capability within milliseconds.
+* **Route Isolation Middleware:** Core route guards intercept all dashboard HTTP headers to verify and parse secure `httpOnly` JWT cookies, explicitly scoping query boundaries inside an injected `tenant_id` database partition.
 
 ---
 
-## 🚀 Execution Guide
+## 📡 API Routing Architecture
 
-### Local Development Running
+### 🟢 Platform Monitoring Framework
+* `GET /health` — Evaluates server health status, active runtime environment flags, version trackers, and timestamp strings.
+
+### 🟣 Module 5: Financial Services Pipeline
+* `GET /api/billing/invoices` — Fetches active invoice matrices cleanly scoped to the validated `tenant_id`.
+* `POST /api/billing/invoices` — Allocates a fresh financial ledger line item tied explicitly to an approved work estimate id.
+* `POST /api/payments` — Validates processing requests, matching payload entries to initiate local mobile wallet loops or global card elements.
+* `POST /api/payments/refund` — Evaluates manager/owner authorizations to issue point-of-sale transaction rollbacks.
+
+### 🔵 Module 12: Administrative Compliance Logging
+* `GET /api/security/audit-logs` — Administrative stream tracking real-time user actions, filterable by target severities and user identities.
+* `GET /api/security/sessions` — Collects and displays active, verified workspace session arrays currently holding platform permissions.
+* `DELETE /api/security/sessions` — Broadcasts an administrative log-out command across the node pool, severing unauthorized hardware connections via the Redis cache.
+
+---
+
+## 🚀 Local Deployment & System Run Instructions
+
+### 1. Environment Configuration (`.env`)
+Create a custom system environment instance in the root directory:
 ```bash
-# Install the exact Node development dependencies
-npm install
-
-# Run hot-reloading development pipeline via nodemon + ts-node
-npm run dev
+touch .env
