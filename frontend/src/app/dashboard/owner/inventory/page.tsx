@@ -109,14 +109,14 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
       {/* ── Header ─────────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Inventory</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Parts catalog &amp; stock levels</p>
+          <h1 className="text-2xl font-black text-foreground">Inventory</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Parts catalog & stock levels</p>
         </div>
         {isOwner && (
           <a
             href={`${rolePath}/new`}
             id="add-part-btn"
-            className="inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
+            className="inline-flex items-center gap-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-xl shadow-md hover:shadow-lg transition-all active:scale-[0.98]"
           >
             <Plus size={16} />
             Add Part
@@ -126,28 +126,28 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
 
       {/* ── Status Alert Banners ──────────────────────────────────────────── */}
       {data && data.outOfStockCount > 0 && (
-        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-2xl px-5 py-4">
+        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-2xl px-5 py-4">
           <AlertTriangle size={20} className="text-red-500 shrink-0" />
           <div>
-            <p className="text-sm font-bold text-red-800">
+            <p className="text-sm font-bold text-red-800 dark:text-red-400">
               🚫 {data.outOfStockCount} part{data.outOfStockCount !== 1 ? "s are" : " is"} completely out of stock
             </p>
-            <p className="text-xs text-red-600 mt-0.5">Restock these parts to fulfil repairs</p>
+            <p className="text-xs text-red-600 dark:text-red-500 mt-0.5">Restock these parts to fulfil repairs</p>
           </div>
         </div>
       )}
       {data && data.lowStockCount > 0 && (
-        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+        <div className="flex items-center gap-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-2xl px-5 py-4">
           <AlertTriangle size={20} className="text-amber-500 shrink-0" />
           <div>
-            <p className="text-sm font-bold text-amber-800">
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-400">
               ⚠ {data.lowStockCount} part{data.lowStockCount !== 1 ? "s are" : " is"} running low on stock
             </p>
-            <p className="text-xs text-amber-600 mt-0.5">Stock is at or below each part&apos;s alert threshold</p>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">Stock is at or below each part's alert threshold</p>
           </div>
           <button
             onClick={() => handleLowStock(!lowStockOnly)}
-            className="ml-auto text-xs font-bold text-amber-600 underline underline-offset-2 hover:text-amber-800 transition-colors whitespace-nowrap"
+            className="ml-auto text-xs font-bold text-amber-600 dark:text-amber-500 underline underline-offset-2 hover:text-amber-800 dark:hover:text-amber-400 transition-colors whitespace-nowrap"
           >
             {lowStockOnly ? "Show All" : "Show Low Only"}
           </button>
@@ -155,28 +155,28 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
       )}
 
       {/* ── Filters ───────────────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
+      <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             id="inventory-search"
             type="text"
             value={search}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Search by name or SKU…"
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-muted border border-border rounded-xl text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
           />
         </div>
 
         {/* Category filter */}
         <div className="relative min-w-[160px]">
-          <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <select
             id="category-filter"
             value={category}
             onChange={e => handleCategory(e.target.value)}
-            className="w-full pl-8 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none cursor-pointer"
+            className="w-full pl-8 pr-4 py-2.5 text-sm bg-muted border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none cursor-pointer"
           >
             <option value="">All Categories</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -190,7 +190,7 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
           className={`inline-flex items-center gap-2 text-sm font-bold px-4 py-2.5 rounded-xl border transition-all ${
             lowStockOnly
               ? "bg-red-600 text-white border-red-600 shadow-md"
-              : "bg-white text-slate-600 border-slate-200 hover:border-red-300 hover:text-red-600"
+              : "bg-card text-muted-foreground border-border hover:border-red-300 hover:text-red-600"
           }`}
         >
           <TrendingDown size={14} />
@@ -200,7 +200,7 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
         {/* Refresh */}
         <button
           onClick={() => fetchParts(search, category, lowStockOnly)}
-          className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-500 hover:bg-slate-100 transition-all"
+          className="p-2.5 rounded-xl bg-muted border border-border text-muted-foreground hover:bg-muted/80 transition-all"
           title="Refresh"
         >
           <RefreshCw size={15} />
@@ -208,10 +208,10 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
       </div>
 
       {/* ── Table ────────────────────────────────────────────────────────────── */}
-      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
         {/* Loading */}
         {loading && (
-          <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
+          <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
             <Loader2 className="animate-spin w-5 h-5" />
             <span className="text-sm font-medium">Loading parts…</span>
           </div>
@@ -219,24 +219,24 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
 
         {/* Error */}
         {!loading && error && (
-          <div className="flex items-center gap-3 m-6 bg-red-50 border border-red-100 rounded-xl p-4">
-            <AlertTriangle size={16} className="text-red-400" />
-            <p className="text-sm font-semibold text-red-600">{error}</p>
+          <div className="flex items-center gap-3 m-6 bg-destructive/10 border border-destructive/20 rounded-xl p-4">
+            <AlertTriangle size={16} className="text-destructive" />
+            <p className="text-sm font-semibold text-destructive">{error}</p>
           </div>
         )}
 
         {/* Empty state */}
         {!loading && !error && data?.parts.length === 0 && (
           <div className="text-center py-20">
-            <Package size={40} className="mx-auto text-slate-200 mb-3" />
-            <p className="font-bold text-slate-500">No parts in inventory</p>
-            <p className="text-sm text-slate-400 mt-1">
+            <Package size={40} className="mx-auto text-muted-foreground/30 mb-3" />
+            <p className="font-bold text-muted-foreground">No parts in inventory</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">
               {search || category || lowStockOnly ? "Try adjusting your filters" : "Add your first part to get started"}
             </p>
             {!search && !category && !lowStockOnly && isOwner && (
               <a
                 href={`${rolePath}/new`}
-                className="mt-4 inline-flex items-center gap-2 bg-blue-600 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-blue-700 transition-all"
+                className="mt-4 inline-flex items-center gap-2 bg-primary text-primary-foreground font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-primary/90 transition-all"
               >
                 <Plus size={15} /> Add First Part
               </a>
@@ -249,9 +249,9 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
+                <tr className="bg-muted border-b border-border">
                   {["Part Name", "SKU", "Category", "Stock", "Limit", "Cost Price", "Sell Price", "Actions"].map(h => (
-                    <th key={h} className="text-left text-xs font-bold text-slate-400 uppercase tracking-widest px-5 py-3 whitespace-nowrap">{h}</th>
+                    <th key={h} className="text-left text-xs font-bold text-muted-foreground uppercase tracking-widest px-5 py-3 whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -262,15 +262,15 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
                     return (
                       <tr
                         key={part._id}
-                        className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${
-                          isOut ? "bg-red-50/60" : isLow ? "bg-amber-50/40" : ""
+                        className={`border-b border-border hover:bg-muted/50 transition-colors ${
+                          isOut ? "bg-red-50/60 dark:bg-red-950/20" : isLow ? "bg-amber-50/40 dark:bg-amber-950/20" : ""
                         }`}
                       >
                       <td className="px-5 py-3.5">
-                        <span className="font-bold text-slate-800 text-sm">{part.name}</span>
+                        <span className="font-bold text-card-foreground text-sm">{part.name}</span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <code className="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{part.sku}</code>
+                        <code className="text-xs font-mono font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">{part.sku}</code>
                       </td>
                       <td className="px-5 py-3.5">
                         <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
@@ -280,10 +280,10 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
                       <td className="px-5 py-3.5">
                         <StockBadge qty={part.quantity} limit={part.lowStockLimit} />
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-500 font-medium">
+                      <td className="px-5 py-3.5 text-sm text-muted-foreground font-medium">
                         {part.lowStockLimit}
                       </td>
-                      <td className="px-5 py-3.5 text-sm text-slate-600 font-semibold">
+                      <td className="px-5 py-3.5 text-sm text-card-foreground font-semibold">
                         {formatPKR(part.costPrice)}
                       </td>
                       <td className="px-5 py-3.5 text-sm font-bold text-emerald-700">
@@ -305,7 +305,7 @@ function InventoryContent({ rolePath }: { rolePath: string }) {
             </table>
 
             {/* Footer */}
-            <div className="px-5 py-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400 font-medium">
+            <div className="px-5 py-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground font-medium">
               <span>{data.total} total part{data.total !== 1 ? "s" : ""}</span>
               <div className="flex items-center gap-3">
                 {data.outOfStockCount > 0 && (
@@ -332,3 +332,5 @@ export default function OwnerInventoryPage() {
     </DashboardShell>
   );
 }
+
+// Made with Bob

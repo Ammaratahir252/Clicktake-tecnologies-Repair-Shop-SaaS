@@ -52,7 +52,7 @@ export default function AuditLogsPage() {
     if (action.includes("REGISTER")) return "bg-emerald-100 text-emerald-700";
     if (action.includes("ERROR") || action.includes("FAILED")) return "bg-red-100 text-red-700";
     if (action.includes("PASSWORD")) return "bg-amber-100 text-amber-700";
-    return "bg-slate-100 text-slate-700";
+    return "bg-muted text-muted-foreground";
   };
 
   const filters = ["All", "AUTH_LOGIN", "AUTH_REGISTER", "AUTH_LOGOUT", "AUTH_PASSWORD_RESET_REQUEST"];
@@ -61,37 +61,37 @@ export default function AuditLogsPage() {
     <DashboardShell requiredRole="owner">
       {() => (
         <div className="space-y-6">
-          <h1 className="text-2xl font-black text-slate-900">Audit Logs</h1>
+          <h1 className="text-2xl font-black text-foreground">Audit Logs</h1>
 
           <div className="flex flex-wrap gap-2">
             {filters.map(f => (
               <button key={f} onClick={() => setFilter(f)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${filter === f ? "bg-slate-900 text-white shadow-md" : "bg-white text-slate-500 border border-slate-200 hover:border-slate-300"
+                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${filter === f ? "bg-primary text-primary-foreground shadow-md" : "bg-card text-muted-foreground border border-border hover:border-border/80"
                   }`}>
                 {f}
               </button>
             ))}
           </div>
 
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
             {loading ? (
-              <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
                 <Loader2 className="animate-spin w-8 h-8 mb-4" />
                 <p>Loading audit trail...</p>
               </div>
             ) : error ? (
               <div className="p-6">
-                <div className="bg-red-50 text-red-600 p-4 rounded-xl flex items-center gap-3 font-semibold">
+                <div className="bg-destructive/10 text-destructive p-4 rounded-xl flex items-center gap-3 font-semibold border border-destructive/20">
                   <ShieldAlert className="w-5 h-5" />{error}
                 </div>
               </div>
             ) : logs.length === 0 ? (
-              <div className="text-center py-20 text-slate-500 font-medium">No logs found for this filter.</div>
+              <div className="text-center py-20 text-muted-foreground font-medium">No logs found for this filter.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-100 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    <tr className="bg-muted border-b border-border text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">
                       <th className="px-6 py-4">Action</th>
                       <th className="px-6 py-4">User ID</th>
                       <th className="px-6 py-4">Entity</th>
@@ -99,18 +99,18 @@ export default function AuditLogsPage() {
                       <th className="px-6 py-4">Date & Time</th>
                     </tr>
                   </thead>
-                  <tbody className="text-sm font-medium text-slate-700 divide-y divide-slate-50">
+                  <tbody className="text-sm font-medium text-card-foreground divide-y divide-border">
                     {logs.map((log) => (
-                      <tr key={log._id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={log._id} className="hover:bg-muted/50 transition-colors">
                         <td className="px-6 py-4">
                           <span className={`px-2.5 py-1 rounded-md text-[10px] font-black tracking-wider uppercase ${getActionColor(log.action)}`}>
                             {log.action}
                           </span>
                         </td>
-                        <td className="px-6 py-4 font-mono text-xs text-slate-500">{log.userId}</td>
+                        <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{log.userId}</td>
                         <td className="px-6 py-4">{log.entity}</td>
                         <td className="px-6 py-4 font-mono text-xs">{log.ipAddress || "N/A"}</td>
-                        <td className="px-6 py-4 text-slate-500">{new Date(log.createdAt).toLocaleString()}</td>
+                        <td className="px-6 py-4 text-muted-foreground">{new Date(log.createdAt).toLocaleString()}</td>
                       </tr>
                     ))}
                   </tbody>

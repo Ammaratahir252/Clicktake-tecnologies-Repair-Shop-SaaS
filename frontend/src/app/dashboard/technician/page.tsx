@@ -14,6 +14,7 @@
  * - CANNOT: process payments, see other technicians' tickets, manage inventory
  */
 import DashboardShell from "@/components/DashboardShell";
+import Link from "next/link";
 import { Wrench, Brain, Clock, Camera, ChevronRight, ShieldCheck, Info } from "lucide-react";
 
 const MODULES = [
@@ -30,52 +31,52 @@ export default function TechnicianDashboard() {
         <div className="space-y-6">
           {/* Modules */}
           <section>
-            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">Your Tools</h2>
+            <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">Your Tools</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {MODULES.map(({ key, icon: Icon, title, desc, href, color }) => (
-                <a key={key} href={href}
-                  className="bg-white border border-slate-100 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all group active:scale-[0.98]">
+                <Link key={key} href={href}
+                  className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-border/80 transition-all group active:scale-[0.98]">
                   <div className={`${color} w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-md`}>
                     <Icon className="text-white w-5 h-5" />
                   </div>
                   <div className="flex-1">
-                    <p className="font-bold text-slate-800 text-sm">{title}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+                    <p className="font-bold text-card-foreground text-sm">{title}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
                   </div>
-                  <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
-                </a>
+                  <ChevronRight size={16} className="text-muted-foreground/50 group-hover:text-muted-foreground shrink-0 transition-colors" />
+                </Link>
               ))}
             </div>
           </section>
 
           {/* Restrictions */}
-          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-start gap-3">
-            <ShieldCheck size={18} className="text-amber-600 shrink-0 mt-0.5" />
+          <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-2xl px-5 py-4 flex items-start gap-3">
+            <ShieldCheck size={18} className="text-amber-600 dark:text-amber-500 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-bold text-amber-800">Technician Access</p>
-              <p className="text-xs text-amber-700 mt-1">
+              <p className="text-sm font-bold text-amber-800 dark:text-amber-400">Technician Access</p>
+              <p className="text-xs text-amber-700 dark:text-amber-500 mt-1">
                 You can only see tickets assigned to you. You cannot process payments, view other technicians' tickets, or manage inventory stock levels.
               </p>
             </div>
           </div>
 
           {/* Quick status guide */}
-          <div className="bg-white border border-slate-100 rounded-2xl p-5">
+          <div className="bg-card border border-border rounded-2xl p-5">
             <div className="flex items-center gap-2 mb-4">
               <Info size={16} className="text-blue-500" />
-              <h3 className="font-bold text-slate-800 text-sm">Ticket Status Flow</h3>
+              <h3 className="font-bold text-card-foreground text-sm">Ticket Status Flow</h3>
             </div>
             <div className="flex flex-wrap gap-2">
               {["received", "diagnosed", "in_repair", "ready", "delivered"].map((status, i, arr) => (
                 <div key={status} className="flex items-center gap-2">
-                  <span className="bg-slate-100 text-slate-600 text-xs font-bold px-3 py-1.5 rounded-full capitalize">
+                  <span className="bg-muted text-muted-foreground text-xs font-bold px-3 py-1.5 rounded-full capitalize">
                     {status.replace("_", " ")}
                   </span>
-                  {i < arr.length - 1 && <span className="text-slate-300 text-xs">→</span>}
+                  {i < arr.length - 1 && <span className="text-muted-foreground/50 text-xs">→</span>}
                 </div>
               ))}
             </div>
-            <p className="text-xs text-slate-400 mt-3">Never skip steps. Invalid status jumps are blocked by the system.</p>
+            <p className="text-xs text-muted-foreground mt-3">Never skip steps. Invalid status jumps are blocked by the system.</p>
           </div>
         </div>
       )}

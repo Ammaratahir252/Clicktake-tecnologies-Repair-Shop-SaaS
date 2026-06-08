@@ -1,12 +1,8 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
-// Using relative path to ensure the compiler finds the file
 import { Role } from '../lib/enums';
 
-/**
- * Interface representing the User document in MongoDB
- */
 export interface IUser extends Document {
-  tenantId: mongoose.Types.ObjectId; // Multi-tenant identifier
+  tenantId?: mongoose.Types.ObjectId;
   name: string;
   email: string;
   password: string;
@@ -21,15 +17,13 @@ export interface IUser extends Document {
   tokenVersion: number;
 }
 
-/**
- * User Schema Definition
- */
 const userSchema = new Schema<IUser>(
   {
     tenantId: { 
       type: Schema.Types.ObjectId, 
       ref: 'Tenant', 
-      required: true 
+      required: false,
+      default: null
     },
     name: { 
       type: String, 
@@ -79,14 +73,8 @@ const userSchema = new Schema<IUser>(
   }
 );
 
-/**
- * INDEXES
- * Ensures that an email is unique within a specific tenant (shop).
- * This allows the same email to exist in different shops if necessary.
- */
-userSchema.index({ tenantId: 1, email: 1 }, { unique: true });
+userSchema.index({ tenantId: 1, email: 1 }, { unique: true, sparse: true });
 
-// Export the model, ensuring we don't redefine it if it already exists
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', userSchema, 'users');
 
 export default User;
