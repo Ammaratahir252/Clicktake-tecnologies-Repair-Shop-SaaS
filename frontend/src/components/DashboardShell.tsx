@@ -179,7 +179,7 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     localStorage.clear();
     sessionStorage.clear();
     document.cookie = "token=; Max-Age=0; path=/;";
-    window.location.replace("/");
+    window.location.replace("/login");
   };
 
   if (!user) {
