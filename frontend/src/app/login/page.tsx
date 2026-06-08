@@ -4,226 +4,278 @@ import { useState } from "react";
 import axios from "axios";
 import { setToken } from "@/lib/auth.helper";
 import { getRoleHome } from "@/lib/rbac";
-import { Eye, EyeOff, Lock, Mail, LogIn, Loader2, Sparkles, ShieldCheck } from "lucide-react";
+import {
+  Eye, EyeOff, Lock, Mail, LogIn, Loader2,
+  ShieldCheck, Wrench, ArrowRight, ArrowLeft, Zap, Clock, Star
+} from "lucide-react";
 import Link from "next/link";
 
-/**
- * ENHANCED LOGIN PAGE — Beautiful Design with Animations
- * 
- * Features:
- * - Smooth animations and transitions
- * - Gradient backgrounds
- * - Glass morphism effects
- * - Interactive hover states
- * - Role-based routing after login
- */
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
+  const [email,       setEmail]       = useState("");
+  const [password,    setPassword]    = useState("");
+  const [isLoading,   setIsLoading]   = useState(false);
+  const [errorMsg,    setErrorMsg]    = useState("");
+  const [showPw,      setShowPw]      = useState(false);
+  const [isLocked,    setIsLocked]    = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    setErrorMessage("");
+    setErrorMsg("");
     setIsLocked(false);
 
     try {
-      const response = await axios.post("/api/auth/login", { email, password });
-      const token = response.data.data?.token || response.data.token;
-      const user  = response.data.data?.user  || response.data.user;
+      const res   = await axios.post("/api/auth/login", { email, password });
+      const token = res.data.data?.token || res.data.token;
+      const user  = res.data.data?.user  || res.data.user;
 
-      if (!token || !user) {
-        setErrorMessage("Authentication failed: Invalid response from server.");
-        return;
-      }
+      if (!token || !user) { setErrorMsg("Authentication failed: Invalid server response."); return; }
 
-      // Persist token + full user object
       setToken(token, user);
-
-      // Redirect to role-specific dashboard
-      const destination = getRoleHome(user.role);
-      window.location.replace(destination);
-    } catch (error: any) {
-      const status = error.response?.status;
-      const message = error.response?.data?.message;
-
-      if (status === 423) {
-        setIsLocked(true);
-        setErrorMessage(message || "Account locked. Too many failed attempts. Try again in 15 minutes.");
-      } else if (status === 401) {
-        setErrorMessage(message || "Invalid credentials. Please verify your details.");
-      } else {
-        setErrorMessage(message || "Something went wrong. Please try again.");
-      }
+      window.location.replace(getRoleHome(user.role));
+    } catch (err: any) {
+      const status  = err.response?.status;
+      const message = err.response?.data?.message;
+      if (status === 423) { setIsLocked(true); setErrorMsg(message || "Account locked. Try again in 15 minutes."); }
+      else if (status === 401) setErrorMsg(message || "Invalid credentials. Please check your details.");
+      else setErrorMsg(message || "Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  const features = [
+    { icon: Zap,   text: "Real-time repair tracking" },
+    { icon: Clock, text: "Live job & delivery updates" },
+    { icon: Star,  text: "Multi-role team management" },
+  ];
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-purple-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000"></div>
+    <div className="min-h-screen flex bg-background">
+
+      {/* ═══ LEFT PANEL — Brand / Features ═══════════════════════════════════ */}
+      <div
+        className="hidden lg:flex lg:w-1/2 xl:w-[55%] flex-col justify-between p-12 relative overflow-hidden"
+        style={{ background: "linear-gradient(145deg, #1a1f35 0%, #212631 50%, #1D222B 100%)" }}
+      >
+        {/* Decorative blobs */}
+        <div style={{ position:"absolute",top:"-80px",left:"-80px",width:"360px",height:"360px",
+          background:"radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%)",
+          borderRadius:"50%", pointerEvents:"none" }} />
+        <div style={{ position:"absolute",bottom:"-60px",right:"-60px",width:"300px",height:"300px",
+          background:"radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 70%)",
+          borderRadius:"50%", pointerEvents:"none" }} />
+        <div style={{ position:"absolute",top:"40%",right:"10%",width:"200px",height:"200px",
+          background:"radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)",
+          borderRadius:"50%", pointerEvents:"none" }} />
+
+        {/* Logo */}
+        <div className="relative z-10">
+          <div className="flex items-center gap-3 mb-2">
+            <div style={{ width:44,height:44,background:"linear-gradient(135deg,#3b82f6,#6366f1)",
+              borderRadius:14, display:"flex",alignItems:"center",justifyContent:"center",
+              boxShadow:"0 8px 24px rgba(59,130,246,0.35)" }}>
+              <Wrench className="text-white w-5 h-5" />
+            </div>
+            <div>
+              <p style={{ color:"#fff",fontWeight:900,fontSize:18,letterSpacing:"-0.5px",lineHeight:1 }}>
+                Dibnow
+              </p>
+              <p style={{ color:"rgba(255,255,255,0.4)",fontSize:10,fontWeight:700,
+                letterSpacing:"0.12em",textTransform:"uppercase" }}>
+                RepairSaaS
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Main hero text */}
+        <div className="relative z-10">
+          <h1 style={{ color:"#fff",fontWeight:900,fontSize:"clamp(32px,4vw,52px)",
+            lineHeight:1.1,letterSpacing:"-1.5px",marginBottom:20 }}>
+            Manage your<br />
+            <span style={{ background:"linear-gradient(90deg,#60a5fa,#a78bfa)",
+              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>
+              repair shop
+            </span><br />
+            smarter.
+          </h1>
+          <p style={{ color:"rgba(255,255,255,0.5)",fontSize:16,lineHeight:1.7,maxWidth:360,marginBottom:40 }}>
+            From intake to delivery — track every repair, manage your team,
+            and keep customers in the loop.
+          </p>
+
+          {/* Feature pills */}
+          <div className="flex flex-col gap-3">
+            {features.map(({ icon: Icon, text }) => (
+              <div key={text} className="flex items-center gap-3">
+                <div style={{ width:36,height:36,
+                  background:"rgba(59,130,246,0.15)",borderRadius:10,
+                  border:"1px solid rgba(59,130,246,0.25)",
+                  display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                  <Icon size={16} style={{ color:"#60a5fa" }} />
+                </div>
+                <span style={{ color:"rgba(255,255,255,0.75)",fontWeight:600,fontSize:14 }}>{text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Bottom credit */}
+        <div className="relative z-10">
+          <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>
+            © 2026 DibnowRepairSaaS · All rights reserved
+          </p>
+        </div>
       </div>
 
-      {/* Login Card */}
-      <div className="relative w-full max-w-md scale-in">
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 rounded-[2.5rem] blur-2xl opacity-20"></div>
-        
-        <div className="relative bg-white/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-2xl border border-white/20">
-          {/* Header */}
-          <div className="text-center mb-8 slide-in-top">
-            <div className="relative inline-block mb-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-2xl blur-lg opacity-50 animate-pulse"></div>
-              <div className="relative bg-gradient-to-r from-blue-500 to-purple-600 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl">
-                <ShieldCheck className="text-white w-8 h-8" />
-              </div>
+      {/* ═══ RIGHT PANEL — Login Form ═════════════════════════════════════════ */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 sm:p-10 bg-background min-h-screen">
+
+        {/* Mobile logo */}
+        <div className="flex lg:hidden items-center gap-2.5 mb-8">
+          <div style={{ width:36,height:36,background:"linear-gradient(135deg,#3b82f6,#6366f1)",
+            borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <Wrench className="text-white w-4 h-4" />
+          </div>
+          <p className="text-foreground font-black text-lg">DibnowRepairSaaS</p>
+        </div>
+
+        <div className="w-full max-w-md">
+
+          {/* Back to home */}
+          <div className="mb-6">
+            <Link href="/" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground transition-colors">
+              <ArrowLeft size={15} />
+              Back to Home
+            </Link>
+          </div>
+
+          {/* Heading */}
+          <div className="mb-8">
+            <div style={{ display:"inline-flex",alignItems:"center",gap:8,
+              background:"rgba(59,130,246,0.1)",border:"1px solid rgba(59,130,246,0.2)",
+              borderRadius:999,padding:"6px 14px",marginBottom:16 }}>
+              <ShieldCheck size={13} className="text-blue-500" />
+              <span style={{ color:"#60a5fa",fontSize:12,fontWeight:700,letterSpacing:"0.05em" }}>
+                SECURE LOGIN
+              </span>
             </div>
-            <h2 className="text-4xl font-black text-slate-900 mb-2">
-              Welcome Back
+            <h2 className="text-foreground font-black text-3xl sm:text-4xl leading-tight mb-2"
+                style={{ letterSpacing:"-1px" }}>
+              Welcome back
             </h2>
-            <p className="text-slate-700 font-medium flex items-center justify-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-500" />
-              Sign in to your repair shop portal
+            <p className="text-muted-foreground text-sm font-medium">
+              Sign in to your repair shop portal to continue.
             </p>
           </div>
 
-          {/* Error Message */}
-          {errorMessage && (
-            <div className={`p-4 rounded-2xl text-sm mb-6 border text-center font-semibold shake ${
-              isLocked 
-                ? "bg-orange-50 text-orange-700 border-orange-200" 
-                : "bg-red-50 text-red-600 border-red-100"
+          {/* Error */}
+          {errorMsg && (
+            <div className={`p-3.5 rounded-xl text-sm mb-5 font-semibold text-center shake border ${
+              isLocked
+                ? "bg-orange-500/10 text-orange-400 border-orange-500/20"
+                : "bg-red-500/10 text-red-400 border-red-500/20"
             }`}>
-              {isLocked && "🔒 "}
-              {errorMessage}
+              {isLocked && "🔒 "}{errorMsg}
             </div>
           )}
 
-          {/* Login Form */}
+          {/* Form */}
           <form onSubmit={handleLogin} className="space-y-5">
-            {/* Email Field */}
-            <div className="group slide-in-left" style={{ animationDelay: "0.1s" }}>
-              <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider">
+
+            {/* Email */}
+            <div>
+              <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest mb-2">
                 Email Address
               </label>
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl opacity-0 group-focus-within:opacity-10 transition-opacity duration-300"></div>
-                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-blue-500 transition-colors duration-300" />
-                <input 
-                  type="email" 
+                <Mail size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="email"
                   placeholder="your@email.com"
-                  className="relative w-full p-4 pl-12 bg-slate-50/50 border-2 border-slate-200 rounded-2xl focus:border-blue-500 focus:bg-white text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-400"
-                  value={email} 
-                  onChange={(e) => setEmail(e.target.value)} 
-                  required 
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  className="w-full pl-11 pr-4 py-3.5 rounded-xl border border-border bg-card text-foreground
+                             placeholder:text-muted-foreground text-sm font-medium outline-none
+                             focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
+                             transition-all duration-200"
                 />
               </div>
             </div>
 
-            {/* Password Field */}
-            <div className="group slide-in-left" style={{ animationDelay: "0.2s" }}>
+            {/* Password */}
+            <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-bold text-slate-500 uppercase ml-1 tracking-wider">
+                <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest">
                   Password
                 </label>
-                <Link 
-                  href="/forgot-password" 
-                  className="text-xs font-semibold text-blue-600 hover:text-purple-600 transition-colors duration-300"
-                >
+                <Link href="/forgot-password"
+                      className="text-xs font-semibold text-blue-500 hover:text-blue-400 transition-colors">
                   Forgot password?
                 </Link>
               </div>
               <div className="relative">
-                <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-500 rounded-2xl opacity-0 group-focus-within:opacity-10 transition-opacity duration-300"></div>
-                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-blue-500 transition-colors duration-300" />
-                <input 
-                  type={showPassword ? "text" : "password"} 
+                <Lock size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type={showPw ? "text" : "password"}
                   placeholder="Enter your password"
-                  className="relative w-full p-4 pl-12 pr-12 bg-slate-50/50 border-2 border-slate-200 rounded-2xl focus:border-blue-500 focus:bg-white text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-400"
-                  value={password} 
-                  onChange={(e) => setPassword(e.target.value)} 
-                  required 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  className="w-full pl-11 pr-12 py-3.5 rounded-xl border border-border bg-card text-foreground
+                             placeholder:text-muted-foreground text-sm font-medium outline-none
+                             focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20
+                             transition-all duration-200"
                 />
-                <button 
-                  type="button" 
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-blue-600 transition-colors duration-300 focus:outline-none"
+                <button
+                  type="button"
+                  onClick={() => setShowPw(v => !v)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
                 >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                  {showPw ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
             </div>
 
-            {/* Submit Button */}
-            <button 
-              type="submit" 
+            {/* Submit */}
+            <button
+              type="submit"
               disabled={isLoading || isLocked}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold p-4 rounded-2xl hover:from-blue-700 hover:to-purple-700 disabled:from-slate-300 disabled:to-slate-400 transition-all duration-300 shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 slide-in-bottom"
-              style={{ animationDelay: "0.3s" }}
+              className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-xl
+                         font-bold text-sm text-white transition-all duration-200
+                         active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: isLoading || isLocked
+                ? "rgba(100,116,139,0.4)"
+                : "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
+                boxShadow: isLoading || isLocked ? "none" : "0 8px 24px rgba(59,130,246,0.35)" }}
             >
               {isLoading ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Authenticating...</span>
-                </>
+                <><Loader2 size={18} className="animate-spin" /><span>Signing in…</span></>
               ) : (
-                <>
-                  <LogIn className="w-5 h-5" />
-                  <span>Sign In</span>
-                </>
+                <><LogIn size={18} /><span>Sign In</span><ArrowRight size={16} className="ml-1 opacity-70" /></>
               )}
             </button>
           </form>
 
-          {/* Register Link */}
-          <div className="mt-8 text-center text-sm slide-in-bottom" style={{ animationDelay: "0.4s" }}>
-            <span className="text-slate-500 font-medium">Don't have an account? </span>
-            <Link 
-              href="/register" 
-              className="text-blue-600 font-bold hover:text-purple-600 transition-colors duration-300 underline-offset-4 hover:underline"
-            >
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 border-t border-border" />
+            <span className="text-xs text-muted-foreground font-semibold">OR</span>
+            <div className="flex-1 border-t border-border" />
+          </div>
+
+          {/* Register link */}
+          <div className="text-center">
+            <span className="text-muted-foreground text-sm">Don't have an account? </span>
+            <Link href="/register"
+                  className="text-blue-500 font-bold text-sm hover:text-blue-400 transition-colors underline-offset-4 hover:underline">
               Create Account
             </Link>
           </div>
-
-          {/* Decorative Elements */}
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-blue-400 to-purple-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-gradient-to-br from-purple-400 to-pink-500 rounded-full blur-2xl opacity-20 animate-pulse" style={{ animationDelay: "1s" }}></div>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes blob {
-          0%, 100% {
-            transform: translate(0px, 0px) scale(1);
-          }
-          33% {
-            transform: translate(30px, -50px) scale(1.1);
-          }
-          66% {
-            transform: translate(-20px, 20px) scale(0.9);
-          }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
     </div>
   );
 }
-
-// Made with Bob
