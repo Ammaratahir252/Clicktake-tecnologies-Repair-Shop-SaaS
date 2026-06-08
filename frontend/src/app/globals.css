@@ -1,12 +1,9 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* ── DM Sans from Google Fonts ───────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;0,9..40,900;1,9..40,400&display=swap');
-
-@layer base {
-  :root {
+:root {
     /* CoreUI-inspired Light Theme */
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -38,9 +35,9 @@
     --sidebar-accent-foreground: 210 40% 98%;
     --sidebar-border: 217.2 32.6% 17.5%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-  }
+}
 
-  .dark {
+.dark {
     /* ── Main page background: #1D222B ──────────────────────────────── */
     /* hsl(222, 22%, 14%) = #1D222B */
     --background: 222 22% 14%;
@@ -73,7 +70,6 @@
     --sidebar-accent-foreground: 210 40% 92%;
     --sidebar-border: 224 21% 22%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-  }
 }
 
 @layer base {
