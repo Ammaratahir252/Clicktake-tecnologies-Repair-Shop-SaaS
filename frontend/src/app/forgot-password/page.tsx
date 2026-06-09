@@ -3,47 +3,42 @@
 import { useState } from "react";
 import axios from "axios";
 import Link from "next/link";
-import { Mail, ArrowLeft, Loader2, KeyRound, Copy, CheckCheck, ArrowRight, Sparkles, ShieldAlert } from "lucide-react";
-
-/**
- * ENHANCED FORGOT PASSWORD PAGE — Beautiful Design with Animations
- * 
- * Features:
- * - Smooth transitions between stages
- * - Gradient backgrounds
- * - Glass morphism effects
- * - Interactive animations
- * - Token display with copy functionality
- */
+import {
+  Mail, ArrowLeft, Loader2, KeyRound, Copy, CheckCheck,
+  ArrowRight, Sparkles, ShieldAlert, Wrench, Clock, CheckCircle
+} from "lucide-react";
 
 type Stage = "form" | "success";
 
+/* ── Palette (matches landing page) ── */
+const BG     = "#fdf6ee";
+const BG2    = "#fef9f3";
+const BG3    = "#f5ede0";
+const ACCENT = "#1d4ed8";
+const ACCENT2= "#1e3a8a";
+const TEXT   = "#1c1917";
+const MUTED  = "#78716c";
+const BORDER = "#e7d9c8";
+
 export default function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [email,     setEmail]     = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [stage, setStage] = useState<Stage>("form");
-  const [resetToken, setResetToken] = useState("");
-  const [copied, setCopied] = useState(false);
+  const [error,     setError]     = useState("");
+  const [stage,     setStage]     = useState<Stage>("form");
+  const [resetToken,setResetToken]= useState("");
+  const [copied,    setCopied]    = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-
     try {
       const res = await axios.post("/api/auth/forgot-password", { email });
       const token = res.data?.data?.resetToken || res.data?.resetToken;
-      if (token) {
-        setResetToken(token);
-        setStage("success");
-      } else {
-        setError("Reset link generated but token missing. Check backend logs.");
-      }
+      if (token) { setResetToken(token); setStage("success"); }
+      else setError("Reset link generated but token missing. Check backend logs.");
     } catch (err: any) {
-      setError(
-        err.response?.data?.message || "Something went wrong. Please try again."
-      );
+      setError(err.response?.data?.message || "Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -54,207 +49,239 @@ export default function ForgotPasswordPage() {
       await navigator.clipboard.writeText(resetToken);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
-    } catch {
-      // fallback: select the text manually
-    }
+    } catch {}
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-amber-50 via-orange-50 to-red-50">
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-amber-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
-        <div className="absolute top-40 right-10 w-72 h-72 bg-orange-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-red-200 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000"></div>
+    <div style={{ minHeight:"100vh",display:"flex",background:BG,fontFamily:"'DM Sans',system-ui,sans-serif" }}>
+      <link rel="preconnect" href="https://fonts.googleapis.com"/>
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
+      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+
+      <style suppressHydrationWarning>{`
+        @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+        @keyframes float2{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-7px) rotate(1deg)}}
+        @keyframes spin{to{transform:rotate(360deg)}}
+        @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
+        .shake{animation:shake 0.4s ease}
+        .fade-up{animation:fadeUp 0.55s ease both}
+        *{box-sizing:border-box;margin:0;padding:0;}
+        ::selection{background:#bfdbfe;color:#1e3a8a;}
+      `}</style>
+
+      {/* ═══ LEFT PANEL — Brand ═══════════════════════════════════════════════ */}
+      <div style={{ display:"none" }} className="hidden lg:flex lg:w-[45%]">
+        <div style={{
+          flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between",
+          padding:56,position:"relative",overflow:"hidden",
+          background:`linear-gradient(160deg,${ACCENT} 0%,${ACCENT2} 55%,#0f172a 100%)`,
+        }}>
+          {/* Decorative rings */}
+          <div style={{ position:"absolute",top:"-80px",right:"-80px",width:500,height:500,borderRadius:"50%",border:"1px solid rgba(255,255,255,0.07)",pointerEvents:"none" }}/>
+          <div style={{ position:"absolute",top:"-40px",right:"-40px",width:340,height:340,borderRadius:"50%",border:"1px solid rgba(255,255,255,0.1)",pointerEvents:"none" }}/>
+          <div style={{ position:"absolute",bottom:"-60px",left:"5%",width:380,height:380,borderRadius:"50%",background:"radial-gradient(circle,rgba(255,255,255,0.06) 0%,transparent 70%)",pointerEvents:"none" }}/>
+          <svg style={{ position:"absolute",inset:0,width:"100%",height:"100%",pointerEvents:"none",opacity:0.04 }} aria-hidden>
+            <defs><pattern id="hatch3" patternUnits="userSpaceOnUse" width="40" height="40">
+              <path d="M0 40L40 0M-5 5L5-5M35 45L45 35" stroke="#fff" strokeWidth="0.8" fill="none"/>
+            </pattern></defs>
+            <rect width="100%" height="100%" fill="url(#hatch3)"/>
+          </svg>
+
+          {/* Logo */}
+          <div style={{ position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:14 }}>
+            <div style={{ width:52,height:52,background:"rgba(255,255,255,0.15)",borderRadius:16,border:"1px solid rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform:"rotate(-4deg)" }}>
+              <Wrench color="#fff" size={22}/>
+            </div>
+            <div>
+              <p style={{ color:"#fff",fontWeight:700,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>Dibnow</p>
+              <p style={{ color:"rgba(255,255,255,0.45)",fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase" }}>RepairSaaS</p>
+            </div>
+          </div>
+
+          {/* Main text */}
+          <div style={{ position:"relative",zIndex:1 }}>
+            <h1 style={{ color:"#fff",fontWeight:700,fontSize:"clamp(30px,3.2vw,50px)",lineHeight:1.1,letterSpacing:"-1.2px",marginBottom:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>
+              {stage === "form" ? (
+                <>Forgot your<br/><em style={{ fontStyle:"italic",background:"linear-gradient(90deg,#93c5fd,#fcd34d)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>password?</em></>
+              ) : (
+                <>Token sent<br/><em style={{ fontStyle:"italic",background:"linear-gradient(90deg,#86efac,#93c5fd)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>successfully.</em></>
+              )}
+            </h1>
+            <p style={{ color:"rgba(255,255,255,0.5)",fontSize:15,lineHeight:1.75,maxWidth:310,marginBottom:40 }}>
+              {stage === "form"
+                ? "No worries — enter your email and we'll generate a secure reset token for you right away."
+                : "Your reset token is ready. Copy it and use it on the next screen to set a new password."}
+            </p>
+
+            {/* Info cards */}
+            <div style={{ display:"flex",flexDirection:"column",gap:12 }}>
+              {[
+                { icon:ShieldAlert,  text:"Tokens expire after 1 hour",      color:"#fcd34d",bg:"rgba(252,211,77,0.12)" },
+                { icon:Clock,        text:"One token per email request",      color:"#93c5fd",bg:"rgba(147,197,253,0.12)" },
+                { icon:CheckCircle,  text:"Safe & encrypted reset process",   color:"#86efac",bg:"rgba(134,239,172,0.12)" },
+              ].map(({ icon:Icon, text, color, bg }) => (
+                <div key={text} style={{ display:"flex",alignItems:"center",gap:12 }}>
+                  <div style={{ width:38,height:38,background:bg,borderRadius:11,border:`1px solid ${color}30`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>
+                    <Icon size={16} color={color}/>
+                  </div>
+                  <span style={{ color:"rgba(255,255,255,0.7)",fontSize:13,fontWeight:600 }}>{text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Floating badge */}
+          <div style={{ position:"absolute",bottom:110,right:-18,
+            background:"#fff",borderRadius:16,padding:"12px 18px",
+            boxShadow:"0 16px 40px rgba(0,0,0,0.2)",border:`1px solid ${BORDER}`,
+            animation:"float2 4s ease infinite" }}>
+            <div style={{ display:"flex",alignItems:"center",gap:10 }}>
+              <div style={{ width:32,height:32,borderRadius:9,background:"#dbeafe",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                <KeyRound size={15} color={ACCENT}/>
+              </div>
+              <span style={{ fontSize:12,fontWeight:800,color:ACCENT }}>Secure Reset ✓</span>
+            </div>
+          </div>
+
+          <div style={{ position:"relative",zIndex:1 }}>
+            <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>© 2026 DibnowRepairSaaS</p>
+          </div>
+        </div>
       </div>
 
-      {/* Main Card */}
-      <div className="relative w-full max-w-md">
-        <div className="absolute inset-0 bg-gradient-to-r from-amber-400 to-orange-500 rounded-[2.5rem] blur-2xl opacity-20"></div>
-        
-        <div className="relative bg-white/80 backdrop-blur-xl p-10 rounded-[2.5rem] shadow-2xl border border-white/20">
+      {/* ═══ RIGHT PANEL — Form ═══════════════════════════════════════════════ */}
+      <div style={{ flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"40px 32px",background:BG,overflowY:"auto" }}>
 
-          {/* Header */}
-          <div className="text-center mb-8 slide-in-top">
-            <div className="relative inline-block mb-6">
-              <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-orange-600 rounded-2xl blur-lg opacity-50 animate-pulse"></div>
-              <div className="relative bg-gradient-to-r from-amber-500 to-orange-600 w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl">
-                <KeyRound className="text-white w-8 h-8" />
-              </div>
+        {/* Mobile logo */}
+        <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:32 }} className="lg:hidden">
+          <div style={{ width:40,height:40,background:`linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center" }}>
+            <Wrench color="#fff" size={18}/>
+          </div>
+          <p style={{ color:TEXT,fontWeight:700,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>DibnowRepairSaaS</p>
+        </div>
+
+        <div style={{ width:"100%",maxWidth:420 }}>
+
+          {/* Back */}
+          <div className="fade-up" style={{ marginBottom:28 }}>
+            <Link href="/login" style={{ display:"inline-flex",alignItems:"center",gap:6,fontSize:13,fontWeight:700,color:MUTED,textDecoration:"none" }}
+              onMouseEnter={e=>(e.currentTarget.style.color=TEXT)} onMouseLeave={e=>(e.currentTarget.style.color=MUTED)}>
+              <ArrowLeft size={15}/> Back to Login
+            </Link>
+          </div>
+
+          {/* Heading */}
+          <div className="fade-up" style={{ marginBottom:32,animationDelay:"0.05s" }}>
+            <div style={{ display:"inline-flex",alignItems:"center",gap:8,
+              background: stage==="success" ? "#d1fae5" : "#fef3c7",
+              border: stage==="success" ? "1px solid rgba(6,95,70,0.2)" : "1px solid rgba(245,158,11,0.25)",
+              borderRadius:999,padding:"7px 16px",marginBottom:18 }}>
+              <KeyRound size={13} color={stage==="success"?"#065f46":"#d97706"}/>
+              <span style={{ color:stage==="success"?"#065f46":"#d97706",fontSize:11,fontWeight:800,letterSpacing:"0.08em" }}>
+                {stage==="success" ? "TOKEN READY" : "PASSWORD RESET"}
+              </span>
             </div>
-            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-600 to-orange-600 mb-2">
-              {stage === "form" ? "Forgot Password?" : "Check Your Token"}
+            <h2 style={{ color:TEXT,fontWeight:700,fontSize:"clamp(28px,4vw,42px)",lineHeight:1.1,letterSpacing:"-1.2px",marginBottom:10,fontFamily:"'DM Serif Display',Georgia,serif" }}>
+              {stage==="form" ? "Forgot password?" : "Check your token"}
             </h2>
-            <p className="text-slate-600 font-medium text-sm flex items-center justify-center gap-2">
-              {stage === "form" ? (
-                <>
-                  <Sparkles className="w-4 h-4 text-amber-500" />
-                  Enter your email to get a reset token
-                </>
-              ) : (
-                <>
-                  <ShieldAlert className="w-4 h-4 text-orange-500" />
-                  Copy this token to reset your password
-                </>
-              )}
+            <p style={{ color:MUTED,fontSize:15,lineHeight:1.6 }}>
+              {stage==="form"
+                ? "Enter your email address and we'll send you a reset token."
+                : "Copy this token and use it to reset your password."}
             </p>
           </div>
 
-          {/* STAGE: Form */}
+          {/* ── FORM stage ── */}
           {stage === "form" && (
-            <div className="scale-in">
+            <div className="fade-up" style={{ animationDelay:"0.1s" }}>
               {error && (
-                <div className="bg-red-50 text-red-600 p-4 rounded-2xl text-sm mb-6 border border-red-200 text-center font-semibold shake">
+                <div className="shake" style={{ padding:"13px 16px",borderRadius:14,fontSize:13,fontWeight:700,background:"rgba(239,68,68,0.07)",color:"#dc2626",border:"1px solid rgba(239,68,68,0.18)",marginBottom:20 }}>
                   {error}
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="group slide-in-left" style={{ animationDelay: "0.1s" }}>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider">
+              <form onSubmit={handleSubmit} style={{ display:"flex",flexDirection:"column",gap:20 }}>
+                <div>
+                  <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>
                     Your Email Address
                   </label>
-                  <div className="relative">
-                    <div className="absolute inset-0 bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl opacity-0 group-focus-within:opacity-10 transition-opacity duration-300"></div>
-                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 w-5 h-5 group-focus-within:text-amber-500 transition-colors duration-300" />
+                  <div style={{ position:"relative" }}>
+                    <Mail size={15} style={{ position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
                     <input
-                      type="email"
-                      placeholder="you@business.com"
-                      className="relative w-full p-4 pl-12 bg-slate-50/50 border-2 border-slate-200 rounded-2xl focus:border-amber-500 focus:bg-white text-slate-900 outline-none transition-all duration-300 placeholder:text-slate-400"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
+                      type="email" placeholder="you@business.com"
+                      value={email} onChange={e => setEmail(e.target.value)} required
+                      style={{ width:"100%",paddingLeft:44,paddingRight:16,paddingTop:14,paddingBottom:14,borderRadius:14,border:`1.5px solid ${BORDER}`,background:"#fff",color:TEXT,fontSize:14,fontWeight:500,outline:"none",fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}
+                      onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(29,78,216,0.12)` }}
+                      onBlur={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}
                     />
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold p-4 rounded-2xl hover:from-amber-600 hover:to-orange-700 disabled:from-slate-300 disabled:to-slate-400 transition-all duration-300 shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 slide-in-bottom"
-                  style={{ animationDelay: "0.2s" }}
-                >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      <span>Generating Token...</span>
-                    </>
-                  ) : (
-                    <>
-                      <KeyRound className="w-5 h-5" />
-                      <span>Send Reset Token</span>
-                    </>
-                  )}
+                <button type="submit" disabled={isLoading}
+                  style={{ width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"16px 24px",borderRadius:14,border:"none",cursor:isLoading?"not-allowed":"pointer",fontWeight:800,fontSize:15,color:"#fff",fontFamily:"'DM Sans',sans-serif",background:isLoading?"#94a3b8":`linear-gradient(135deg,${ACCENT} 0%,${ACCENT2} 100%)`,boxShadow:isLoading?"none":`0 10px 32px rgba(29,78,216,0.28)`,transition:"all 0.2s",opacity:isLoading?0.6:1 }}
+                  onMouseEnter={e=>{ if(!isLoading){ (e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 14px 40px rgba(29,78,216,0.35)` }}}
+                  onMouseLeave={e=>{ (e.currentTarget as HTMLButtonElement).style.transform="none"; (e.currentTarget as HTMLButtonElement).style.boxShadow=isLoading?"none":`0 10px 32px rgba(29,78,216,0.28)` }}>
+                  {isLoading
+                    ? <><Loader2 size={18} style={{ animation:"spin 1s linear infinite" }}/><span>Generating Token…</span></>
+                    : <><KeyRound size={17}/><span>Send Reset Token</span><ArrowRight size={15} style={{ opacity:0.7 }}/></>
+                  }
                 </button>
               </form>
             </div>
           )}
 
-          {/* STAGE: Success / Token Display */}
+          {/* ── SUCCESS stage ── */}
           {stage === "success" && (
-            <div className="space-y-5 scale-in">
-              {/* Token Display Box */}
-              <div className="bg-gradient-to-br from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-5 slide-in-bottom" style={{ animationDelay: "0.1s" }}>
-                <p className="text-xs font-bold text-amber-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <ShieldAlert className="w-4 h-4" />
-                  Your Reset Token (Testing Mode)
-                </p>
-                <div className="flex items-center gap-2 bg-white rounded-xl p-3 border border-amber-200">
-                  <code className="flex-1 text-xs font-mono text-slate-700 break-all leading-relaxed select-all">
+            <div className="fade-up" style={{ animationDelay:"0.1s",display:"flex",flexDirection:"column",gap:16 }}>
+
+              {/* Token box */}
+              <div style={{ background:"#fff",border:`1.5px solid ${BORDER}`,borderRadius:18,padding:20,boxShadow:"0 4px 20px rgba(28,25,23,0.06)" }}>
+                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:14 }}>
+                  <div style={{ width:30,height:30,borderRadius:8,background:"#fef3c7",display:"flex",alignItems:"center",justifyContent:"center" }}>
+                    <ShieldAlert size={14} color="#d97706"/>
+                  </div>
+                  <p style={{ fontSize:11,fontWeight:800,color:"#d97706",textTransform:"uppercase",letterSpacing:"0.08em" }}>Your Reset Token</p>
+                  <span style={{ marginLeft:"auto",fontSize:11,fontWeight:600,color:MUTED,background:BG3,padding:"3px 9px",borderRadius:99,border:`1px solid ${BORDER}` }}>Testing Mode</span>
+                </div>
+                <div style={{ display:"flex",alignItems:"center",gap:10,background:BG2,borderRadius:12,padding:"12px 14px",border:`1px solid ${BORDER}` }}>
+                  <code style={{ flex:1,fontSize:11,fontFamily:"'DM Mono',Courier,monospace",color:TEXT,wordBreak:"break-all",lineHeight:1.6,userSelect:"all" }}>
                     {resetToken}
                   </code>
-                  <button
-                    onClick={copyToken}
-                    className="shrink-0 p-2 rounded-lg hover:bg-amber-100 text-amber-600 hover:text-amber-800 transition-all"
-                    title="Copy token"
-                  >
-                    {copied ? (
-                      <CheckCheck size={18} className="text-green-600" />
-                    ) : (
-                      <Copy size={18} />
-                    )}
+                  <button onClick={copyToken}
+                    style={{ flexShrink:0,padding:"8px 10px",borderRadius:9,background:copied?"#d1fae5":"#dbeafe",border:copied?"1px solid rgba(6,95,70,0.2)":"1px solid rgba(29,78,216,0.2)",cursor:"pointer",transition:"all 0.2s" }}>
+                    {copied ? <CheckCheck size={16} color="#065f46"/> : <Copy size={16} color={ACCENT}/>}
                   </button>
                 </div>
               </div>
 
-              {/* Info Notice */}
-              <div className="bg-orange-50 border-2 border-orange-200 rounded-2xl p-4 text-xs text-orange-800 font-semibold slide-in-bottom" style={{ animationDelay: "0.2s" }}>
-                <div className="flex items-start gap-2">
-                  <Sparkles className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="font-bold mb-1">⏰ Token expires in 1 hour</p>
-                    <p className="text-orange-700">Email delivery will replace this screen once a mail provider is configured (Resend/Nodemailer).</p>
-                  </div>
+              {/* Notice */}
+              <div style={{ background:"#fef3c7",border:"1px solid rgba(245,158,11,0.25)",borderRadius:14,padding:"14px 16px",display:"flex",gap:10,alignItems:"flex-start" }}>
+                <Sparkles size={14} color="#d97706" style={{ flexShrink:0,marginTop:1 }}/>
+                <div>
+                  <p style={{ fontSize:12,fontWeight:800,color:"#92400e",marginBottom:4 }}>⏰ Token expires in 1 hour</p>
+                  <p style={{ fontSize:12,color:"#a16207",lineHeight:1.55 }}>Email delivery will replace this once a mail provider is configured.</p>
                 </div>
               </div>
 
-              {/* CTA Buttons */}
-              <div className="space-y-3">
-                <Link
-                  href={`/reset-password?token=${encodeURIComponent(resetToken)}`}
-                  className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold p-4 rounded-2xl hover:from-blue-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2 slide-in-bottom"
-                  style={{ animationDelay: "0.3s" }}
-                >
-                  <span>Go to Reset Password</span>
-                  <ArrowRight size={18} />
-                </Link>
+              {/* CTA */}
+              <Link href={`/reset-password?token=${encodeURIComponent(resetToken)}`}
+                style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"16px 24px",borderRadius:14,textDecoration:"none",fontWeight:800,fontSize:15,color:"#fff",fontFamily:"'DM Sans',sans-serif",background:`linear-gradient(135deg,${ACCENT} 0%,${ACCENT2} 100%)`,boxShadow:`0 10px 32px rgba(29,78,216,0.28)`,transition:"all 0.2s" }}
+                onMouseEnter={e=>{ (e.currentTarget as HTMLAnchorElement).style.transform="translateY(-2px)"; (e.currentTarget as HTMLAnchorElement).style.boxShadow=`0 14px 40px rgba(29,78,216,0.35)` }}
+                onMouseLeave={e=>{ (e.currentTarget as HTMLAnchorElement).style.transform="none"; (e.currentTarget as HTMLAnchorElement).style.boxShadow=`0 10px 32px rgba(29,78,216,0.28)` }}>
+                <span>Go to Reset Password</span><ArrowRight size={16}/>
+              </Link>
 
-                <button
-                  onClick={() => { 
-                    setStage("form"); 
-                    setError(""); 
-                    setResetToken(""); 
-                    setEmail("");
-                  }}
-                  className="w-full text-sm text-slate-500 hover:text-slate-700 font-semibold transition-colors py-2 slide-in-bottom"
-                  style={{ animationDelay: "0.4s" }}
-                >
-                  Try a different email
-                </button>
-              </div>
+              <button onClick={() => { setStage("form"); setError(""); setResetToken(""); setEmail(""); }}
+                style={{ background:"none",border:"none",cursor:"pointer",fontSize:13,color:MUTED,fontWeight:700,padding:"8px 0",fontFamily:"'DM Sans',sans-serif" }}
+                onMouseEnter={e=>(e.currentTarget.style.color=TEXT)} onMouseLeave={e=>(e.currentTarget.style.color=MUTED)}>
+                ← Try a different email
+              </button>
             </div>
           )}
 
-          {/* Back to Login */}
-          <div className="mt-8 text-center slide-in-bottom" style={{ animationDelay: stage === "form" ? "0.3s" : "0.5s" }}>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 font-semibold transition-colors"
-            >
-              <ArrowLeft size={14} /> Back to Login
-            </Link>
-          </div>
-
-          {/* Decorative Elements */}
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full blur-2xl opacity-20 animate-pulse"></div>
-          <div className="absolute -bottom-4 -left-4 w-24 h-24 bg-gradient-to-br from-orange-400 to-red-500 rounded-full blur-2xl opacity-20 animate-pulse" style={{ animationDelay: "1s" }}></div>
         </div>
       </div>
-
-      <style jsx>{`
-        @keyframes blob {
-          0%, 100% {
-            transform: translate(0px, 0px) scale(1);
-          }
-          33% {
-            transform: translate(30px, -50px) scale(1.1);
-          }
-          66% {
-            transform: translate(-20px, 20px) scale(0.9);
-          }
-        }
-        .animate-blob {
-          animation: blob 7s infinite;
-        }
-        .animation-delay-2000 {
-          animation-delay: 2s;
-        }
-        .animation-delay-4000 {
-          animation-delay: 4s;
-        }
-      `}</style>
     </div>
   );
 }
-
-// Made with Bob
