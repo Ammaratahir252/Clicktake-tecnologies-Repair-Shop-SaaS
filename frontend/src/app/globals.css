@@ -4,37 +4,42 @@
 @tailwind components;
 @tailwind utilities;
 :root {
-    /* CoreUI-inspired Light Theme */
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    /* ── Warm Cream + Deep Blue — matches landing page theme ─────────── */
+    /* Landing page BG: #fdf6ee (warm cream) → hsl(35, 80%, 96%)        */
+    /* Landing page ACCENT: #1d4ed8 (deep blue) → hsl(225, 73%, 48%)    */
+    /* Landing page TEXT: #1c1917 → hsl(20, 6%, 10%)                    */
+    /* Landing page BORDER: #e7d9c8 → hsl(33, 40%, 85%)                 */
+
+    --background: 35 80% 96%;           /* #fdf6ee — warm cream */
+    --foreground: 20 6% 10%;            /* #1c1917 — near black */
+    --card: 36 90% 98%;                 /* #fef9f3 — lighter cream */
+    --card-foreground: 20 6% 10%;
+    --popover: 36 90% 98%;
+    --popover-foreground: 20 6% 10%;
+    --primary: 225 73% 48%;             /* #1d4ed8 — deep blue */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 33 40% 90%;            /* warm beige tint */
+    --secondary-foreground: 20 6% 20%;
+    --muted: 33 40% 92%;                /* soft warm muted */
+    --muted-foreground: 25 10% 47%;     /* #78716c — warm gray */
+    --accent: 33 40% 90%;
+    --accent-foreground: 20 6% 20%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 33 40% 85%;               /* #e7d9c8 — warm beige border */
+    --input: 33 40% 88%;
+    --ring: 225 73% 48%;
     --radius: 0.75rem;
 
-    /* Sidebar - Light */
-    --sidebar-background: 222.2 47.4% 11.2%;
-    --sidebar-foreground: 210 40% 98%;
-    --sidebar-primary: 221.2 83.2% 53.3%;
-    --sidebar-primary-foreground: 210 40% 98%;
-    --sidebar-accent: 217.2 32.6% 17.5%;
-    --sidebar-accent-foreground: 210 40% 98%;
-    --sidebar-border: 217.2 32.6% 17.5%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    /* Sidebar — deep blue (from ACCENT2 #1e3a8a → hsl(224, 63%, 33%)) */
+    --sidebar-background: 224 63% 20%;  /* dark navy */
+    --sidebar-foreground: 35 80% 96%;   /* cream text */
+    --sidebar-primary: 225 73% 60%;     /* lighter blue for active */
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 224 63% 26%;      /* slightly lighter navy */
+    --sidebar-accent-foreground: 35 80% 96%;
+    --sidebar-border: 224 63% 28%;
+    --sidebar-ring: 225 73% 60%;
 }
 
 .dark {
