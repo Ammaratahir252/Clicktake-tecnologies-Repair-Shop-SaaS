@@ -59,6 +59,15 @@ const envSchema = z.object({
   // Email (Resend)
   RESEND_API_KEY: z.string().startsWith('re_'),
 
+  // Twilio SMS
+  TWILIO_ACCOUNT_SID: z.string().optional(),
+  TWILIO_AUTH_TOKEN: z.string().optional(),
+  TWILIO_FROM_NUMBER: z.string().optional(),
+
+  // Notifications
+  NOTIFICATION_FROM_EMAIL: z.string().email().optional().or(z.literal('')),
+  NOTIFICATION_FROM_NAME: z.string().optional(),
+
   // Sentry
   SENTRY_DSN: z.string().url().optional().or(z.literal('')),
 

@@ -6,6 +6,11 @@ import { connectMongoDB, disconnectMongoDB } from './config/mongodb';
 import { getRedis } from './config/redis';
 import { registerErrorHandler } from './middleware/errorHandler';
 import { deliveryRoutes } from './modules/delivery/routes/delivery.routes';
+import { notificationRoutes } from './modules/notifications/routes/notification.routes';
+import { startNotificationService } from './modules/notifications/service/notification.service';
+import { startNotificationWorker } from './modules/notifications/queue/notificationWorker';
+import { initSocketGateway } from './modules/notifications/gateway/socketGateway';
+import { seedDefaultTemplates } from './modules/notifications/templates/defaultTemplates';
 import { logger } from './utils/logger';
 
 const app = Fastify({ logger: false, trustProxy: true });
@@ -25,18 +30,38 @@ const bootstrap = async (): Promise<void> => {
 
   // Health check
   app.get('/health', async (_req, rep) =>
-    rep.send({ success: true, data: { status: 'healthy', module: 'M9 Doorstep Delivery', timestamp: new Date().toISOString() } })
+    rep.send({
+      success: true,
+      data: {
+        status:    'healthy',
+        modules:   ['M7 Notifications', 'M9 Doorstep Delivery'],
+        timestamp: new Date().toISOString(),
+      },
+    })
   );
 
-  // Module 9 routes
-  app.register(deliveryRoutes, { prefix: '/api/delivery' });
+  // Module routes
+  app.register(deliveryRoutes,     { prefix: '/api/delivery' });
+  app.register(notificationRoutes, { prefix: '/api' });
 
-  // Error handler (must be last)
+  // Error handler (must be last Fastify plugin)
   registerErrorHandler(app);
 
   const port = parseInt(process.env.PORT || '4001', 10);
   await app.listen({ port, host: '0.0.0.0' });
-  logger.info(`🚀 DibnowRepairSaaS M9 running on port ${port}`);
+  logger.info(`DibnowRepairSaaS running on port ${port}`);
+
+  // Socket.io — must be after app.listen so httpServer is bound
+  initSocketGateway(app.server);
+
+  // Seed default notification templates (idempotent)
+  await seedDefaultTemplates();
+
+  // Start M7 event listener + BullMQ worker
+  startNotificationService();
+  startNotificationWorker();
+
+  logger.info('M7 Notifications & Communications ready');
 };
 
 const shutdown = async () => {
