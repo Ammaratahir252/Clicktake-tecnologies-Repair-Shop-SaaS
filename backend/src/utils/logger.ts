@@ -14,3 +14,11 @@ export const logger = {
   warn:  (msg: string, meta?: object) => log('warn',  msg, meta),
   error: (msg: string, meta?: object) => log('error', msg, meta),
 };
+export const paymentLogger = {
+  created:  (invoiceId: string, tenantId: string, gateway: string, amount: number) =>
+    logger.info('PAYMENT_CREATED', { invoiceId, tenantId, gateway, amount }),
+  failed:   (invoiceId: string, tenantId: string, gateway: string, errorCode: string) =>
+    logger.error('PAYMENT_FAILED', { invoiceId, tenantId, gateway, errorCode }),
+  refunded: (paymentId: string, tenantId: string, amount: number) =>
+    logger.info('PAYMENT_REFUNDED', { paymentId, tenantId, amount }),
+};

@@ -25,3 +25,20 @@ declare module 'fastify' {
     };
   }
 }
+export enum PaymentGateway {
+  STRIPE       = 'stripe',
+  JAZZCASH     = 'jazzcash',
+  EASYPAISA    = 'easypaisa',
+  CASH         = 'cash',
+  BANK_TRANSFER = 'bank_transfer',
+  PAYPAL       = 'paypal',
+}
+
+export enum PaymentStatus {
+  PENDING    = 'pending',
+  PAID       = 'paid',
+  PARTIAL    = 'partial',
+  REFUNDED   = 'refunded',
+  FAILED     = 'failed',
+  VOID       = 'void',
+}
