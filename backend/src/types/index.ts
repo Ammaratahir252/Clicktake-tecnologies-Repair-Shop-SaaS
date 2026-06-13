@@ -12,6 +12,11 @@ export enum AuditAction {
   READ   = 'read',
   UPDATE = 'update',
   DELETE = 'delete',
+  ESTIMATE_APPROVED = 'estimate_approved',
+  ESTIMATE_REJECTED = 'estimate_rejected',
+  INVOICE_GENERATED = 'invoice_generated',
+  PAYMENT_CREATED   = 'payment_created',
+  PAYMENT_REFUNDED  = 'payment_refunded',
 }
 
 declare module 'fastify' {

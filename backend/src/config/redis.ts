@@ -24,3 +24,10 @@ export const redis = getRedis();
 
 export const gpsKey          = (jobId: string) => `gps:job:${jobId}`;
 export const GPS_TTL_SECONDS = 600;
+export const RedisKeys = {
+  paymentIdempotency: (tenantId: string, key: string) => `payment:idempotency:${tenantId}:${key}`,
+};
+
+export const RedisTTL = {
+  PAYMENT_IDEMPOTENCY: 86400, // 24 hours
+};

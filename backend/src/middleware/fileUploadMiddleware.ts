@@ -177,7 +177,7 @@ export const fileUploadMiddleware = async (
   }
 
   try {
-    const parts = request.parts();
+    const parts = (request as any).parts();
     const uploadedFiles: UploadResult[] = [];
 
     for await (const part of parts) {
