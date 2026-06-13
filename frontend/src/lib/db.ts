@@ -1,6 +1,7 @@
 import mongoose from 'mongoose';
 
-const MONGODB_URI = process.env.MONGODB_URI as string;
+// Backend se nikala hua asli authenticated database link yahan add kar diya hai
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb+srv://bc210201667_db_user:XuHGop24A4rGxFad@cluster0.mpk51wu.mongodb.net/repair_shop?retryWrites=true&w=majority&appName=Cluster0";
 
 if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env.local');

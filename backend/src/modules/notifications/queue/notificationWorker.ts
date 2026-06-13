@@ -106,8 +106,9 @@ let _worker: Worker | null = null;
 export const startNotificationWorker = (): Worker => {
   if (_worker) return _worker;
 
+  // FIXED: Changed 'm7:notifications' to 'm7-notifications' to match the queue setup and remove forbidden colon
   _worker = new Worker<NotificationJobData>(
-    'm7:notifications',
+    'm7-notifications',
     processJob,
     {
       connection,

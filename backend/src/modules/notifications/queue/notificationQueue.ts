@@ -20,7 +20,8 @@ const connection = {
   db:       parseInt(process.env.REDIS_DB || '0', 10),
 };
 
-export const notificationQueue = new Queue<NotificationJobData>('m7:notifications', {
+// FIXED: Changed 'm7:notifications' to 'm7-notifications' to remove the forbidden colon character
+export const notificationQueue = new Queue<NotificationJobData>('m7-notifications', {
   connection,
   defaultJobOptions: {
     attempts: 3,
