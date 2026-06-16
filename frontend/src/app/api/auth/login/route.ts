@@ -39,24 +39,22 @@ export async function POST(req: NextRequest) {
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
-    
+
     if (!isMatch) {
-      user.failedLoginAttempts = (user.failedLoginAttempts || 0) + 1;
-      if (user.failedLoginAttempts >= 5) {
-        user.lockoutUntil = new Date(Date.now() + 15 * 60 * 1000);
-        user.failedLoginAttempts = 0;
-        user.markModified('lockoutUntil');
-        user.markModified('failedLoginAttempts');
-        await user.save();
+      const attempts = (user.failedLoginAttempts || 0) + 1;
+      if (attempts >= 5) {
+        await User.findByIdAndUpdate(user._id, {
+          failedLoginAttempts: 0,
+          lockoutUntil: new Date(Date.now() + 15 * 60 * 1000),
+        });
         return sendResponse(false, "Too many failed attempts. Account locked for 15 minutes.", null, 423);
       }
-      await user.save();
+      await User.findByIdAndUpdate(user._id, { failedLoginAttempts: attempts });
       return sendResponse(false, "Invalid email or password.", null, 401);
     }
 
-    user.failedLoginAttempts = 0;
-    user.lockoutUntil = undefined;
-    await user.save();
+    // Reset lockout counters without running full document validators
+    await User.findByIdAndUpdate(user._id, { failedLoginAttempts: 0, lockoutUntil: null });
 
     const token = jwt.sign(
       { 
