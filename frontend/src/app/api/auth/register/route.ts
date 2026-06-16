@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     
     else if (role === 'customer') {
       const { name, phone } = body;
-      
+
       const existingUser = await User.findOne({ email });
       if (existingUser) {
         return sendResponse(false, "An account with this email already exists", null, 409);
@@ -82,11 +82,12 @@ export async function POST(req: NextRequest) {
         phone,
         password: hashedPassword,
         role: "customer",
-        tenantId: null
+        // No tenantId — customers are not tied to a shop at signup.
+        // They get scoped to a shop later (e.g. when a ticket is created for them).
       });
 
       createAuditLog({
-        tenantId: createdUser._id.toString(), // fallback for tenantless customer
+        tenantId: createdUser._id.toString(), // no real tenant yet — use the user's own id as a placeholder so the audit entry still has a traceable key
         userId: createdUser._id.toString(),
         action: AUDIT_ACTIONS.AUTH_REGISTER,
         entity: 'user',

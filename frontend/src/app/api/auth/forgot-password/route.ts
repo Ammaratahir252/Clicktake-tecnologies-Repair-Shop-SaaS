@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Log the request
     createAuditLog({
-      tenantId: user.tenantId.toString(),
+      tenantId: user.tenantId ? user.tenantId.toString() : 'unknown',
       userId: user._id.toString(),
       action: AUDIT_ACTIONS.AUTH_PASSWORD_RESET_REQUEST,
       entity: 'user',

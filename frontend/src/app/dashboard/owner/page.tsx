@@ -14,20 +14,21 @@ import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import {
-  Ticket, Users, Package, BarChart3, Settings,
+  Ticket, Users, Package, BarChart3, Settings, TrendingUp,
   FileText, ClipboardList, ShieldCheck, AlertTriangle,
   Loader2, ChevronRight, MapPin, KeyRound, Copy, CheckCheck
 } from "lucide-react";
 import { ROLE_META } from "@/lib/rbac";
 
 const MODULES = [
-  { key: "tickets",   icon: Ticket,       title: "All Tickets",     desc: "View & manage all repair tickets",       href: "/dashboard/owner/tickets",   color: "bg-blue-600" },
-  { key: "users",     icon: Users,        title: "Team & Users",    desc: "Manage staff accounts and roles",        href: "/dashboard/owner/users",     color: "bg-purple-600" },
-  { key: "inventory", icon: Package,      title: "Inventory",       desc: "Parts catalog and stock levels",         href: "/dashboard/owner/inventory", color: "bg-emerald-600" },
-  { key: "reports",   icon: BarChart3,    title: "Reports",         desc: "Revenue, profit, and analytics",         href: "/dashboard/owner/reports",   color: "bg-amber-500" },
-  { key: "leads",     icon: MapPin,       title: "Leads",           desc: "GPS-routed customer leads",              href: "/dashboard/owner/leads",     color: "bg-rose-500" },
-  { key: "audit",     icon: FileText,     title: "Audit Logs",      desc: "Full activity trail for your shop",      href: "/dashboard/owner/audit",     color: "bg-slate-700" },
-  { key: "settings",  icon: Settings,     title: "Shop Settings",   desc: "Tenant config, billing, integrations",   href: "/dashboard/owner/settings",  color: "bg-indigo-600" },
+  { key: "tickets",    icon: Ticket,      title: "All Tickets",       desc: "View & manage all repair tickets",         href: "/dashboard/owner/tickets",    color: "bg-blue-600" },
+  { key: "users",      icon: Users,       title: "Team & Users",      desc: "Manage staff accounts and roles",          href: "/dashboard/owner/users",      color: "bg-purple-600" },
+  { key: "inventory",  icon: Package,     title: "Inventory",         desc: "Parts catalog and stock levels",           href: "/dashboard/owner/inventory",  color: "bg-emerald-600" },
+  { key: "reports",    icon: BarChart3,   title: "Reports",           desc: "Revenue, profit, and analytics",           href: "/dashboard/owner/reports",    color: "bg-amber-500" },
+  { key: "leads",      icon: MapPin,      title: "Leads",             desc: "GPS-routed customer leads",                href: "/dashboard/owner/leads",      color: "bg-rose-500" },
+  { key: "forecast",   icon: TrendingUp,  title: "Demand Forecast",   desc: "AI inventory reorder recommendations",     href: "/dashboard/owner/forecast",   color: "bg-cyan-600" },
+  { key: "audit",      icon: FileText,    title: "Audit Logs",        desc: "Full activity trail for your shop",        href: "/dashboard/owner/audit",      color: "bg-slate-700" },
+  { key: "settings",   icon: Settings,    title: "Shop Settings",     desc: "Tenant config, billing, integrations",     href: "/dashboard/owner/settings",   color: "bg-indigo-600" },
 ];
 
 export default function OwnerDashboard() {

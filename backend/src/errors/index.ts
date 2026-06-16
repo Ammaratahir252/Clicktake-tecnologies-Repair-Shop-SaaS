@@ -38,7 +38,3 @@ export class ConflictError extends AppError {
 export class BusinessRuleError extends AppError {
   constructor(message: string) { super(message, 422); }
 }
-
-export class InternalError extends AppError {
-  constructor(message = 'Internal server error') { super(message, 500); }
-}

@@ -75,6 +75,14 @@ const MODULES = [
     desc: "Schedule doorstep device pickup",
     href: "/dashboard/customer/delivery",
     color: "bg-rose-500",
+  },,
+  {
+    key: "chat",
+    icon: "MessageCircle",
+    title: "Chat with Us",
+    desc: "Get instant answers from our AI assistant",
+    href: "/dashboard/customer/chat",
+    color: "bg-violet-600",
   },
 ];
 

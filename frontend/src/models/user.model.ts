@@ -6,7 +6,7 @@ import { Role } from '../lib/enums';
  * Interface representing the User document in MongoDB
  */
 export interface IUser extends Document {
-  tenantId: mongoose.Types.ObjectId; // Multi-tenant identifier
+  tenantId?: mongoose.Types.ObjectId; // Multi-tenant identifier — optional for customers
   name: string;
   email: string;
   password: string;
@@ -29,7 +29,11 @@ const userSchema = new Schema<IUser>(
     tenantId: { 
       type: Schema.Types.ObjectId, 
       ref: 'Tenant', 
-      required: true 
+      required: function (this: IUser) {
+        // Customers may be tenant-less (not tied to one specific shop at signup).
+        // All other roles must belong to a tenant.
+        return this.role !== Role.customer;
+      },
     },
     name: { 
       type: String, 

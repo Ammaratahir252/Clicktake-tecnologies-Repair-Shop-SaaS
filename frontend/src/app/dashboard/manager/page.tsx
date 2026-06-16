@@ -17,17 +17,19 @@ import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import {
-  Ticket, Users, Package, BarChart3, MapPin,
+  Ticket, Users, Package, BarChart3, MapPin, Zap, TrendingUp,
   ClipboardList, ShieldCheck, AlertTriangle, Loader2, ChevronRight
 } from "lucide-react";
 import { ROLE_META } from "@/lib/rbac";
 
 const MODULES = [
-  { key: "tickets",   icon: Ticket,    title: "All Tickets",   desc: "Manage and assign repair tickets",  href: "/dashboard/manager/tickets",   color: "bg-blue-600" },
-  { key: "inventory", icon: Package,   title: "Inventory",     desc: "Stock levels and parts catalog",    href: "/dashboard/manager/inventory", color: "bg-emerald-600" },
-  { key: "reports",   icon: BarChart3, title: "Reports",       desc: "Daily revenue and invoice status",  href: "/dashboard/manager/reports",   color: "bg-amber-500" },
-  { key: "leads",     icon: MapPin,    title: "Leads",         desc: "Claim and manage customer leads",   href: "/dashboard/manager/leads",     color: "bg-rose-500" },
-  { key: "team",      icon: Users,     title: "Team View",     desc: "View staff (read-only)",            href: "/dashboard/manager/team",      color: "bg-purple-600" },
+  { key: "tickets",    icon: Ticket,    title: "All Tickets",       desc: "Manage and assign repair tickets",      href: "/dashboard/manager/tickets",    color: "bg-blue-600" },
+  { key: "inventory",  icon: Package,   title: "Inventory",         desc: "Stock levels and parts catalog",        href: "/dashboard/manager/inventory",  color: "bg-emerald-600" },
+  { key: "reports",    icon: BarChart3, title: "Reports",           desc: "Daily revenue and invoice status",      href: "/dashboard/manager/reports",    color: "bg-amber-500" },
+  { key: "leads",      icon: MapPin,    title: "Leads",             desc: "Claim and manage customer leads",       href: "/dashboard/manager/leads",      color: "bg-rose-500" },
+  { key: "team",       icon: Users,     title: "Team View",         desc: "View staff (read-only)",                href: "/dashboard/manager/team",       color: "bg-purple-600" },
+  { key: "automation", icon: Zap,       title: "Automation Rules",  desc: "AI-validated IF/THEN workflows",        href: "/dashboard/manager/automation", color: "bg-violet-600" },
+  { key: "forecast",   icon: TrendingUp,title: "Demand Forecast",   desc: "AI inventory reorder recommendations",  href: "/dashboard/manager/forecast",   color: "bg-cyan-600" },
 ];
 
 export default function ManagerDashboard() {

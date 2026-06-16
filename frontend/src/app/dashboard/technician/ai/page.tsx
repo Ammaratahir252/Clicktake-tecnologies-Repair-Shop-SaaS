@@ -1,179 +1,289 @@
 "use client";
 
+/**
+ * app/dashboard/technician/ai/page.tsx  (FULL REPLACEMENT)
+ * Module 8 — AI Diagnostic + Estimate Predictor
+ *
+ * COPY TO: src/app/dashboard/technician/ai/page.tsx
+ * REPLACES the existing mock-response version entirely.
+ *
+ * Calls:
+ *   POST /api/ai/diagnostic  — real Claude with MongoDB ticket history as context
+ *   POST /api/ai/estimate    — real Claude with historical cost data from MongoDB
+ */
+
 import DashboardShell from "@/components/DashboardShell";
 import { useState, useRef, useEffect } from "react";
-import { Bot, Send, Sparkles, AlertCircle, RotateCcw, Copy, Check } from "lucide-react";
+import {
+  Bot,
+  Send,
+  Sparkles,
+  AlertCircle,
+  RotateCcw,
+  Copy,
+  Check,
+  DollarSign,
+  ChevronDown,
+  ChevronUp,
+  Zap,
+  ShieldAlert,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import api from "@/lib/api";
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  id: string;
+  diagnostic?: DiagnosticResult;
+};
+
+type DiagnosticResult = {
+  summary: string;
+  causes: { label: string; confidence: number; description: string }[];
+  steps: string[];
+  parts: string[];
+  warning: string | null;
+  ticketsAnalysed: number;
+};
+
+type EstimateResult = {
+  laborMin: number;
+  laborMax: number;
+  partsMin: number;
+  partsMax: number;
+  totalMin: number;
+  totalMax: number;
+  confidence: number;
+  breakdown: { item: string; estimatedCost: number }[];
+  notes: string;
+  samplesUsed: number;
+};
+
+// ─── Quick prompts ────────────────────────────────────────────────────────────
 
 const QUICK_PROMPTS = [
-  "iPhone 15 Pro Max screen flickering after water damage — possible causes?",
-  "MacBook won't boot after RAM upgrade — troubleshooting steps",
-  "Samsung Galaxy battery draining too fast — diagnosis checklist",
-  "How to safely reflow solder on a laptop GPU?",
+  "iPhone 15 Pro Max screen flickering after water damage",
+  "MacBook won't boot after RAM upgrade",
+  "Samsung Galaxy battery draining in 2 hours",
+  "Laptop GPU reflow required — overheating and artifacts",
 ];
 
-type Message = { role: "user" | "assistant"; content: string; id: string };
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-const MOCK_RESPONSE = `## Initial Assessment
+function ConfidenceBar({ value }: { value: number }) {
+  const color =
+    value >= 75 ? "bg-emerald-500" : value >= 50 ? "bg-amber-500" : "bg-red-400";
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full`} style={{ width: `${value}%` }} />
+      </div>
+      <span className="text-xs font-bold text-muted-foreground">{value}%</span>
+    </div>
+  );
+}
 
-Check for physical damage first — corrosion, bent pins, or cracked PCB. Run diagnostic mode if the device is partially functional, and document everything with photos before opening.
-
-## Common Causes
-
-- **Power circuit failure** — inspect the charging IC under microscope
-- **Logic board short circuit** — measure resistance at key test points  
-- **Software corruption** — check for bootloop pattern (restart every 30–60s)
-- **Failed component** — NAND flash, RAM, or blown mosfet are common culprits
-
-## Recommended Steps
-
-1. Backup data immediately if the device powers on at all
-2. Run DCPS test — normal idle draw is 0.02–0.05A; short shows 0.4A+
-3. Check board under microscope for burn marks or corrosion near liquid damage stickers
-4. Test with known-good replacement parts to isolate the fault
-
-## Parts to Check
-
-| Component | Test Method | Normal Reading |
-|-----------|-------------|----------------|
-| Battery | Multimeter | 3.7–4.2V |
-| Charging IC | DCPS | < 0.1A idle |
-| NAND | Software diag | No I/O errors |
-
-> **Note:** Always use ESD protection and work on an anti-static mat when handling logic boards.`;
-
-/** Renders markdown-like formatting into React elements */
-function MarkdownRenderer({ content }: { content: string }) {
-  const lines = content.split("\n");
-  const elements: React.ReactNode[] = [];
-  let i = 0;
-
-  while (i < lines.length) {
-    const line = lines[i];
-
-    // Table detection
-    if (line.startsWith("|") && i + 1 < lines.length && lines[i + 1].startsWith("|---")) {
-      const headers = line.split("|").filter(Boolean).map((h) => h.trim());
-      i += 2; // skip separator
-      const rows: string[][] = [];
-      while (i < lines.length && lines[i].startsWith("|")) {
-        rows.push(lines[i].split("|").filter(Boolean).map((c) => c.trim()));
-        i++;
-      }
-      elements.push(
-        <div key={i} className="overflow-x-auto my-4 rounded-xl border border-border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-muted/60">
-                {headers.map((h, j) => (
-                  <th key={j} className="px-4 py-2.5 text-left font-bold text-foreground border-b border-border">
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, j) => (
-                <tr key={j} className="border-b border-border/50 last:border-0 hover:bg-muted/30 transition-colors">
-                  {row.map((cell, k) => (
-                    <td key={k} className="px-4 py-2.5 text-muted-foreground">
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-      continue;
-    }
-
-    // H2
-    if (line.startsWith("## ")) {
-      elements.push(
-        <h2 key={i} className="text-base font-black text-foreground mt-5 mb-2 first:mt-0 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 bg-primary rounded-full flex-shrink-0" />
-          {line.replace("## ", "")}
-        </h2>
-      );
-      i++;
-      continue;
-    }
-
-    // Blockquote
-    if (line.startsWith("> ")) {
-      elements.push(
-        <div key={i} className="border-l-4 border-primary/50 bg-primary/5 pl-4 pr-3 py-2.5 rounded-r-xl my-3 text-sm text-muted-foreground italic">
-          {line.replace("> ", "").replace(/\*\*(.*?)\*\*/g, "$1")}
-        </div>
-      );
-      i++;
-      continue;
-    }
-
-    // Ordered list item
-    if (/^\d+\./.test(line)) {
-      const num = line.match(/^(\d+)\./)?.[1];
-      const text = line.replace(/^\d+\.\s*/, "");
-      elements.push(
-        <div key={i} className="flex gap-3 text-sm text-muted-foreground my-1">
-          <span className="w-5 h-5 bg-primary/15 text-primary font-black text-xs rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
-            {num}
+function DiagnosticCard({ data }: { data: DiagnosticResult }) {
+  const [expanded, setExpanded] = useState(true);
+  return (
+    <div className="mt-4 bg-muted/30 border border-border/60 rounded-2xl overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-5 py-3 bg-primary/5 border-b border-border/40 hover:bg-primary/8 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Sparkles size={14} className="text-primary" />
+          <span className="text-sm font-bold text-primary">AI Diagnosis</span>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+            {data.ticketsAnalysed} past tickets analysed
           </span>
-          <span className="leading-relaxed" dangerouslySetInnerHTML={{ __html: text.replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground font-bold'>$1</strong>") }} />
         </div>
-      );
-      i++;
-      continue;
-    }
+        {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
 
-    // Unordered list item
-    if (line.startsWith("- ")) {
-      const text = line.replace("- ", "");
-      elements.push(
-        <div key={i} className="flex gap-2.5 text-sm text-muted-foreground my-1">
-          <span className="w-1.5 h-1.5 bg-primary/60 rounded-full flex-shrink-0 mt-2" />
-          <span
-            className="leading-relaxed"
-            dangerouslySetInnerHTML={{
-              __html: text.replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground font-semibold'>$1</strong>"),
-            }}
-          />
-        </div>
-      );
-      i++;
-      continue;
-    }
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="px-5 py-4 space-y-4">
+              {/* Summary */}
+              <p className="text-sm text-foreground font-medium">{data.summary}</p>
 
-    // Normal paragraph (skip empty lines)
-    if (line.trim()) {
-      elements.push(
-        <p
-          key={i}
-          className="text-sm text-muted-foreground leading-relaxed my-1"
-          dangerouslySetInnerHTML={{
-            __html: line.replace(/\*\*(.*?)\*\*/g, "<strong class='text-foreground font-semibold'>$1</strong>"),
-          }}
-        />
-      );
+              {/* Warning */}
+              {data.warning && (
+                <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2.5">
+                  <ShieldAlert size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-amber-700 font-medium">{data.warning}</p>
+                </div>
+              )}
+
+              {/* Probable Causes */}
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  Probable Causes
+                </p>
+                <div className="space-y-2.5">
+                  {data.causes.map((c, i) => (
+                    <div key={i} className="bg-background rounded-xl p-3 border border-border/50">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-foreground">{c.label}</span>
+                      </div>
+                      <ConfidenceBar value={c.confidence} />
+                      <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+                        {c.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Steps */}
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                  Diagnostic Steps
+                </p>
+                <ol className="space-y-1.5">
+                  {data.steps.map((step, i) => (
+                    <li key={i} className="flex gap-2.5 text-sm text-muted-foreground">
+                      <span className="w-5 h-5 bg-primary/15 text-primary font-bold text-xs rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      {step}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              {/* Parts */}
+              {data.parts.length > 0 && (
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                    Likely Parts Needed
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {data.parts.map((p, i) => (
+                      <span
+                        key={i}
+                        className="text-xs font-medium bg-primary/10 text-primary border border-primary/20 px-2.5 py-1 rounded-full"
+                      >
+                        {p}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function EstimatePanel({
+  deviceBrand,
+  deviceModel,
+  issue,
+}: {
+  deviceBrand: string;
+  deviceModel: string;
+  issue: string;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<EstimateResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchEstimate = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.post("/api/ai/estimate", { deviceBrand, deviceModel, issue });
+      if (res.data.success) {
+        setResult(res.data.data);
+      } else {
+        setError(res.data.message ?? "Failed");
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.message ?? "Network error");
+    } finally {
+      setLoading(false);
     }
-    i++;
+  };
+
+  if (!result) {
+    return (
+      <div className="mt-3">
+        <button
+          onClick={fetchEstimate}
+          disabled={loading}
+          className="flex items-center gap-2 text-sm font-semibold text-emerald-600 bg-emerald-500/10 border border-emerald-500/30 px-4 py-2 rounded-xl hover:bg-emerald-500/15 transition-all disabled:opacity-50"
+        >
+          <DollarSign size={14} />
+          {loading ? "Predicting cost…" : "Get AI Estimate"}
+        </button>
+        {error && <p className="text-xs text-red-500 mt-1.5">{error}</p>}
+      </div>
+    );
   }
 
-  return <div className="space-y-0.5">{elements}</div>;
+  return (
+    <div className="mt-3 bg-emerald-500/5 border border-emerald-500/20 rounded-2xl overflow-hidden">
+      <div className="px-5 py-3 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <DollarSign size={14} className="text-emerald-600" />
+          <span className="text-sm font-bold text-emerald-700">Estimated Cost (PKR)</span>
+          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+            {result.samplesUsed} samples · {result.confidence}% confidence
+          </span>
+        </div>
+      </div>
+      <div className="px-5 py-4 space-y-3">
+        <div className="flex items-baseline gap-2">
+          <span className="text-2xl font-black text-foreground">
+            PKR {result.totalMin.toLocaleString()}
+          </span>
+          <span className="text-sm text-muted-foreground">–</span>
+          <span className="text-2xl font-black text-foreground">
+            {result.totalMax.toLocaleString()}
+          </span>
+        </div>
+        <div className="space-y-1.5">
+          {result.breakdown.map((b, i) => (
+            <div key={i} className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">{b.item}</span>
+              <span className="font-semibold text-foreground">
+                PKR {b.estimatedCost.toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
+        {result.notes && (
+          <p className="text-xs text-muted-foreground italic border-t border-border/40 pt-2">
+            {result.notes}
+          </p>
+        )}
+      </div>
+    </div>
+  );
 }
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
   return (
     <button
-      onClick={handleCopy}
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
       className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-lg hover:bg-muted"
     >
       {copied ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
@@ -181,6 +291,18 @@ function CopyButton({ text }: { text: string }) {
     </button>
   );
 }
+
+// ─── Parse device info from the user message ──────────────────────────────────
+function parseDeviceInfo(text: string): { brand: string; model: string } {
+  const brands = ["iphone", "samsung", "macbook", "huawei", "oneplus", "xiaomi", "oppo", "vivo"];
+  const lower = text.toLowerCase();
+  const brand = brands.find((b) => lower.includes(b)) ?? "";
+  const modelMatch = text.match(/\b(iphone\s[\d\w]+|galaxy\s[a-z0-9]+|macbook\s[\w]+|\w+\s[0-9]+)\b/i);
+  const model = modelMatch ? modelMatch[0] : "";
+  return { brand, model };
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function TechnicianAIPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -203,24 +325,43 @@ export default function TechnicianAIPage() {
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
-    await new Promise((r) => setTimeout(r, 1400));
+    try {
+      const { brand, model } = parseDeviceInfo(msg);
 
-    const aiMsg: Message = {
-      role: "assistant",
-      content: MOCK_RESPONSE,
-      id: (Date.now() + 1).toString(),
-    };
-    setMessages((prev) => [...prev, aiMsg]);
-    setLoading(false);
+      // ── Call real API route → Claude with real MongoDB context ──────────────
+      const res = await api.post("/api/ai/diagnostic", {
+        deviceBrand: brand || undefined,
+        deviceModel: model || undefined,
+        issue: msg,
+      });
+
+      if (!res.data.success) throw new Error(res.data.message);
+
+      const diagnostic: DiagnosticResult = res.data.data;
+
+      const aiMsg: Message = {
+        role: "assistant",
+        content: diagnostic.summary,
+        id: (Date.now() + 1).toString(),
+        diagnostic,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (err: any) {
+      const errorMsg: Message = {
+        role: "assistant",
+        content: `⚠️ ${err.response?.data?.message ?? err.message ?? "AI diagnostic failed. Check your API key and connection."}`,
+        id: (Date.now() + 1).toString(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+    }
   };
-
-  const clearChat = () => setMessages([]);
 
   return (
     <DashboardShell requiredRole="technician">
       {() => (
         <div className="flex flex-col h-[calc(100dvh-4rem)] w-full max-w-5xl mx-auto overflow-hidden relative">
-
           {/* Ambient glow */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden">
             <div className="absolute top-0 left-1/4 w-96 h-64 bg-primary/8 rounded-full blur-[80px]" />
@@ -236,13 +377,17 @@ export default function TechnicianAIPage() {
               <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-background rounded-full" />
             </div>
             <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-black text-foreground tracking-tight">AI Repair Assistant</h1>
-              <p className="text-xs text-muted-foreground font-medium">Diagnostics · Troubleshooting · Part Recommendations</p>
+              <h1 className="text-lg font-black text-foreground tracking-tight">
+                AI Diagnostic Assistant
+              </h1>
+              <p className="text-xs text-muted-foreground font-medium">
+                Powered by Claude · Uses your shop's real repair history
+              </p>
             </div>
             <div className="flex items-center gap-2">
               {messages.length > 0 && (
                 <button
-                  onClick={clearChat}
+                  onClick={() => setMessages([])}
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-xl hover:bg-muted border border-border/50"
                 >
                   <RotateCcw size={12} />
@@ -250,26 +395,20 @@ export default function TechnicianAIPage() {
                 </button>
               )}
               <div className="hidden sm:flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/20 px-3 py-1.5 rounded-full">
-                <span className="relative flex h-1.5 w-1.5">
-                  <span className="animate-ping absolute h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                  <span className="relative rounded-full h-1.5 w-1.5 bg-emerald-500" />
-                </span>
-                Online
+                <Zap size={11} />
+                Live AI
               </div>
             </div>
           </div>
 
           {/* Chat Area */}
           <div className="relative flex-1 overflow-y-auto px-4 md:px-6 py-6 space-y-6 scroll-smooth">
-
-            {/* Empty State */}
             <AnimatePresence>
               {messages.length === 0 && (
                 <motion.div
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.4 }}
                   className="space-y-8 mt-4 md:mt-12"
                 >
                   <div className="text-center max-w-lg mx-auto">
@@ -277,18 +416,18 @@ export default function TechnicianAIPage() {
                       initial={{ scale: 0.8, rotate: -10 }}
                       animate={{ scale: 1, rotate: 0 }}
                       transition={{ type: "spring", stiffness: 200, damping: 15 }}
-                      className="w-20 h-20 bg-gradient-to-br from-primary/20 to-violet-500/10 border border-primary/20 rounded-3xl flex items-center justify-center mx-auto mb-5 shadow-xl shadow-primary/10"
+                      className="w-20 h-20 bg-gradient-to-br from-primary/20 to-violet-500/10 border border-primary/20 rounded-3xl flex items-center justify-center mx-auto mb-5"
                     >
                       <Sparkles size={36} className="text-primary" />
                     </motion.div>
                     <h2 className="text-3xl font-black text-foreground tracking-tight mb-3">
-                      What needs fixing?
+                      What needs diagnosing?
                     </h2>
                     <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                      Describe symptoms, share error codes, or ask about repair procedures. I'll help diagnose and guide you step-by-step.
+                      Describe the device and symptoms. Claude analyses your shop's real repair
+                      history to give you accurate probable causes and steps.
                     </p>
                   </div>
-
                   <div className="max-w-2xl mx-auto">
                     <p className="text-xs font-bold text-muted-foreground uppercase tracking-[0.15em] mb-3 flex items-center gap-2">
                       <Sparkles size={11} /> Try asking
@@ -301,11 +440,9 @@ export default function TechnicianAIPage() {
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.15 + i * 0.08 }}
                           onClick={() => sendMessage(p)}
-                          className="group text-left px-4 py-3.5 bg-card border border-border/60 rounded-2xl text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 hover:shadow-md hover:-translate-y-0.5 transition-all duration-200"
+                          className="group text-left px-4 py-3.5 bg-card border border-border/60 rounded-2xl text-sm font-medium text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-primary/5 hover:-translate-y-0.5 transition-all duration-200"
                         >
-                          <span className="group-hover:translate-x-0.5 inline-block transition-transform duration-200">
-                            {p}
-                          </span>
+                          {p}
                         </motion.button>
                       ))}
                     </div>
@@ -314,7 +451,6 @@ export default function TechnicianAIPage() {
               )}
             </AnimatePresence>
 
-            {/* Messages */}
             <AnimatePresence initial={false}>
               {messages.map((msg) => (
                 <motion.div
@@ -329,20 +465,41 @@ export default function TechnicianAIPage() {
                       {msg.content}
                     </div>
                   ) : (
-                    <div className="max-w-[92%] md:max-w-[80%] bg-card border border-border/60 rounded-3xl rounded-tl-md shadow-sm overflow-hidden">
-                      {/* AI message header */}
-                      <div className="flex items-center justify-between px-5 py-3 border-b border-border/40 bg-muted/30">
-                        <div className="flex items-center gap-2">
-                          <div className="w-5 h-5 bg-gradient-to-br from-primary to-violet-600 rounded-md flex items-center justify-center">
-                            <Bot size={11} className="text-white" />
+                    <div className="max-w-[92%] md:max-w-[85%] w-full">
+                      <div className="bg-card border border-border/60 rounded-3xl rounded-tl-md shadow-sm overflow-hidden">
+                        <div className="flex items-center justify-between px-5 py-3 border-b border-border/40 bg-muted/30">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 bg-gradient-to-br from-primary to-violet-600 rounded-md flex items-center justify-center">
+                              <Bot size={11} className="text-white" />
+                            </div>
+                            <span className="text-xs font-bold text-primary tracking-wide">
+                              AI DIAGNOSIS
+                            </span>
                           </div>
-                          <span className="text-xs font-bold text-primary tracking-wide">AI ASSISTANT</span>
+                          <CopyButton text={msg.content} />
                         </div>
-                        <CopyButton text={msg.content} />
-                      </div>
-                      {/* AI message body */}
-                      <div className="px-5 py-4">
-                        <MarkdownRenderer content={msg.content} />
+                        <div className="px-5 py-4">
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {msg.content}
+                          </p>
+                          {msg.diagnostic && (
+                            <>
+                              <DiagnosticCard data={msg.diagnostic} />
+                              {/* Estimate predictor appears after diagnosis */}
+                              {msg.diagnostic.causes.length > 0 && (
+                                <EstimatePanel
+                                  deviceBrand={
+                                    messages.find((m) => m.role === "user")?.content ?? ""
+                                  }
+                                  deviceModel=""
+                                  issue={
+                                    messages.find((m) => m.role === "user")?.content ?? ""
+                                  }
+                                />
+                              )}
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -350,7 +507,6 @@ export default function TechnicianAIPage() {
               ))}
             </AnimatePresence>
 
-            {/* Loading */}
             {loading && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
@@ -371,11 +527,12 @@ export default function TechnicianAIPage() {
                       />
                     ))}
                   </div>
-                  <span className="text-xs text-muted-foreground font-medium">Analysing…</span>
+                  <span className="text-xs text-muted-foreground font-medium">
+                    Analysing with your shop's repair data…
+                  </span>
                 </div>
               </motion.div>
             )}
-
             <div ref={bottomRef} className="h-1" />
           </div>
 
@@ -388,7 +545,7 @@ export default function TechnicianAIPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Describe the fault — device, symptoms, error codes…"
+                placeholder="Device brand, model, symptoms, error codes…"
                 className="w-full pl-5 pr-14 py-3.5 bg-card border border-border/60 rounded-2xl text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary/60 transition-all text-sm font-medium shadow-sm"
               />
               <motion.button

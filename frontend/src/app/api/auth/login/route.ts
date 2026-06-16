@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
     };
 
     createAuditLog({
-      tenantId: user.tenantId.toString(),
+      tenantId: user.tenantId ? user.tenantId.toString() : 'unknown',
       userId: user._id.toString(),
       action: AUDIT_ACTIONS.AUTH_LOGIN,
       entity: 'user',
