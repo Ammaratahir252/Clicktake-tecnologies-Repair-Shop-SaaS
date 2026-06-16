@@ -30,7 +30,7 @@ if (!MONGODB_URI) {
 
 // Set these via env or edit locally — never commit real passwords
 const ADMIN_EMAIL    = process.env.ADMIN_EMAIL    ?? "dibnowrepair@gmail.com";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "changeme";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin12";
 const ADMIN_NAME     = process.env.ADMIN_NAME     ?? "Dibnow Admin";
 
 const userSchema = new mongoose.Schema(
