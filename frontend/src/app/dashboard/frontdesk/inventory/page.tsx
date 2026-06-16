@@ -49,29 +49,29 @@ function FrontdeskInventoryContent() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-slate-900">Inventory</h1>
-        <p className="text-sm text-slate-500 mt-0.5">Read-only · Front Desk access</p>
+        <h1 className="text-2xl font-black text-foreground">Inventory</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">Read-only · Front Desk access</p>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
+      <div className="bg-card border border-border rounded-2xl p-4 shadow-sm flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px]">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input
             id="frontdesk-inventory-search"
             type="text"
             value={search}
             onChange={e => handleSearch(e.target.value)}
             placeholder="Search by name or SKU…"
-            className="w-full pl-9 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all"
+            className="w-full pl-9 pr-4 py-2.5 text-sm bg-muted border border-input rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring transition-all"
           />
         </div>
         <div className="relative min-w-[160px]">
-          <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Filter size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <select
             id="frontdesk-category-filter"
             value={category}
             onChange={e => handleCategory(e.target.value)}
-            className="w-full pl-8 pr-4 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 appearance-none cursor-pointer"
+            className="w-full pl-8 pr-4 py-2.5 text-sm bg-muted border border-input rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-ring appearance-none cursor-pointer"
           >
             <option value="">All Categories</option>
             {categories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -79,31 +79,31 @@ function FrontdeskInventoryContent() {
         </div>
       </div>
 
-      <div className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden">
+      <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
         {loading && (
-          <div className="flex items-center justify-center py-16 gap-3 text-slate-400">
+          <div className="flex items-center justify-center py-16 gap-3 text-muted-foreground">
             <Loader2 className="animate-spin w-5 h-5" /><span className="text-sm">Loading inventory…</span>
           </div>
         )}
         {!loading && error && (
-          <div className="flex items-center gap-3 m-6 bg-red-50 border border-red-100 rounded-xl p-4">
-            <AlertTriangle size={16} className="text-red-400" /><p className="text-sm font-semibold text-red-600">{error}</p>
+          <div className="flex items-center gap-3 m-6 bg-destructive/10 border border-destructive/20 rounded-xl p-4">
+            <AlertTriangle size={16} className="text-destructive" /><p className="text-sm font-semibold text-destructive">{error}</p>
           </div>
         )}
         {!loading && !error && parts.length === 0 && (
           <div className="text-center py-20">
-            <Package size={40} className="mx-auto text-slate-200 mb-3" />
-            <p className="font-bold text-slate-500">No parts found</p>
-            <p className="text-sm text-slate-400 mt-1">{search || category ? "Adjust your filters" : "Inventory is empty"}</p>
+            <Package size={40} className="mx-auto text-muted-foreground/30 mb-3" />
+            <p className="font-bold text-muted-foreground">No parts found</p>
+            <p className="text-sm text-muted-foreground/70 mt-1">{search || category ? "Adjust your filters" : "Inventory is empty"}</p>
           </div>
         )}
         {!loading && !error && parts.length > 0 && (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-100">
+                <tr className="bg-muted/50 border-b border-border">
                   {["Part Name", "SKU", "Category", "Stock"].map(h => (
-                    <th key={h} className="text-left text-xs font-bold text-slate-400 uppercase tracking-widest px-5 py-3">{h}</th>
+                    <th key={h} className="text-left text-xs font-bold text-muted-foreground uppercase tracking-widest px-5 py-3">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -112,20 +112,20 @@ function FrontdeskInventoryContent() {
                   const isOut = part.quantity === 0;
                   const isLow = part.quantity <= part.lowStockLimit && !isOut;
                   return (
-                    <tr key={part._id} className={`border-b border-slate-50 hover:bg-slate-50/60 transition-colors ${isOut ? "bg-red-50/30" : ""}`}>
-                      <td className="px-5 py-3.5 font-bold text-slate-800 text-sm">{part.name}</td>
+                    <tr key={part._id} className={`border-b border-border hover:bg-accent/50 transition-colors ${isOut ? "bg-destructive/5" : ""}`}>
+                      <td className="px-5 py-3.5 font-bold text-foreground text-sm">{part.name}</td>
                       <td className="px-5 py-3.5">
-                        <code className="text-xs font-mono font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">{part.sku}</code>
+                        <code className="text-xs font-mono font-semibold text-muted-foreground bg-muted px-2 py-0.5 rounded">{part.sku}</code>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">{part.category}</span>
+                        <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">{part.category}</span>
                       </td>
                       <td className="px-5 py-3.5">
                         {isOut
-                          ? <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 border border-red-200">Out of Stock</span>
+                          ? <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 border border-red-200 dark:border-red-800">Out of Stock</span>
                           : isLow
-                          ? <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 border border-amber-200">⚠ {part.quantity}</span>
-                          : <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">✓ {part.quantity}</span>
+                          ? <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">⚠ {part.quantity}</span>
+                          : <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800">✓ {part.quantity}</span>
                         }
                       </td>
                     </tr>
@@ -133,7 +133,7 @@ function FrontdeskInventoryContent() {
                 })}
               </tbody>
             </table>
-            <div className="px-5 py-3 border-t border-slate-100 text-xs text-slate-400 font-medium">
+            <div className="px-5 py-3 border-t border-border text-xs text-muted-foreground font-medium">
               {total} total part{total !== 1 ? "s" : ""} · Read-only
             </div>
           </div>

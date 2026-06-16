@@ -298,7 +298,7 @@ export const listDeliveryJobs = async (
     DeliveryJobModel.countDocuments(query),
   ]);
 
-  return { jobs: jobs as IDeliveryJob[], total };
+  return { jobs: jobs as unknown as IDeliveryJob[], total };
 };
 
 // ============================================================

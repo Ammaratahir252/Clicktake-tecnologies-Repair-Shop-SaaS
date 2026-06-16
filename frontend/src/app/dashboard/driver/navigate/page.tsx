@@ -2,7 +2,21 @@
 
 import DashboardShell from "@/components/DashboardShell";
 import { useState } from "react";
-import { Navigation, MapPin, Phone, Truck, ExternalLink, ChevronDown, ChevronLeft, Copy, CheckCheck } from "lucide-react";
+import {
+  Navigation,
+  MapPin,
+  Phone,
+  Truck,
+  ExternalLink,
+  ChevronDown,
+  Clock,
+  AlertCircle,
+  CheckCircle,
+  Map,
+  Zap,
+  Share2,
+  Copy,
+} from "lucide-react";
 
 const MOCK_JOBS = [
   {
@@ -14,6 +28,9 @@ const MOCK_JOBS = [
     deviceType: "iPhone 15 Pro Max",
     jobType: "pickup",
     status: "assigned",
+    distance: "8.5 km",
+    eta: "15 mins",
+    priority: "high",
   },
   {
     id: "J-002",
@@ -24,197 +41,347 @@ const MOCK_JOBS = [
     deviceType: "Samsung Galaxy S24",
     jobType: "delivery",
     status: "en_route",
+    distance: "3.2 km",
+    eta: "8 mins",
+    priority: "normal",
   },
 ];
-
-const JOB_TYPE_STYLE: Record<string, string> = {
-  pickup:   "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400",
-  delivery: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-};
 
 export default function DriverNavigatePage() {
   const [selectedJob, setSelectedJob] = useState(MOCK_JOBS[0]);
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [mapOpen, setMapOpen] = useState<string | null>(null);
 
   const openMaps = () => {
-    window.open(`https://maps.google.com/?q=${encodeURIComponent(selectedJob.address)}`, "_blank");
+    setMapOpen("google");
+    setTimeout(() => {
+      window.open(
+        `https://maps.google.com/?q=${encodeURIComponent(selectedJob.address)}`,
+        "_blank"
+      );
+    }, 300);
   };
 
   const openWaze = () => {
-    window.open(`https://waze.com/ul?q=${encodeURIComponent(selectedJob.address)}`, "_blank");
+    setMapOpen("waze");
+    setTimeout(() => {
+      window.open(
+        `https://waze.com/ul?q=${encodeURIComponent(selectedJob.address)}`,
+        "_blank"
+      );
+    }, 300);
   };
 
-  const openAppleMaps = () => {
-    window.open(`https://maps.apple.com/?q=${encodeURIComponent(selectedJob.address)}`, "_blank");
-  };
-
-  const copyAddress = async () => {
-    await navigator.clipboard.writeText(selectedJob.address);
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(selectedJob.address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: "Delivery Location",
+          text: `${selectedJob.customerName} - ${selectedJob.address}`,
+        });
+      }
+    } catch (error) {
+      console.error("Share failed:", error);
+    }
+  };
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case "high":
+        return "from-red-500 to-red-600";
+      case "normal":
+        return "from-blue-500 to-blue-600";
+      default:
+        return "from-gray-500 to-gray-600";
+    }
+  };
+
+  const getPriorityBg = (priority: string) => {
+    switch (priority) {
+      case "high":
+        return "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700/50";
+      case "normal":
+        return "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700/50";
+      default:
+        return "bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700/50";
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "assigned":
+        return <AlertCircle size={16} />;
+      case "en_route":
+        return <Navigation size={16} />;
+      default:
+        return <CheckCircle size={16} />;
+    }
   };
 
   return (
     <DashboardShell requiredRole="driver">
       {(user) => (
-              <div className="min-h-screen w-full space-y-5 pb-10 max-w-xl">
-          {/* ── Header ───────────────────────────────────────────── */}
-          <div className="flex items-center gap-2">
-            <a href="/dashboard/driver" className="text-muted-foreground hover:text-foreground transition-colors">
-              <ChevronLeft size={18} />
-            </a>
-            <div>
-              <h1 className="text-2xl font-black text-foreground">Navigate</h1>
-              <p className="text-muted-foreground text-sm font-medium">Open maps to customer address</p>
+        <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 space-y-6 p-4 md:p-6">
+          {/* Animated Header */}
+          <div className="space-y-2 animate-in fade-in slide-in-from-top duration-500">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-gradient-to-br from-primary to-primary/60 rounded-2xl flex items-center justify-center">
+                <Map size={24} className="text-white animate-bounce" />
+              </div>
+              <div>
+                <h1 className="text-3xl md:text-4xl font-black text-foreground">Navigate</h1>
+                <p className="text-muted-foreground font-medium">Open maps to customer address</p>
+              </div>
             </div>
           </div>
 
-          {/* ── Job Selector ─────────────────────────────────────── */}
-          <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-3">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Select Job</p>
-            <div className="relative">
-              <button
-                onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between bg-muted hover:bg-muted/70 border border-border rounded-xl px-4 py-3.5 text-left transition-colors"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-md shrink-0 capitalize ${JOB_TYPE_STYLE[selectedJob.jobType]}`}>
-                    {selectedJob.jobType}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-bold text-sm text-foreground truncate">{selectedJob.ticketNumber} — {selectedJob.customerName}</p>
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{selectedJob.address}</p>
+          {copied && (
+            <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 animate-in fade-in slide-in-from-top duration-300 z-50">
+              <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-2xl p-4 shadow-2xl backdrop-blur-lg border border-emerald-400/30 flex items-center gap-3">
+                <CheckCircle size={20} className="text-white flex-shrink-0" />
+                <p className="text-white font-bold">Address copied to clipboard!</p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Job Selector */}
+            <div className="lg:col-span-1 space-y-6 animate-in fade-in slide-in-from-left duration-500">
+              {/* Job Selector */}
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 backdrop-blur-sm bg-opacity-90 sticky top-4">
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4 flex items-center gap-2">
+                  <Truck size={16} />
+                  Select Job
+                </p>
+                <div className="relative">
+                  <button
+                    onClick={() => setOpen(!open)}
+                    className="w-full flex items-center justify-between bg-gradient-to-r from-muted to-muted/50 hover:from-primary/10 hover:to-primary/5 rounded-xl px-4 py-4 text-left transition-all duration-300 group"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors truncate">
+                        {selectedJob.ticketNumber}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{selectedJob.customerName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{selectedJob.address}</p>
+                    </div>
+                    <ChevronDown
+                      size={16}
+                      className={`text-muted-foreground transition-all duration-300 flex-shrink-0 ml-2 ${open ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {open && (
+                    <div className="absolute top-full left-0 right-0 mt-2 bg-card border border-border rounded-xl shadow-2xl z-10 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 max-h-96 overflow-y-auto">
+                      {MOCK_JOBS.map((job, idx) => (
+                        <button
+                          key={job.id}
+                          onClick={() => {
+                            setSelectedJob(job);
+                            setOpen(false);
+                          }}
+                          className={`w-full text-left px-4 py-4 hover:bg-primary/5 transition-all duration-200 group ${
+                            idx !== MOCK_JOBS.length - 1 ? "border-b border-border" : ""
+                          } ${selectedJob.id === job.id ? "bg-primary/10 border-l-4 border-l-primary" : ""}`}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-bold text-sm text-foreground group-hover:text-primary transition-colors">
+                                {job.ticketNumber}
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1 truncate">{job.customerName}</p>
+                              <p className="text-xs text-muted-foreground truncate">{job.address}</p>
+                            </div>
+                            {job.priority === "high" && (
+                              <div className="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full mt-1 animate-pulse" />
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Quick Info */}
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="bg-muted/50 rounded-lg p-2 text-center border border-border/50">
+                    <p className="text-xs text-muted-foreground font-medium">Distance</p>
+                    <p className="text-sm font-black text-primary mt-0.5">{selectedJob.distance}</p>
+                  </div>
+                  <div className="bg-muted/50 rounded-lg p-2 text-center border border-border/50">
+                    <p className="text-xs text-muted-foreground font-medium">ETA</p>
+                    <p className="text-sm font-black text-primary mt-0.5">{selectedJob.eta}</p>
                   </div>
                 </div>
-                <ChevronDown size={16} className={`text-muted-foreground transition-transform shrink-0 ml-2 ${open ? "rotate-180" : ""}`} />
-              </button>
+              </div>
 
-              {open && (
-                <div className="absolute top-full left-0 right-0 mt-1.5 bg-card border border-border rounded-2xl shadow-xl z-20 overflow-hidden">
-                  {MOCK_JOBS.map((job, i) => (
+              {/* Jobs Queue */}
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 backdrop-blur-sm bg-opacity-90">
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest mb-4">Other Jobs</p>
+                <div className="space-y-2">
+                  {MOCK_JOBS.filter((j) => j.id !== selectedJob.id).map((job) => (
                     <button
                       key={job.id}
-                      onClick={() => { setSelectedJob(job); setOpen(false); }}
-                      className={`w-full text-left px-4 py-3.5 hover:bg-muted transition-colors flex items-center gap-3 ${
-                        i !== MOCK_JOBS.length - 1 ? "border-b border-border" : ""
-                      }`}
+                      onClick={() => setSelectedJob(job)}
+                      className="w-full text-left p-3 bg-muted/50 hover:bg-primary/5 rounded-lg transition-all duration-200 group border border-border/50 hover:border-primary/30"
                     >
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-md shrink-0 capitalize ${JOB_TYPE_STYLE[job.jobType]}`}>
-                        {job.jobType}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="font-bold text-sm text-foreground">{job.ticketNumber} — {job.customerName}</p>
-                        <p className="text-xs text-muted-foreground truncate">{job.address}</p>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-bold text-xs text-foreground">{job.ticketNumber}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">{job.distance}</p>
+                        </div>
+                        {job.priority === "high" && (
+                          <div className="flex-shrink-0 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                        )}
                       </div>
                     </button>
                   ))}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
 
-          {/* ── Destination Card ─────────────────────────────────── */}
-          <div className="bg-card border border-border rounded-2xl shadow-sm overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-900/10 border-b border-border px-5 py-3">
-              <p className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-widest">Destination</p>
-            </div>
-            <div className="px-5 py-4 space-y-4">
-
-              {/* Customer */}
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
-                  <span className="text-primary font-black text-sm">
-                    {selectedJob.customerName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-                  </span>
+            {/* Right Column - Address & Navigation */}
+            <div className="lg:col-span-2 space-y-6 animate-in fade-in slide-in-from-right duration-500">
+              {/* Status Badge */}
+              <div
+                className={`border rounded-2xl p-4 flex items-center gap-3 animate-in fade-in ${getPriorityBg(selectedJob.priority)}`}
+              >
+                <div className={`w-10 h-10 bg-gradient-to-br ${getPriorityColor(selectedJob.priority)} rounded-full flex items-center justify-center flex-shrink-0`}>
+                  {getStatusIcon(selectedJob.status)}
                 </div>
                 <div>
-                  <p className="font-bold text-foreground">{selectedJob.customerName}</p>
-                  <span className={`text-xs font-bold capitalize px-2 py-0.5 rounded-md ${JOB_TYPE_STYLE[selectedJob.jobType]}`}>
-                    {selectedJob.jobType}
-                  </span>
+                  <p className="text-xs font-bold text-muted-foreground uppercase">
+                    {selectedJob.priority === "high" ? "🔴 High Priority" : "ℹ️ Normal Priority"}
+                  </p>
+                  <p className="text-sm font-bold text-foreground capitalize mt-0.5">{selectedJob.jobType}</p>
                 </div>
               </div>
 
-              {/* Address */}
-              <div className="bg-muted/60 rounded-xl px-4 py-3 flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2.5">
-                  <MapPin size={15} className="text-blue-500 shrink-0 mt-0.5" />
-                  <p className="text-sm text-foreground font-medium leading-relaxed">{selectedJob.address}</p>
+              {/* Address Card - Enhanced */}
+              <div className="bg-card border border-border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 backdrop-blur-sm bg-opacity-90 space-y-4">
+                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">📍 Destination</p>
+
+                {/* Customer Info */}
+                <div className="space-y-4">
+                  {/* Name */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
+                      <MapPin size={24} className="text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-muted-foreground uppercase">Customer Location</p>
+                      <p className="font-bold text-lg text-foreground mt-1">{selectedJob.customerName}</p>
+                      <p className="text-sm text-muted-foreground mt-1 break-words">{selectedJob.address}</p>
+                    </div>
+                  </div>
+
+                  {/* Actions for Address */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
+                    <button
+                      onClick={handleCopyAddress}
+                      className="flex items-center justify-center gap-2 py-2 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-lg text-xs transition-all duration-300 hover:scale-105 active:scale-95"
+                    >
+                      <Copy size={14} />
+                      Copy
+                    </button>
+                    <button
+                      onClick={handleShare}
+                      className="flex items-center justify-center gap-2 py-2 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-lg text-xs transition-all duration-300 hover:scale-105 active:scale-95"
+                    >
+                      <Share2 size={14} />
+                      Share
+                    </button>
+                  </div>
                 </div>
+
+                {/* Divider */}
+                <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+                {/* Phone */}
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-blue-200 dark:border-blue-700/50">
+                    <Phone size={20} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-muted-foreground uppercase">Contact</p>
+                    <a
+                      href={`tel:${selectedJob.customerPhone}`}
+                      className="text-lg font-bold text-primary hover:text-primary/80 transition-colors mt-1 block"
+                    >
+                      {selectedJob.customerPhone}
+                    </a>
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+                {/* Device Info */}
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-purple-200 dark:border-purple-700/50">
+                    <Truck size={20} className="text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-muted-foreground uppercase">Device</p>
+                    <p className="font-bold text-foreground mt-1 capitalize">{selectedJob.deviceType}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Buttons */}
+              <div className="space-y-3">
+                {/* Google Maps Button */}
                 <button
-                  onClick={copyAddress}
-                  className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
-                  title="Copy address"
+                  onClick={openMaps}
+                  disabled={mapOpen === "google"}
+                  className={`w-full flex items-center justify-between px-6 py-4 font-bold rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl ${
+                    mapOpen === "google"
+                      ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white opacity-75"
+                      : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700"
+                  }`}
                 >
-                  {copied ? <CheckCheck size={15} className="text-emerald-500" /> : <Copy size={15} />}
+                  <div className="flex items-center gap-3">
+                    <Navigation size={20} />
+                    <span>Google Maps</span>
+                  </div>
+                  <ExternalLink size={16} className="opacity-70" />
+                </button>
+
+                {/* Waze Button */}
+                <button
+                  onClick={openWaze}
+                  disabled={mapOpen === "waze"}
+                  className={`w-full flex items-center justify-between px-6 py-4 font-bold rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 border-2 ${
+                    mapOpen === "waze"
+                      ? "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-amber-300 dark:border-amber-700/50 text-amber-700 dark:text-amber-400"
+                      : "bg-card border-border text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Navigation size={20} />
+                    <span>Waze</span>
+                  </div>
+                  <ExternalLink size={16} />
                 </button>
               </div>
 
-              {/* Phone & Device */}
-              <div className="flex gap-3">
-                <div className="flex-1 bg-muted/40 rounded-xl px-3 py-2.5 flex items-center gap-2">
-                  <Phone size={13} className="text-muted-foreground shrink-0" />
-                  <a href={`tel:${selectedJob.customerPhone}`} className="text-primary font-bold text-sm hover:underline truncate">
-                    {selectedJob.customerPhone}
-                  </a>
-                </div>
-                <div className="flex-1 bg-muted/40 rounded-xl px-3 py-2.5 flex items-center gap-2">
-                  <Truck size={13} className="text-muted-foreground shrink-0" />
-                  <span className="text-sm text-foreground font-medium truncate">{selectedJob.deviceType}</span>
-                </div>
+              {/* Tip Box */}
+              <div className="bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-2xl p-4 border border-amber-200 dark:border-amber-700/50">
+                <p className="text-sm font-bold text-amber-800 dark:text-amber-400 flex items-start gap-2">
+                  <Zap size={16} className="flex-shrink-0 mt-0.5" />
+                  <span>Choose your preferred navigation app to reach the customer</span>
+                </p>
               </div>
             </div>
           </div>
-
-          {/* ── Navigation Apps ──────────────────────────────────── */}
-          <div className="space-y-2.5">
-            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest px-1">Open in</p>
-
-            <button
-              onClick={openMaps}
-              className="w-full flex items-center justify-between px-5 py-4 bg-primary text-primary-foreground font-bold rounded-2xl hover:opacity-90 transition-all active:scale-[0.98] shadow-md shadow-primary/20"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center">
-                  <Navigation size={16} />
-                </div>
-                <span>Google Maps</span>
-              </div>
-              <ExternalLink size={15} className="opacity-70" />
-            </button>
-
-            <button
-              onClick={openWaze}
-              className="w-full flex items-center justify-between px-5 py-4 bg-card border border-border text-foreground font-bold rounded-2xl hover:bg-muted transition-all active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-sky-100 dark:bg-sky-900/30 rounded-xl flex items-center justify-center">
-                  <Navigation size={16} className="text-sky-600 dark:text-sky-400" />
-                </div>
-                <span>Waze</span>
-              </div>
-              <ExternalLink size={15} className="text-muted-foreground" />
-            </button>
-
-            <button
-              onClick={openAppleMaps}
-              className="w-full flex items-center justify-between px-5 py-4 bg-card border border-border text-foreground font-bold rounded-2xl hover:bg-muted transition-all active:scale-[0.98]"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gray-100 dark:bg-gray-800 rounded-xl flex items-center justify-center">
-                  <Navigation size={16} className="text-gray-600 dark:text-gray-400" />
-                </div>
-                <span>Apple Maps</span>
-              </div>
-              <ExternalLink size={15} className="text-muted-foreground" />
-            </button>
-          </div>
-
-          <p className="text-xs text-muted-foreground text-center pb-2">
-            Tap any app to open navigation
-          </p>
-
         </div>
       )}
     </DashboardShell>

@@ -1,17 +1,5 @@
 "use client";
 
-/**
- * app/dashboard/technician/ai/page.tsx  (FULL REPLACEMENT)
- * Module 8 — AI Diagnostic + Estimate Predictor
- *
- * COPY TO: src/app/dashboard/technician/ai/page.tsx
- * REPLACES the existing mock-response version entirely.
- *
- * Calls:
- *   POST /api/ai/diagnostic  — real Claude with MongoDB ticket history as context
- *   POST /api/ai/estimate    — real Claude with historical cost data from MongoDB
- */
-
 import DashboardShell from "@/components/DashboardShell";
 import { useState, useRef, useEffect } from "react";
 import {
@@ -19,7 +7,6 @@ import {
   Send,
   Sparkles,
   AlertCircle,
-  RotateCcw,
   Copy,
   Check,
   DollarSign,
@@ -67,8 +54,10 @@ type EstimateResult = {
 const QUICK_PROMPTS = [
   "iPhone 15 Pro Max screen flickering after water damage",
   "MacBook won't boot after RAM upgrade",
-  "Samsung Galaxy battery draining in 2 hours",
-  "Laptop GPU reflow required — overheating and artifacts",
+  "Samsung Galaxy battery draining too fast",
+  "How to safely reflow solder on a laptop GPU?",
+  "iPad charging port not working",
+  "PS5 HDMI port replacement procedure",
 ];
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -114,10 +103,8 @@ function DiagnosticCard({ data }: { data: DiagnosticResult }) {
             className="overflow-hidden"
           >
             <div className="px-5 py-4 space-y-4">
-              {/* Summary */}
               <p className="text-sm text-foreground font-medium">{data.summary}</p>
 
-              {/* Warning */}
               {data.warning && (
                 <div className="flex items-start gap-2 bg-amber-500/10 border border-amber-500/30 rounded-xl px-3 py-2.5">
                   <ShieldAlert size={14} className="text-amber-600 mt-0.5 flex-shrink-0" />
@@ -125,7 +112,6 @@ function DiagnosticCard({ data }: { data: DiagnosticResult }) {
                 </div>
               )}
 
-              {/* Probable Causes */}
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
                   Probable Causes
@@ -145,7 +131,6 @@ function DiagnosticCard({ data }: { data: DiagnosticResult }) {
                 </div>
               </div>
 
-              {/* Steps */}
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
                   Diagnostic Steps
@@ -162,7 +147,6 @@ function DiagnosticCard({ data }: { data: DiagnosticResult }) {
                 </ol>
               </div>
 
-              {/* Parts */}
               {data.parts.length > 0 && (
                 <div>
                   <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2">
@@ -308,27 +292,29 @@ export default function TechnicianAIPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  }, [messages]);
 
   const sendMessage = async (text?: string) => {
     const msg = text || input.trim();
     if (!msg || loading) return;
-    setInput("");
-    inputRef.current?.focus();
 
-    const userMsg: Message = { role: "user", content: msg, id: Date.now().toString() };
-    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    const userMessage: Message = {
+      role: "user",
+      content: msg,
+      id: Date.now().toString(),
+    };
+    setMessages((prev) => [...prev, userMessage]);
     setLoading(true);
 
     try {
       const { brand, model } = parseDeviceInfo(msg);
 
-      // ── Call real API route → Claude with real MongoDB context ──────────────
       const res = await api.post("/api/ai/diagnostic", {
         deviceBrand: brand || undefined,
         deviceModel: model || undefined,
@@ -369,20 +355,22 @@ export default function TechnicianAIPage() {
           </div>
 
           {/* Header */}
-          <div className="relative flex items-center gap-4 px-6 py-4 border-b border-border/40 bg-background/80 backdrop-blur-xl flex-shrink-0">
-            <div className="relative">
-              <div className="w-11 h-11 bg-gradient-to-br from-primary to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30">
-                <Bot size={20} className="text-white" />
+          <div className="relative flex items-center justify-between px-4 md:px-6 py-4 border-b border-border/40 bg-background/80 backdrop-blur-xl flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <div className="w-9 h-9 bg-gradient-to-br from-primary to-violet-600 rounded-xl flex items-center justify-center shadow-md shadow-primary/30">
+                  <Bot size={18} className="text-white" />
+                </div>
+                <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-background rounded-full" />
               </div>
-              <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-background rounded-full" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-black text-foreground tracking-tight">
-                AI Diagnostic Assistant
-              </h1>
-              <p className="text-xs text-muted-foreground font-medium">
-                Powered by Claude · Uses your shop's real repair history
-              </p>
+              <div className="flex-1 min-w-0">
+                <h1 className="text-lg font-black text-foreground tracking-tight">
+                  AI Diagnostic Assistant
+                </h1>
+                <p className="text-xs text-muted-foreground font-medium">
+                  Powered by Claude · Uses your shop's real repair history
+                </p>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               {messages.length > 0 && (
@@ -390,7 +378,6 @@ export default function TechnicianAIPage() {
                   onClick={() => setMessages([])}
                   className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-3 py-1.5 rounded-xl hover:bg-muted border border-border/50"
                 >
-                  <RotateCcw size={12} />
                   Clear
                 </button>
               )}
@@ -485,7 +472,6 @@ export default function TechnicianAIPage() {
                           {msg.diagnostic && (
                             <>
                               <DiagnosticCard data={msg.diagnostic} />
-                              {/* Estimate predictor appears after diagnosis */}
                               {msg.diagnostic.causes.length > 0 && (
                                 <EstimatePanel
                                   deviceBrand={
@@ -517,13 +503,13 @@ export default function TechnicianAIPage() {
                   <div className="w-5 h-5 bg-gradient-to-br from-primary to-violet-600 rounded-md flex items-center justify-center flex-shrink-0">
                     <Bot size={11} className="text-white" />
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    {[0, 0.15, 0.3].map((delay, i) => (
-                      <motion.div
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <motion.span
                         key={i}
-                        animate={{ y: [0, -5, 0], opacity: [0.4, 1, 0.4] }}
-                        transition={{ repeat: Infinity, duration: 0.8, delay }}
-                        className="w-2 h-2 bg-primary rounded-full"
+                        className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full"
+                        animate={{ opacity: [0.3, 1, 0.3] }}
+                        transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
                       />
                     ))}
                   </div>
@@ -561,10 +547,10 @@ export default function TechnicianAIPage() {
                 )}
               </motion.button>
             </div>
-            <div className="flex items-center justify-center gap-1.5 mt-2.5 text-xs text-muted-foreground/60 font-medium">
+            <p className="text-xs text-muted-foreground text-center mt-2 flex items-center justify-center gap-1.5">
               <AlertCircle size={11} />
-              AI guidance only — always verify with manufacturer schematics
-            </div>
+              AI advice is for guidance only — verify with manufacturer documentation.
+            </p>
           </div>
         </div>
       )}

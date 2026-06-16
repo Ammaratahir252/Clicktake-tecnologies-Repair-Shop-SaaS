@@ -101,15 +101,15 @@ function StatusTracker({ status }: { status: string }) {
               <div className="flex flex-col items-center gap-1">
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-black transition-all
-                    ${isDone    ? "bg-blue-600 text-white"
-                    : isCurrent ? "bg-blue-100 text-blue-700 ring-2 ring-blue-500"
-                    : "bg-slate-100 text-slate-400"}`}
+                    ${isDone    ? "bg-primary text-primary-foreground"
+                    : isCurrent ? "bg-primary/20 text-primary ring-2 ring-primary"
+                    : "bg-muted text-muted-foreground"}`}
                 >
                   {isDone ? <CheckCircle size={14} /> : i + 1}
                 </div>
                 <span
                   className={`text-[10px] font-bold whitespace-nowrap
-                    ${isDone ? "text-blue-600" : isCurrent ? "text-blue-700" : "text-slate-400"}`}
+                    ${isDone ? "text-primary" : isCurrent ? "text-primary" : "text-muted-foreground"}`}
                 >
                   {step.label}
                 </span>
@@ -117,7 +117,7 @@ function StatusTracker({ status }: { status: string }) {
               {i < STATUS_STEPS.length - 1 && (
                 <div
                   className={`w-8 h-1 mb-4 mx-1 rounded transition-all
-                    ${isDone ? "bg-blue-500" : "bg-slate-200"}`}
+                    ${isDone ? "bg-primary" : "bg-border"}`}
                 />
               )}
             </div>
@@ -156,7 +156,7 @@ function CustomerContent({ user }: { user: any }) {
 
       {/* ── Module Cards ─────────────────────────────────────────────── */}
       <section>
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-4">
+        <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">
           My Portal
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -164,71 +164,71 @@ function CustomerContent({ user }: { user: any }) {
             <a
               key={key}
               href={href}
-              className="bg-white border border-slate-100 rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-slate-200 transition-all group active:scale-[0.98]"
+              className="bg-card border border-border rounded-2xl p-5 flex items-center gap-4 hover:shadow-md hover:border-border/80 transition-all group active:scale-[0.98]"
             >
               <div className={`${color} w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-md`}>
                 <Icon className="text-white w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="font-bold text-slate-800 text-sm">{title}</p>
-                <p className="text-xs text-slate-400 mt-0.5">{desc}</p>
+                <p className="font-bold text-card-foreground text-sm">{title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{desc}</p>
               </div>
-              <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500 shrink-0 transition-colors" />
+              <ChevronRight size={16} className="text-muted-foreground/50 group-hover:text-muted-foreground shrink-0 transition-colors" />
             </a>
           ))}
         </div>
       </section>
 
       {/* ── Live Repair Status ────────────────────────────────────────── */}
-      <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+      <section className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Package size={17} className="text-blue-600" />
-            <h2 className="font-bold text-slate-800">My Active Repairs</h2>
+            <Package size={17} className="text-primary" />
+            <h2 className="font-bold text-card-foreground">My Active Repairs</h2>
           </div>
-          <span className="text-xs bg-blue-50 text-blue-600 font-bold border border-blue-100 px-3 py-1 rounded-full">
+          <span className="text-xs bg-primary/10 text-primary font-bold border border-primary/20 px-3 py-1 rounded-full">
             Live Status
           </span>
         </div>
 
         {loading && (
-          <div className="flex items-center justify-center py-10 gap-2 text-slate-400">
+          <div className="flex items-center justify-center py-10 gap-2 text-muted-foreground">
             <Loader2 className="animate-spin w-5 h-5" />
             <span className="text-sm">Loading your repairs...</span>
           </div>
         )}
 
         {error && (
-          <div className="flex items-center gap-3 m-4 bg-red-50 border border-red-100 rounded-xl p-4">
-            <AlertCircle size={16} className="text-red-400" />
-            <p className="text-sm font-semibold text-red-600">{error}</p>
+          <div className="flex items-center gap-3 m-4 bg-destructive/10 border border-destructive/20 rounded-xl p-4">
+            <AlertCircle size={16} className="text-destructive" />
+            <p className="text-sm font-semibold text-destructive">{error}</p>
           </div>
         )}
 
         {!loading && !error && tickets.length === 0 && (
           <div className="text-center py-12">
-            <Ticket className="mx-auto text-slate-200 w-10 h-10 mb-3" />
-            <p className="text-slate-400 font-semibold text-sm">No active repairs found.</p>
-            <p className="text-slate-300 text-xs mt-1">Visit the shop to create a repair ticket.</p>
+            <Ticket className="mx-auto text-muted-foreground/30 w-10 h-10 mb-3" />
+            <p className="text-muted-foreground font-semibold text-sm">No active repairs found.</p>
+            <p className="text-muted-foreground/60 text-xs mt-1">Visit the shop to create a repair ticket.</p>
           </div>
         )}
 
         {!loading && !error && tickets.length > 0 && (
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-border">
             {tickets.map((t, i) => (
               <div key={t._id ?? t.id ?? i} className="p-6 space-y-4">
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
-                    <p className="font-black text-slate-800 text-sm">
+                    <p className="font-black text-card-foreground text-sm">
                       {t.ticketNumber ?? `Ticket #${i + 1}`}
                     </p>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {t.deviceBrand} {t.deviceModel} — {t.issue}
                     </p>
                   </div>
                   <a
                     href={`/dashboard/customer/track?ticket=${t._id ?? t.id}`}
-                    className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                    className="text-xs font-bold text-primary hover:underline flex items-center gap-1"
                   >
                     View Details <ChevronRight size={12} />
                   </a>
@@ -241,12 +241,12 @@ function CustomerContent({ user }: { user: any }) {
       </section>
 
       {/* ── Feedback Prompt ───────────────────────────────────────────── */}
-      <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+      <div className="bg-amber-500/10 dark:bg-amber-500/20 border border-amber-500/30 rounded-2xl px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
           <Star size={18} className="text-amber-500 shrink-0" />
           <div>
-            <p className="text-sm font-bold text-amber-800">Had a repair recently?</p>
-            <p className="text-xs text-amber-700 mt-0.5">Leave a review and help us improve our service.</p>
+            <p className="text-sm font-bold text-foreground">Had a repair recently?</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Leave a review and help us improve our service.</p>
           </div>
         </div>
         <a
