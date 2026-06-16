@@ -21,7 +21,7 @@ import api from "@/lib/api";
 import {
   Ticket, CreditCard, Clock, Truck, MapPin,
   ChevronRight, CheckCircle, AlertCircle, Loader2,
-  Star, Package
+  Star, Package, MessageCircle
 } from "lucide-react";
 
 // Repair status pipeline per blueprint M2 standard
@@ -75,10 +75,10 @@ const MODULES = [
     desc: "Schedule doorstep device pickup",
     href: "/dashboard/customer/delivery",
     color: "bg-rose-500",
-  },,
+  },
   {
     key: "chat",
-    icon: "MessageCircle",
+    icon: MessageCircle,
     title: "Chat with Us",
     desc: "Get instant answers from our AI assistant",
     href: "/dashboard/customer/chat",
@@ -142,7 +142,7 @@ function CustomerContent({ user }: { user: any }) {
   const [error, setError]         = useState("");
 
   useEffect(() => {
-    api.get("/api/ticket-status")
+    api.get("/api/tickets")
       .then((res) => {
         const data = res.data?.data;
         setTickets(Array.isArray(data) ? data : [data].filter(Boolean));

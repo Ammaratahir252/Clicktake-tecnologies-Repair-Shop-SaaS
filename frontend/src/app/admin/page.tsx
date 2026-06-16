@@ -1,13 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { setToken, isLoggedIn } from "@/lib/auth.helper";
 import { Shield, Lock, Mail, Loader2, AlertCircle, Eye, EyeOff } from "lucide-react";
 
 export default function AdminLoginPage() {
-  const router = useRouter();
   const [email, setEmail]       = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
@@ -23,14 +21,14 @@ export default function AdminLoginPage() {
         if (raw) {
           const u = JSON.parse(raw);
           if (u?.role === "super_admin") {
-            router.replace("/dashboard/super-admin");
+            window.location.replace("/dashboard/super-admin");
             return;
           }
         }
       }
     } catch {}
     setChecking(false);
-  }, [router]);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -62,7 +60,7 @@ export default function AdminLoginPage() {
         tenantId: user.tenantId ?? user._id ?? user.id,
       });
 
-      router.replace("/dashboard/super-admin");
+      window.location.replace("/dashboard/super-admin");
     } catch (err: any) {
       const msg = err.response?.data?.message ?? err.message;
       if (msg?.toLowerCase().includes("invalid") || msg?.toLowerCase().includes("credentials")) {
