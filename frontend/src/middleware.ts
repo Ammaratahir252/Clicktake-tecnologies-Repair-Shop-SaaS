@@ -152,6 +152,38 @@ export async function middleware(req: NextRequest) {
   }
 
 
+  // ─── Leads & Shop Profile — requires valid JWT ───────────────────────────
+  if (pathname.startsWith('/api/leads') || pathname.startsWith('/api/shop/')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── Reviews — requires valid JWT (except public reads) ──────────────────
+  if (pathname.startsWith('/api/reviews')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // ─── AI Routes /api/ai/* — requires valid JWT ─────────────────────────────
   if (pathname.startsWith('/api/ai')) {
     const payload = await verifyToken();
@@ -210,5 +242,10 @@ export const config = {
     '/api/stock-movements',
     '/api/stock-movements/:path*',
     '/api/ai/:path*',
+    '/api/leads',
+    '/api/leads/:path*',
+    '/api/shop/:path*',
+    '/api/reviews',
+    '/api/reviews/:path*',
   ],
 };

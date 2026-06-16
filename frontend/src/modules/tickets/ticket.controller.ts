@@ -66,7 +66,19 @@ export async function getTicketsHandler(req: NextRequest): Promise<NextResponse>
     const { searchParams } = new URL(req.url);
     const statusFilter = searchParams.get('status') as TicketStatus | null;
 
-    const tickets = await TicketService.getTickets(tenantId, statusFilter ?? undefined);
+    // For customer role: find their Customer records by phone then filter tickets
+    let customerIds: string[] | undefined;
+    if (role === 'customer' && userId) {
+      const User = (await import('@/models/user.model')).default;
+      const user = await User.findById(userId).lean() as any;
+      if (user?.phone) {
+        const CustomerModel = (await import('@/models/customer.model')).default;
+        const customers = await CustomerModel.find({ phone: user.phone }).lean() as any[];
+        customerIds = customers.map((c: any) => c._id.toString());
+      }
+    }
+
+    const tickets = await TicketService.getTickets(tenantId, statusFilter ?? undefined, customerIds);
     return sendResponse(true, 'Tickets retrieved', tickets);
   } catch (err: any) {
     return sendResponse(false, err.message ?? 'Server error', null, 500);

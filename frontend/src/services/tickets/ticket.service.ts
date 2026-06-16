@@ -153,16 +153,19 @@ export const TicketService = {
    * GET ALL TICKETS
    * Always scoped to tenantId. Optional status filter from query params.
    */
-  getTickets: async (tenantId: string, statusFilter?: TicketStatus) => {
-    if (!tenantId || tenantId.length !== 24) {
-      throw new Error('Unauthorized: Valid Tenant ID is missing. Check middleware.');
+  getTickets: async (tenantId: string, statusFilter?: TicketStatus, customerIds?: string[]) => {
+    const query: Record<string, unknown> = {};
+
+    if (tenantId && tenantId.length === 24) {
+      query.tenantId = new mongoose.Types.ObjectId(tenantId);
     }
 
-    const query: Record<string, unknown> = {
-      tenantId: new mongoose.Types.ObjectId(tenantId),
-    };
-
     if (statusFilter) query.status = statusFilter;
+
+    if (customerIds !== undefined) {
+      if (customerIds.length === 0) return [];
+      query.customerId = { $in: customerIds.map(id => new mongoose.Types.ObjectId(id)) };
+    }
 
     return Ticket.find(query)
       .populate('customerId', 'name phone')
