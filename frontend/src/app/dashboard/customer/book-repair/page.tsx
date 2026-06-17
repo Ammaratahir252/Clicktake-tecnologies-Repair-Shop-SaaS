@@ -5,7 +5,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Smartphone, Wrench, Truck, MapPin, Clock, CheckCircle,
-  ChevronLeft, Loader2, AlertCircle, Store, Calendar
+  ChevronLeft, Loader2, AlertCircle, Store, Calendar, Phone
 } from "lucide-react";
 
 const DEVICE_BRANDS = [
@@ -27,6 +27,7 @@ interface FormState {
   deliveryType: "drop-off" | "doorstep";
   deliveryAddress: string;
   preferredTime: string;
+  phone: string;
 }
 
 function BookRepairContent({ user }: { user: any }) {
@@ -44,6 +45,7 @@ function BookRepairContent({ user }: { user: any }) {
     deliveryType:    "drop-off",
     deliveryAddress: "",
     preferredTime:   "",
+    phone:           user?.phone ?? "",
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -80,6 +82,10 @@ function BookRepairContent({ user }: { user: any }) {
       setError("Please describe the issue with your device.");
       return;
     }
+    if (!form.phone.trim()) {
+      setError("Please enter your phone number so the shop can contact you.");
+      return;
+    }
     if (form.deliveryType === "doorstep" && !form.deliveryAddress.trim()) {
       setError("Please enter your pickup address for doorstep collection.");
       return;
@@ -93,7 +99,7 @@ function BookRepairContent({ user }: { user: any }) {
         body: JSON.stringify({
           subdomain:       shopSubdomain,
           name:            user?.name ?? "",
-          phone:           user?.phone ?? "",
+          phone:           form.phone.trim(),
           email:           user?.email ?? "",
           device,
           issue,
@@ -359,23 +365,33 @@ function BookRepairContent({ user }: { user: any }) {
           )}
         </section>
 
-        {/* Your Contact Info (read-only) */}
+        {/* Your Contact Info */}
         {user && (
-          <section className="bg-muted/40 border border-border rounded-2xl p-5 space-y-2">
-            <p className="text-xs font-bold text-muted-foreground mb-3">Your Contact Details (auto-filled)</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
+          <section className="bg-muted/40 border border-border rounded-2xl p-5 space-y-4">
+            <p className="text-xs font-bold text-muted-foreground">Your Contact Details</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
               <div>
-                <p className="text-xs text-muted-foreground">Name</p>
+                <p className="text-xs text-muted-foreground mb-1">Name</p>
                 <p className="font-semibold">{user.name || "—"}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground">Email</p>
+                <p className="text-xs text-muted-foreground mb-1">Email</p>
                 <p className="font-semibold">{user.email || "—"}</p>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Phone</p>
-                <p className="font-semibold">{user.phone || "Not set"}</p>
-              </div>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-muted-foreground flex items-center gap-1.5">
+                <Phone size={12} /> Phone Number *
+              </label>
+              <input
+                type="tel"
+                placeholder="e.g. 03001234567"
+                value={form.phone}
+                onChange={(e) => set("phone", e.target.value)}
+                required
+                className="w-full px-3 py-2 text-sm rounded-xl border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary/40"
+              />
+              <p className="text-[11px] text-muted-foreground">The shop will call or WhatsApp this number.</p>
             </div>
           </section>
         )}

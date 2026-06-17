@@ -18,8 +18,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       preferredTime,
     } = body;
 
-    if (!subdomain || !name || !phone || !device || !issue) {
-      return sendResponse(false, 'subdomain, name, phone, device, issue are required', null, 400);
+    if (!subdomain || !name || !device || !issue) {
+      return sendResponse(false, 'subdomain, name, device, and issue are required', null, 400);
     }
 
     const tenant = await Tenant.findOne({ subdomain, isActive: true });

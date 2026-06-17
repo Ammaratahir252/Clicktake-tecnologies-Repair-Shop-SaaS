@@ -68,9 +68,9 @@ function ShopCard({ shop }: { shop: Shop }) {
       </div>
 
       {/* Accepted devices */}
-      {shop.acceptedDevices.length > 0 && (
+      {(shop.acceptedDevices ?? []).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {shop.acceptedDevices.slice(0, 4).map((d) => (
+          {(shop.acceptedDevices ?? []).slice(0, 4).map((d) => (
             <span
               key={d}
               className="text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded-full"
@@ -78,18 +78,18 @@ function ShopCard({ shop }: { shop: Shop }) {
               {d}
             </span>
           ))}
-          {shop.acceptedDevices.length > 4 && (
+          {(shop.acceptedDevices ?? []).length > 4 && (
             <span className="text-[10px] font-semibold text-muted-foreground px-2 py-0.5">
-              +{shop.acceptedDevices.length - 4} more
+              +{(shop.acceptedDevices ?? []).length - 4} more
             </span>
           )}
         </div>
       )}
 
       {/* Services */}
-      {shop.servicesOffered.length > 0 && (
+      {(shop.servicesOffered ?? []).length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {shop.servicesOffered.slice(0, 3).map((s) => (
+          {(shop.servicesOffered ?? []).slice(0, 3).map((s) => (
             <span
               key={s}
               className="text-[10px] font-semibold bg-muted text-muted-foreground border border-border px-2 py-0.5 rounded-full"
@@ -97,9 +97,9 @@ function ShopCard({ shop }: { shop: Shop }) {
               {s}
             </span>
           ))}
-          {shop.servicesOffered.length > 3 && (
+          {(shop.servicesOffered ?? []).length > 3 && (
             <span className="text-[10px] font-semibold text-muted-foreground px-2 py-0.5">
-              +{shop.servicesOffered.length - 3} more
+              +{(shop.servicesOffered ?? []).length - 3} more
             </span>
           )}
         </div>

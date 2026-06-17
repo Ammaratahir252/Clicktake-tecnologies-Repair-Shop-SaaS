@@ -32,7 +32,7 @@ const leadSchema = new Schema<ILead>(
     tenantId:    { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
     leadNumber:  { type: String, required: true },
     name:        { type: String, required: true, trim: true },
-    phone:       { type: String, required: true, trim: true },
+    phone:       { type: String, trim: true },
     email:       { type: String, trim: true, lowercase: true },
     device:      { type: String, required: true },
     issue:       { type: String, required: true },
