@@ -91,8 +91,8 @@ export async function POST(req: NextRequest) {
       token 
     });
     
+    // Cookie must NOT be httpOnly — JS must be able to delete it on logout/401.
     response.cookies.set('token', token, {
-      httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
       maxAge: 86400,

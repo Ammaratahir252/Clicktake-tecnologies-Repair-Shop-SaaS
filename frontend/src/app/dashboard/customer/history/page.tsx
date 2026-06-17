@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import DashboardShell from '@/components/DashboardShell'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -9,73 +9,88 @@ import { Input } from '@/components/ui/input'
 import { Progress } from '@/components/ui/progress'
 import {
   Search, Filter, History, FileText, Smartphone,
-  Star, ArrowRight, Download, X
+  Star, ArrowRight, X, Loader2,
 } from 'lucide-react'
+import api from '@/lib/api'
 
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type RepairStatus = 'delivered' | 'cancelled' | 'ready' | 'repairing'
+type RepairStatus = 'delivered' | 'cancelled' | 'ready' | 'in_repair' | 'received' | 'diagnosed' | 'estimate_sent' | 'approved'
 
 interface RepairRecord {
-  id: string
-  device: string
-  issue: string
-  status: RepairStatus
-  technician: string
+  id:            string
+  ticketId:      string
+  device:        string
+  issue:         string
+  status:        RepairStatus
+  technician:    string
   completedDate: string
-  cost: number
-  rating?: number
+  cost:          number
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-
-const HISTORY_DATA: RepairRecord[] = [
-  { id: 'RPR-2024-0042', device: 'iPhone 14 Pro',       issue: 'Screen Replacement',      status: 'delivered',  technician: 'Ali Hassan',   completedDate: '2024-06-01', cost: 8500, rating: 5 },
-  { id: 'RPR-2024-0038', device: 'Samsung Galaxy S22',  issue: 'Battery Replacement',     status: 'delivered',  technician: 'Usman Raza',   completedDate: '2024-05-22', cost: 3200, rating: 4 },
-  { id: 'RPR-2024-0031', device: 'MacBook Air M1',      issue: 'Charging Port Repair',    status: 'delivered',  technician: 'Sara Ahmed',   completedDate: '2024-05-10', cost: 5500, rating: 5 },
-  { id: 'RPR-2024-0027', device: 'iPad Pro 11"',        issue: 'Speaker Not Working',     status: 'cancelled',  technician: 'Ali Hassan',   completedDate: '2024-04-30', cost: 0,    rating: undefined },
-  { id: 'RPR-2024-0019', device: 'iPhone 13',           issue: 'Water Damage',            status: 'delivered',  technician: 'Bilal Khan',   completedDate: '2024-04-15', cost: 12000, rating: 3 },
-  { id: 'RPR-2024-0012', device: 'OnePlus 11',          issue: 'Back Glass Replacement',  status: 'delivered',  technician: 'Usman Raza',   completedDate: '2024-03-28', cost: 2800, rating: 4 },
-  { id: 'RPR-2024-0007', device: 'Dell XPS 15',         issue: 'Keyboard Replacement',    status: 'delivered',  technician: 'Sara Ahmed',   completedDate: '2024-03-10', cost: 7200, rating: 5 },
-  { id: 'RPR-2024-0003', device: 'iPhone 12 Mini',      issue: 'Face ID Not Working',     status: 'cancelled',  technician: 'Bilal Khan',   completedDate: '2024-02-20', cost: 0,    rating: undefined },
-]
-
-const STATUS_CONFIG: Record<RepairStatus, { variant: 'default' | 'destructive' | 'secondary'; label: string }> = {
-  delivered: { variant: 'default', label: 'Delivered' },
-  cancelled: { variant: 'destructive', label: 'Cancelled' },
-  ready: { variant: 'secondary', label: 'Ready' },
-  repairing: { variant: 'secondary', label: 'In Repair' },
+const STATUS_CONFIG: Record<string, { variant: 'default' | 'destructive' | 'secondary'; label: string }> = {
+  delivered:     { variant: 'default',      label: 'Delivered'   },
+  cancelled:     { variant: 'destructive',  label: 'Cancelled'   },
+  ready:         { variant: 'secondary',    label: 'Ready'       },
+  in_repair:     { variant: 'secondary',    label: 'In Repair'   },
+  received:      { variant: 'secondary',    label: 'Received'    },
+  diagnosed:     { variant: 'secondary',    label: 'Diagnosed'   },
+  estimate_sent: { variant: 'secondary',    label: 'Estimate Sent' },
+  approved:      { variant: 'secondary',    label: 'Approved'    },
 }
 
 const ITEMS_PER_PAGE = 5
-
-// ─── Star Rating Display ─────────────────────────────────────────────────────
 
 const StarRating = ({ value }: { value?: number }) => {
   if (!value) return <span className="text-sm text-muted-foreground">—</span>
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map((s) => (
-        <Star
-          key={s}
-          className={`w-4 h-4 ${s <= value ? 'fill-yellow-400 text-yellow-400' : 'text-muted'}`}
-        />
+        <Star key={s} className={`w-4 h-4 ${s <= value ? 'fill-yellow-400 text-yellow-400' : 'text-muted'}`} />
       ))}
     </div>
   )
 }
 
-// ─── Component ────────────────────────────────────────────────────────────────
+function ticketToRecord(t: any): RepairRecord {
+  return {
+    id:            t.ticketNumber,
+    ticketId:      t._id,
+    device:        `${t.deviceBrand} ${t.deviceModel}`.trim(),
+    issue:         t.issue,
+    status:        t.status,
+    technician:    t.technicianId?.name ?? 'Unassigned',
+    completedDate: new Date(t.updatedAt ?? t.createdAt).toLocaleDateString('en-PK'),
+    cost:          t.estimateAmount ?? 0,
+  }
+}
 
 export default function RepairHistoryPage() {
-  const [search, setSearch] = useState('')
+  return (
+    <DashboardShell requiredRole="customer">
+      {() => <HistoryContent />}
+    </DashboardShell>
+  )
+}
+
+function HistoryContent() {
+  const [records, setRecords]   = useState<RepairRecord[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [search, setSearch]     = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage]   = useState(1)
   const [selectedOrder, setSelectedOrder] = useState<RepairRecord | null>(null)
 
-  // Filtered data
+  useEffect(() => {
+    api.get('/api/tickets')
+      .then((res) => {
+        const tickets: any[] = res.data?.data ?? []
+        setRecords(tickets.map(ticketToRecord))
+      })
+      .catch(() => setRecords([]))
+      .finally(() => setLoading(false))
+  }, [])
+
   const filtered = useMemo(() => {
-    return HISTORY_DATA.filter((r) => {
+    return records.filter((r) => {
       const matchSearch =
         r.id.toLowerCase().includes(search.toLowerCase()) ||
         r.device.toLowerCase().includes(search.toLowerCase()) ||
@@ -83,303 +98,219 @@ export default function RepairHistoryPage() {
       const matchStatus = statusFilter === 'all' || r.status === statusFilter
       return matchSearch && matchStatus
     })
-  }, [search, statusFilter])
+  }, [search, statusFilter, records])
 
-  // Pagination
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
-  const paginated = filtered.slice(
-    (currentPage - 1) * ITEMS_PER_PAGE,
-    currentPage * ITEMS_PER_PAGE,
-  )
+  const paginated  = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE)
 
-  // Stats
-  const totalSpent = HISTORY_DATA.filter((r) => r.status === 'delivered').reduce(
-    (sum, r) => sum + r.cost,
-    0,
-  )
-  const avgRating =
-    HISTORY_DATA.filter((r) => r.rating).reduce((s, r) => s + (r.rating ?? 0), 0) /
-    HISTORY_DATA.filter((r) => r.rating).length
+  const totalSpent   = records.filter((r) => r.status === 'delivered').reduce((s, r) => s + r.cost, 0)
+  const completedCnt = records.filter((r) => r.status === 'delivered').length
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="animate-spin w-6 h-6 mr-3" />
+        <span className="font-medium">Loading history…</span>
+      </div>
+    )
+  }
 
   return (
-    <DashboardShell requiredRole="customer">
-      {() => (
-      <div className="space-y-6">
-        {/* ── Header ── */}
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2">
-              <History className="w-5 h-5 text-primary" />
-              <h1 className="text-2xl font-bold text-foreground">Repair History</h1>
-            </div>
-            <p className="text-sm text-muted-foreground mt-1">
-              All your past repair orders in one place
-            </p>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <History className="w-5 h-5 text-primary" />
+            <h1 className="text-2xl font-bold text-foreground">Repair History</h1>
           </div>
-          <Button variant="outline" size="sm">
-            <Download className="w-4 h-4 mr-2" />
-            Export
-          </Button>
+          <p className="text-sm text-muted-foreground mt-1">All your past repair orders in one place</p>
         </div>
-
-        {/* ── Stats Cards ── */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-sm text-muted-foreground mb-1">Total Repairs</p>
-              <h3 className="text-2xl font-bold text-primary">{HISTORY_DATA.length}</h3>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-sm text-muted-foreground mb-1">Completed</p>
-              <h3 className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {HISTORY_DATA.filter((r) => r.status === 'delivered').length}
-              </h3>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-sm text-muted-foreground mb-1">Total Spent</p>
-              <h3 className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                Rs. {(totalSpent / 1000).toFixed(1)}k
-              </h3>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6 text-center">
-              <p className="text-sm text-muted-foreground mb-1">Avg. Rating</p>
-              <h3 className="text-2xl font-bold text-yellow-500">
-                {avgRating.toFixed(1)} ⭐
-              </h3>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* ── Filters ── */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by ID, device, or issue..."
-                  value={search}
-                  onChange={(e) => {
-                    setSearch(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                  className="pl-10"
-                />
-              </div>
-              <div className="relative">
-                <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                <select
-                  value={statusFilter}
-                  onChange={(e) => {
-                    setStatusFilter(e.target.value)
-                    setCurrentPage(1)
-                  }}
-                  className="w-full pl-10 pr-4 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                >
-                  <option value="all">All Statuses</option>
-                  <option value="delivered">Delivered</option>
-                  <option value="cancelled">Cancelled</option>
-                  <option value="ready">Ready</option>
-                  <option value="repairing">In Repair</option>
-                </select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* ── Table ── */}
-        <Card>
-          <CardHeader className="border-b border-border">
-            <div className="flex items-center gap-2">
-              <FileText className="w-4 h-4 text-primary" />
-              <CardTitle className="text-base">Orders</CardTitle>
-              <Badge variant="secondary">{filtered.length}</Badge>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-muted/50">
-                  <tr className="border-b border-border">
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Order ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Device</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Issue</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Status</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Date</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Cost</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Rating</th>
-                    <th className="px-4 py-3"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginated.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-12 text-center text-muted-foreground">
-                        No records found
-                      </td>
-                    </tr>
-                  ) : (
-                    paginated.map((record) => {
-                      const config = STATUS_CONFIG[record.status]
-                      return (
-                        <tr key={record.id} className="border-b border-border hover:bg-muted/50 transition-colors">
-                          <td className="px-4 py-3">
-                            <span className="font-semibold text-sm">{record.id}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <Smartphone className="w-4 h-4 text-muted-foreground" />
-                              <span className="text-sm">{record.device}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-muted-foreground">
-                            {record.issue}
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant={config.variant}>{config.label}</Badge>
-                          </td>
-                          <td className="px-4 py-3 text-sm">{record.completedDate}</td>
-                          <td className="px-4 py-3 font-semibold text-sm">
-                            {record.cost ? `Rs. ${record.cost.toLocaleString()}` : '—'}
-                          </td>
-                          <td className="px-4 py-3">
-                            <StarRating value={record.rating} />
-                          </td>
-                          <td className="px-4 py-3">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setSelectedOrder(record)}
-                            >
-                              <ArrowRight className="w-4 h-4" />
-                            </Button>
-                          </td>
-                        </tr>
-                      )
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="flex justify-end items-center gap-2 px-4 py-3 border-t border-border">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage((p) => p - 1)}
-                >
-                  Previous
-                </Button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <Button
-                    key={p}
-                    size="sm"
-                    variant={p === currentPage ? 'default' : 'outline'}
-                    onClick={() => setCurrentPage(p)}
-                  >
-                    {p}
-                  </Button>
-                ))}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage((p) => p + 1)}
-                >
-                  Next
-                </Button>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* ── Detail Modal ── */}
-        {selectedOrder && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSelectedOrder(null)}>
-            <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-primary" />
-                  <h2 className="text-lg font-semibold">{selectedOrder.id}</h2>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(null)}>
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              <div className="p-6 space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Device</p>
-                    <p className="font-semibold">{selectedOrder.device}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Issue</p>
-                    <p className="font-semibold">{selectedOrder.issue}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Technician</p>
-                    <p className="font-semibold">{selectedOrder.technician}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Completed</p>
-                    <p className="font-semibold">{selectedOrder.completedDate}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Status</p>
-                    <Badge variant={STATUS_CONFIG[selectedOrder.status].variant}>
-                      {STATUS_CONFIG[selectedOrder.status].label}
-                    </Badge>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Amount Paid</p>
-                    <p className="font-semibold text-primary">
-                      {selectedOrder.cost ? `Rs. ${selectedOrder.cost.toLocaleString()}` : 'N/A'}
-                    </p>
-                  </div>
-                  {selectedOrder.rating && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-muted-foreground mb-1">Your Rating</p>
-                      <StarRating value={selectedOrder.rating} />
-                    </div>
-                  )}
-                  {selectedOrder.cost > 0 && (
-                    <div className="col-span-2">
-                      <p className="text-xs text-muted-foreground mb-1">Satisfaction Score</p>
-                      <Progress 
-                        value={selectedOrder.rating ? (selectedOrder.rating / 5) * 100 : 0} 
-                        className="h-2"
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4 flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => setSelectedOrder(null)}>
-                  Close
-                </Button>
-                <Button>
-                  <Download className="w-4 h-4 mr-2" />
-                  Download Invoice
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <p className="text-sm text-muted-foreground mb-1">Total Repairs</p>
+            <h3 className="text-2xl font-bold text-primary">{records.length}</h3>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <p className="text-sm text-muted-foreground mb-1">Completed</p>
+            <h3 className="text-2xl font-bold text-green-600 dark:text-green-400">{completedCnt}</h3>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6 text-center">
+            <p className="text-sm text-muted-foreground mb-1">Total Spent</p>
+            <h3 className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
+              Rs. {(totalSpent / 1000).toFixed(1)}k
+            </h3>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by ID, device, or issue..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
+                className="pl-10"
+              />
+            </div>
+            <div className="relative">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <select
+                value={statusFilter}
+                onChange={(e) => { setStatusFilter(e.target.value); setCurrentPage(1) }}
+                className="w-full pl-10 pr-4 py-2 bg-background border border-input rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                <option value="all">All Statuses</option>
+                <option value="delivered">Delivered</option>
+                <option value="cancelled">Cancelled</option>
+                <option value="ready">Ready</option>
+                <option value="in_repair">In Repair</option>
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Table */}
+      <Card>
+        <CardHeader className="border-b border-border">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-primary" />
+            <CardTitle className="text-base">Orders</CardTitle>
+            <Badge variant="secondary">{filtered.length}</Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-muted/50">
+                <tr className="border-b border-border">
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Ticket</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Device</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Issue</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Status</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground">Cost</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginated.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">
+                      No records found
+                    </td>
+                  </tr>
+                ) : (
+                  paginated.map((record) => {
+                    const config = STATUS_CONFIG[record.status] ?? STATUS_CONFIG.received
+                    return (
+                      <tr key={record.ticketId} className="border-b border-border hover:bg-muted/50 transition-colors">
+                        <td className="px-4 py-3">
+                          <span className="font-semibold text-sm">{record.id}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <Smartphone className="w-4 h-4 text-muted-foreground" />
+                            <span className="text-sm">{record.device}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-muted-foreground">{record.issue}</td>
+                        <td className="px-4 py-3">
+                          <Badge variant={config.variant}>{config.label}</Badge>
+                        </td>
+                        <td className="px-4 py-3 text-sm">{record.completedDate}</td>
+                        <td className="px-4 py-3 font-semibold text-sm">
+                          {record.cost ? `Rs. ${record.cost.toLocaleString()}` : '—'}
+                        </td>
+                        <td className="px-4 py-3">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(record)}>
+                            <ArrowRight className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex justify-end items-center gap-2 px-4 py-3 border-t border-border">
+              <Button size="sm" variant="outline" disabled={currentPage === 1} onClick={() => setCurrentPage((p) => p - 1)}>Previous</Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <Button key={p} size="sm" variant={p === currentPage ? 'default' : 'outline'} onClick={() => setCurrentPage(p)}>{p}</Button>
+              ))}
+              <Button size="sm" variant="outline" disabled={currentPage === totalPages} onClick={() => setCurrentPage((p) => p + 1)}>Next</Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Detail Modal */}
+      {selectedOrder && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSelectedOrder(null)}>
+          <div className="bg-card rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 bg-card border-b border-border px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-primary" />
+                <h2 className="text-lg font-semibold">{selectedOrder.id}</h2>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(null)}>
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Device</p>
+                  <p className="font-semibold">{selectedOrder.device}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Issue</p>
+                  <p className="font-semibold">{selectedOrder.issue}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Technician</p>
+                  <p className="font-semibold">{selectedOrder.technician}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Date</p>
+                  <p className="font-semibold">{selectedOrder.completedDate}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Status</p>
+                  <Badge variant={(STATUS_CONFIG[selectedOrder.status] ?? STATUS_CONFIG.received).variant}>
+                    {(STATUS_CONFIG[selectedOrder.status] ?? STATUS_CONFIG.received).label}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Amount</p>
+                  <p className="font-semibold text-primary">
+                    {selectedOrder.cost ? `Rs. ${selectedOrder.cost.toLocaleString()}` : 'N/A'}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className="sticky bottom-0 bg-card border-t border-border px-6 py-4 flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setSelectedOrder(null)}>Close</Button>
+            </div>
+          </div>
+        </div>
       )}
-    </DashboardShell>
+    </div>
   )
 }
-
-// Made with Bob

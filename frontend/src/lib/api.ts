@@ -18,6 +18,7 @@ import axios from "axios";
 
 const api = axios.create({
   baseURL: "/", // Same origin — Next.js API routes
+  timeout: 15000, // 15 seconds — prevents pages from hanging indefinitely
   headers: {
     "Content-Type": "application/json",
   },
@@ -45,6 +46,12 @@ api.interceptors.request.use(
         }
         if (user?.id || user?._id) {
           config.headers["x-user-id"] = user.id ?? user._id;
+        }
+        if (user?.role) {
+          config.headers["x-role"] = user.role;
+        }
+        if (user?.name) {
+          config.headers["x-user-name"] = user.name;
         }
       } catch {
         // Malformed user object — skip silently

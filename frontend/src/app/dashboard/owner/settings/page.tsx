@@ -1,24 +1,13 @@
 "use client";
 
-/**
- * OWNER SETTINGS — /dashboard/owner/settings
- * Professional full-width settings with enhanced UI
- *
- * Sections:
- * 1. Shop Profile  — name, address, phone, logo URL
- * 2. Business Hours — open/close per day
- * 3. Notifications  — toggle email/SMS alerts
- * 4. Danger Zone    — deactivate shop (UI-only, no real API)
- */
-
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import DashboardShell from "@/components/DashboardShell";
+import api from "@/lib/api";
 import {
   Settings, Store, Clock, Bell, ShieldAlert,
   Loader2, Save, CheckCircle2, AlertTriangle,
   Phone, MapPin, Link as LinkIcon, ChevronDown,
-  Upload, Image as ImageIcon, Globe, Mail,
-  Zap, Users, Calendar, TrendingUp
+  Globe, Zap, Users, Calendar, TrendingUp,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -55,25 +44,21 @@ const DEFAULT_HOURS: BusinessHours = Object.fromEntries(
 );
 
 const TIMEZONES = [
-  "Asia/Karachi",
-  "Asia/Dubai",
-  "Asia/Riyadh",
-  "Europe/London",
-  "America/New_York",
-  "America/Chicago",
-  "America/Los_Angeles",
+  "Asia/Karachi", "Asia/Dubai", "Asia/Riyadh",
+  "Europe/London", "America/New_York", "America/Chicago", "America/Los_Angeles",
 ];
 
-// ─── Stats Card ───────────────────────────────────────────────────────────────
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StatsCard({ icon: Icon, label, value, color }: { icon: any; label: string; value: string; color: string }) {
-  const gradients: any = {
+function StatsCard({ icon: Icon, label, value, color }: {
+  icon: any; label: string; value: string; color: string;
+}) {
+  const gradients: Record<string, string> = {
     violet: "from-violet-500 to-purple-600",
-    blue: "from-blue-500 to-cyan-600",
-    emerald: "from-emerald-500 to-green-600",
-    amber: "from-amber-500 to-orange-600",
+    blue:   "from-blue-500 to-cyan-600",
+    emerald:"from-emerald-500 to-green-600",
+    amber:  "from-amber-500 to-orange-600",
   };
-
   return (
     <div className="bg-gradient-to-br from-card to-card/50 border border-border/50 rounded-xl p-4 hover:shadow-lg hover:border-violet-500/30 transition-all group">
       <div className="flex items-start justify-between mb-3">
@@ -89,20 +74,8 @@ function StatsCard({ icon: Icon, label, value, color }: { icon: any; label: stri
   );
 }
 
-// ─── Section wrapper ──────────────────────────────────────────────────────────
-
-function Section({
-  icon: Icon,
-  title,
-  subtitle,
-  color,
-  children,
-}: {
-  icon: any;
-  title: string;
-  subtitle?: string;
-  color: string;
-  children: React.ReactNode;
+function Section({ icon: Icon, title, subtitle, color, children }: {
+  icon: any; title: string; subtitle?: string; color: string; children: React.ReactNode;
 }) {
   return (
     <div className="bg-gradient-to-br from-card via-card to-card/50 border border-border/50 rounded-2xl overflow-hidden shadow-xl">
@@ -122,51 +95,28 @@ function Section({
   );
 }
 
-// ─── Toggle ───────────────────────────────────────────────────────────────────
-
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <button
       onClick={() => onChange(!checked)}
       className={`relative w-14 h-7 rounded-full transition-all duration-300 focus:outline-none focus:ring-2 shadow-inner ${
-        checked 
-          ? "bg-gradient-to-r from-violet-500 to-purple-600 focus:ring-violet-500/30 shadow-violet-500/20" 
+        checked
+          ? "bg-gradient-to-r from-violet-500 to-purple-600 focus:ring-violet-500/30 shadow-violet-500/20"
           : "bg-muted-foreground/20 focus:ring-muted-foreground/20"
       }`}
     >
-      <span
-        className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-lg transition-all duration-300 ${
-          checked ? "left-7" : "left-0.5"
-        }`}
-      />
+      <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow-lg transition-all duration-300 ${checked ? "left-7" : "left-0.5"}`} />
     </button>
   );
 }
 
-// ─── Input ────────────────────────────────────────────────────────────────────
-
-function Field({
-  label,
-  icon: Icon,
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-  hint,
-}: {
-  label: string;
-  icon?: any;
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  type?: string;
-  hint?: string;
+function Field({ label, icon: Icon, value, onChange, placeholder, type = "text", hint }: {
+  label: string; icon?: any; value: string; onChange: (v: string) => void;
+  placeholder?: string; type?: string; hint?: string;
 }) {
   return (
     <div className="space-y-2">
-      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-        {label}
-      </label>
+      <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</label>
       <div className="relative group">
         {Icon && (
           <Icon className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 transition-colors group-focus-within:text-violet-500 pointer-events-none z-10" />
@@ -176,9 +126,7 @@ function Field({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full bg-background/50 backdrop-blur-sm border border-border/50 rounded-xl py-3.5 text-sm font-medium text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 focus:bg-background transition-all ${
-            Icon ? "pl-11 pr-4" : "px-4"
-          }`}
+          className={`w-full bg-background/50 backdrop-blur-sm border border-border/50 rounded-xl py-3.5 text-sm font-medium text-foreground placeholder:text-muted-foreground/40 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 focus:bg-background transition-all ${Icon ? "pl-11 pr-4" : "px-4"}`}
         />
       </div>
       {hint && <p className="text-xs text-muted-foreground/70 pl-0.5">{hint}</p>}
@@ -186,18 +134,8 @@ function Field({
   );
 }
 
-// ─── Save Button ──────────────────────────────────────────────────────────────
-
-function SaveBtn({
-  loading,
-  saved,
-  onClick,
-  label = "Save Changes",
-}: {
-  loading: boolean;
-  saved: boolean;
-  onClick: () => void;
-  label?: string;
+function SaveBtn({ loading, saved, onClick, label = "Save Changes" }: {
+  loading: boolean; saved: boolean; onClick: () => void; label?: string;
 }) {
   return (
     <button
@@ -209,13 +147,7 @@ function SaveBtn({
           : "bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:shadow-violet-500/40 shadow-violet-600/30"
       }`}
     >
-      {loading ? (
-        <Loader2 className="w-4 h-4 animate-spin" />
-      ) : saved ? (
-        <CheckCircle2 className="w-4 h-4" />
-      ) : (
-        <Save className="w-4 h-4" />
-      )}
+      {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : saved ? <CheckCircle2 className="w-4 h-4" /> : <Save className="w-4 h-4" />}
       {saved ? "Changes Saved!" : loading ? "Saving…" : label}
     </button>
   );
@@ -234,7 +166,7 @@ export default function OwnerSettingsPage() {
 function SettingsContent({ user }: { user: any }) {
   // ── Shop Profile state ──
   const [profile, setProfile] = useState<ShopProfile>({
-    name: user?.shopName ?? user?.tenantName ?? "",
+    name: "",
     address: "",
     phone: "",
     logoUrl: "",
@@ -242,13 +174,14 @@ function SettingsContent({ user }: { user: any }) {
   });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savedProfile, setSavedProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   // ── Business Hours state ──
   const [hours, setHours] = useState<BusinessHours>(DEFAULT_HOURS);
   const [savingHours, setSavingHours] = useState(false);
   const [savedHours, setSavedHours] = useState(false);
 
-  // ── Notifications state ──
+  // ── Notifications state (client-side only) ──
   const [notifs, setNotifs] = useState<NotificationPrefs>({
     emailOnNewTicket: true,
     emailOnPayment: true,
@@ -262,17 +195,106 @@ function SettingsContent({ user }: { user: any }) {
   const [dangerConfirm, setDangerConfirm] = useState("");
   const [dangerError, setDangerError] = useState("");
 
-  // ── Fake save helper ──
-  const fakeSave = (
-    setSaving: (v: boolean) => void,
-    setSaved: (v: boolean) => void
-  ) => {
-    setSaving(true);
+  // ── Analytics stats ──
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
+
+  // ── Load shop profile + analytics on mount ──
+  const loadData = useCallback(async () => {
+    try {
+      const [shopRes, analyticsRes] = await Promise.allSettled([
+        api.get("/api/shop/profile"),
+        api.get("/api/analytics"),
+      ]);
+
+      if (shopRes.status === "fulfilled") {
+        const shop = shopRes.value.data?.data ?? shopRes.value.data;
+        if (shop) {
+          setProfile({
+            name: shop.name ?? "",
+            address: shop.address ?? "",
+            phone: shop.phone ?? "",
+            logoUrl: shop.logo ?? "",
+            timezone: "Asia/Karachi",
+          });
+          if (shop.openingHours) {
+            try {
+              const parsed = JSON.parse(shop.openingHours);
+              if (typeof parsed === "object" && !Array.isArray(parsed)) setHours(parsed);
+            } catch {
+              // leave default hours
+            }
+          }
+        }
+      }
+
+      if (analyticsRes.status === "fulfilled") {
+        setAnalyticsData(analyticsRes.value.data?.data ?? null);
+      }
+    } catch {
+      // keep defaults
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [user]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // ── Stats derived from analytics ──
+  const activeTickets = analyticsData
+    ? Object.entries(analyticsData.statusCounts ?? {})
+        .filter(([k]) => !["delivered", "cancelled"].includes(k))
+        .reduce((s, [, v]) => s + (v as number), 0)
+    : null;
+
+  const thisMonthTickets = (analyticsData?.monthly ?? []).length > 0
+    ? (analyticsData.monthly[analyticsData.monthly.length - 1]?.tickets ?? 0)
+    : null;
+
+  const revenueDisplay = analyticsData
+    ? `PKR ${((analyticsData.totalRevenue ?? 0) / 1000).toFixed(1)}K`
+    : null;
+
+  // ── Save handlers ──
+  const saveProfile = async () => {
+    setSavingProfile(true);
+    setProfileError("");
+    try {
+      await api.patch("/api/shop/profile", {
+        name: profile.name,
+        phone: profile.phone,
+        address: profile.address,
+        logo: profile.logoUrl,
+      });
+      setSavedProfile(true);
+      setTimeout(() => setSavedProfile(false), 3000);
+    } catch (err: any) {
+      setProfileError(err?.response?.data?.message ?? "Failed to save. Please try again.");
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const saveHours = async () => {
+    setSavingHours(true);
+    try {
+      await api.patch("/api/shop/profile", { openingHours: JSON.stringify(hours) });
+      setSavedHours(true);
+      setTimeout(() => setSavedHours(false), 3000);
+    } catch {
+      // silent
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
+  const saveNotifs = () => {
+    setSavingNotifs(true);
     setTimeout(() => {
-      setSaving(false);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    }, 1000);
+      setSavingNotifs(false);
+      setSavedNotifs(true);
+      setTimeout(() => setSavedNotifs(false), 3000);
+    }, 800);
   };
 
   const updateDay = (day: string, key: keyof DayHours, value: any) => {
@@ -294,19 +316,39 @@ function SettingsContent({ user }: { user: any }) {
             </div>
           </div>
 
-          {/* Stats */}
+          {/* Live Stats */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatsCard icon={Users} label="Active Staff" value="8" color="violet" />
-            <StatsCard icon={Zap} label="Open Tickets" value="23" color="blue" />
-            <StatsCard icon={Calendar} label="This Month" value="142" color="emerald" />
-            <StatsCard icon={TrendingUp} label="Revenue" value="$12.5K" color="amber" />
+            <StatsCard
+              icon={Users}
+              label="Active Staff"
+              value={statsLoading ? "…" : String(analyticsData?.staffCount ?? "—")}
+              color="violet"
+            />
+            <StatsCard
+              icon={Zap}
+              label="Open Tickets"
+              value={statsLoading ? "…" : String(activeTickets ?? "—")}
+              color="blue"
+            />
+            <StatsCard
+              icon={Calendar}
+              label="This Month"
+              value={statsLoading ? "…" : String(thisMonthTickets ?? "—")}
+              color="emerald"
+            />
+            <StatsCard
+              icon={TrendingUp}
+              label="Revenue"
+              value={statsLoading ? "…" : (revenueDisplay ?? "—")}
+              color="amber"
+            />
           </div>
         </div>
 
         <div className="grid lg:grid-cols-[1fr_1fr] xl:grid-cols-[1fr_1fr] gap-6">
           {/* Left Column */}
           <div className="space-y-6">
-            {/* ── 1. Shop Profile ───────────────────────────────────────────────────── */}
+            {/* ── 1. Shop Profile ───────────────────────────────────────────── */}
             <Section
               icon={Store}
               title="Shop Profile"
@@ -322,7 +364,6 @@ function SettingsContent({ user }: { user: any }) {
                     onChange={(v) => setProfile((p) => ({ ...p, name: v }))}
                     placeholder="e.g. Clicktake Repair Center"
                   />
-                  
                   <Field
                     label="Address"
                     icon={MapPin}
@@ -330,7 +371,6 @@ function SettingsContent({ user }: { user: any }) {
                     onChange={(v) => setProfile((p) => ({ ...p, address: v }))}
                     placeholder="Street, City, Country"
                   />
-                  
                   <Field
                     label="Phone Number"
                     icon={Phone}
@@ -338,20 +378,16 @@ function SettingsContent({ user }: { user: any }) {
                     onChange={(v) => setProfile((p) => ({ ...p, phone: v }))}
                     placeholder="+92 300 0000000"
                   />
-                  
                   <Field
                     label="Logo URL"
                     icon={LinkIcon}
                     value={profile.logoUrl}
                     onChange={(v) => setProfile((p) => ({ ...p, logoUrl: v }))}
-                    placeholder="https://..."
+                    placeholder="https://…"
                     hint="Recommended: 200x200px PNG with transparent background"
                   />
-                  
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                      Timezone
-                    </label>
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">Timezone</label>
                     <div className="relative group">
                       <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 transition-colors group-focus-within:text-violet-500 pointer-events-none z-10" />
                       <select
@@ -359,18 +395,13 @@ function SettingsContent({ user }: { user: any }) {
                         onChange={(e) => setProfile((p) => ({ ...p, timezone: e.target.value }))}
                         className="w-full appearance-none bg-background/50 backdrop-blur-sm border border-border/50 rounded-xl pl-11 pr-10 py-3.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 focus:bg-background transition-all"
                       >
-                        {TIMEZONES.map((tz) => (
-                          <option key={tz} value={tz}>
-                            {tz}
-                          </option>
-                        ))}
+                        {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 pointer-events-none" />
                     </div>
                   </div>
                 </div>
 
-                {/* Logo preview */}
                 {profile.logoUrl && (
                   <div className="flex items-center gap-4 p-4 bg-muted/30 rounded-xl border border-border/50">
                     <div className="w-16 h-16 rounded-xl border-2 border-border/50 bg-background flex items-center justify-center overflow-hidden">
@@ -379,7 +410,8 @@ function SettingsContent({ user }: { user: any }) {
                         alt="Logo preview"
                         className="w-full h-full object-contain"
                         onError={(e) => {
-                          (e.target as HTMLImageElement).src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='12' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
+                          (e.target as HTMLImageElement).src =
+                            "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Crect width='64' height='64' fill='%23ddd'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-size='12' fill='%23999'%3ENo Image%3C/text%3E%3C/svg%3E";
                         }}
                       />
                     </div>
@@ -390,17 +422,20 @@ function SettingsContent({ user }: { user: any }) {
                   </div>
                 )}
 
+                {profileError && (
+                  <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                    <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                    <p className="text-xs font-semibold text-red-500">{profileError}</p>
+                  </div>
+                )}
+
                 <div className="pt-2 flex justify-end border-t border-border/50">
-                  <SaveBtn
-                    loading={savingProfile}
-                    saved={savedProfile}
-                    onClick={() => fakeSave(setSavingProfile, setSavedProfile)}
-                  />
+                  <SaveBtn loading={savingProfile} saved={savedProfile} onClick={saveProfile} />
                 </div>
               </div>
             </Section>
 
-            {/* ── 3. Notification Preferences ───────────────────────────────────────── */}
+            {/* ── 3. Notification Preferences ──────────────────────────────── */}
             <Section
               icon={Bell}
               title="Notification Preferences"
@@ -411,10 +446,10 @@ function SettingsContent({ user }: { user: any }) {
                 <div className="bg-muted/30 rounded-xl px-5 border border-border/50">
                   {(
                     [
-                      { key: "emailOnNewTicket", label: "Email on new repair ticket", sub: "Get notified when a frontdesk agent creates a new ticket" },
-                      { key: "emailOnPayment", label: "Email on payment received", sub: "Receive confirmation when a payment is recorded" },
-                      { key: "smsOnReadyForPickup", label: "SMS when device is ready for pickup", sub: "Notify yourself when a ticket is marked Ready" },
-                      { key: "smsOnOverdue", label: "SMS on overdue tickets", sub: "Daily digest of tickets past their promised date" },
+                      { key: "emailOnNewTicket",   label: "Email on new repair ticket",  sub: "Get notified when a frontdesk agent creates a new ticket" },
+                      { key: "emailOnPayment",      label: "Email on payment received",   sub: "Receive confirmation when a payment is recorded" },
+                      { key: "smsOnReadyForPickup", label: "SMS when device is ready",    sub: "Notify yourself when a ticket is marked Ready" },
+                      { key: "smsOnOverdue",        label: "SMS on overdue tickets",      sub: "Daily digest of tickets past their promised date" },
                     ] as { key: keyof NotificationPrefs; label: string; sub: string }[]
                   ).map(({ key, label, sub }) => (
                     <div key={key} className="flex items-center justify-between gap-6 py-4 border-b border-border/50 last:border-0 group hover:bg-muted/30 -mx-2 px-2 rounded-lg transition-colors">
@@ -422,20 +457,12 @@ function SettingsContent({ user }: { user: any }) {
                         <p className="text-sm font-semibold text-foreground group-hover:text-violet-500 transition-colors">{label}</p>
                         <p className="text-xs text-muted-foreground/80 mt-1">{sub}</p>
                       </div>
-                      <Toggle
-                        checked={notifs[key]}
-                        onChange={(v) => setNotifs((p) => ({ ...p, [key]: v }))}
-                      />
+                      <Toggle checked={notifs[key]} onChange={(v) => setNotifs((p) => ({ ...p, [key]: v }))} />
                     </div>
                   ))}
                 </div>
-
                 <div className="pt-6 flex justify-end border-t border-border/50 mt-6">
-                  <SaveBtn
-                    loading={savingNotifs}
-                    saved={savedNotifs}
-                    onClick={() => fakeSave(setSavingNotifs, setSavedNotifs)}
-                  />
+                  <SaveBtn loading={savingNotifs} saved={savedNotifs} onClick={saveNotifs} />
                 </div>
               </div>
             </Section>
@@ -443,7 +470,7 @@ function SettingsContent({ user }: { user: any }) {
 
           {/* Right Column */}
           <div className="space-y-6">
-            {/* ── 2. Business Hours ─────────────────────────────────────────────────── */}
+            {/* ── 2. Business Hours ──────────────────────────────────────────── */}
             <Section
               icon={Clock}
               title="Business Hours"
@@ -457,10 +484,7 @@ function SettingsContent({ user }: { user: any }) {
                       <div className="w-24 shrink-0">
                         <span className="text-sm font-bold text-card-foreground">{day.slice(0, 3)}</span>
                       </div>
-                      <Toggle
-                        checked={hours[day].open}
-                        onChange={(v) => updateDay(day, "open", v)}
-                      />
+                      <Toggle checked={hours[day].open} onChange={(v) => updateDay(day, "open", v)} />
                       {hours[day].open ? (
                         <div className="flex items-center gap-2 text-sm text-muted-foreground flex-1">
                           <input
@@ -485,18 +509,13 @@ function SettingsContent({ user }: { user: any }) {
                     </div>
                   ))}
                 </div>
-
                 <div className="pt-6 flex justify-end border-t border-border/50 mt-6">
-                  <SaveBtn
-                    loading={savingHours}
-                    saved={savedHours}
-                    onClick={() => fakeSave(setSavingHours, setSavedHours)}
-                  />
+                  <SaveBtn loading={savingHours} saved={savedHours} onClick={saveHours} />
                 </div>
               </div>
             </Section>
 
-            {/* ── 4. Danger Zone ────────────────────────────────────────────────────── */}
+            {/* ── 4. Danger Zone ────────────────────────────────────────────── */}
             <Section
               icon={ShieldAlert}
               title="Danger Zone"
@@ -522,10 +541,7 @@ function SettingsContent({ user }: { user: any }) {
                     <input
                       type="text"
                       value={dangerConfirm}
-                      onChange={(e) => {
-                        setDangerConfirm(e.target.value);
-                        setDangerError("");
-                      }}
+                      onChange={(e) => { setDangerConfirm(e.target.value); setDangerError(""); }}
                       placeholder="DEACTIVATE"
                       className="flex-1 bg-background/50 border-2 border-red-500/30 rounded-xl px-4 py-3 text-sm font-mono font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-red-500/30 placeholder-muted-foreground/40"
                     />

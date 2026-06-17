@@ -153,7 +153,7 @@ export const TicketService = {
    * GET ALL TICKETS
    * Always scoped to tenantId. Optional status filter from query params.
    */
-  getTickets: async (tenantId: string, statusFilter?: TicketStatus, customerIds?: string[]) => {
+  getTickets: async (tenantId: string, statusFilter?: TicketStatus, customerIds?: string[], technicianId?: string) => {
     const query: Record<string, unknown> = {};
 
     if (tenantId && tenantId.length === 24) {
@@ -167,8 +167,12 @@ export const TicketService = {
       query.customerId = { $in: customerIds.map(id => new mongoose.Types.ObjectId(id)) };
     }
 
+    if (technicianId && technicianId.length === 24) {
+      query.technicianId = new mongoose.Types.ObjectId(technicianId);
+    }
+
     return Ticket.find(query)
-      .populate('customerId', 'name phone')
+      .populate('customerId', 'name phone email address')
       .populate('technicianId', 'name email')
       .sort({ createdAt: -1 });
   },

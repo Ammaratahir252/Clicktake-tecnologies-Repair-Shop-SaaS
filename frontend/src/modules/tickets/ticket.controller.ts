@@ -78,7 +78,18 @@ export async function getTicketsHandler(req: NextRequest): Promise<NextResponse>
       }
     }
 
-    const tickets = await TicketService.getTickets(tenantId, statusFilter ?? undefined, customerIds);
+    // For technician role: only show tickets assigned to them
+    let technicianId: string | undefined;
+    if (role === 'technician' && userId) {
+      technicianId = userId;
+    }
+    // Support explicit ?technicianId= filter for managers/owners
+    const techParam = searchParams.get('technicianId');
+    if (techParam && ['manager', 'owner', 'super_admin'].includes(role)) {
+      technicianId = techParam;
+    }
+
+    const tickets = await TicketService.getTickets(tenantId, statusFilter ?? undefined, customerIds, technicianId);
     return sendResponse(true, 'Tickets retrieved', tickets);
   } catch (err: any) {
     return sendResponse(false, err.message ?? 'Server error', null, 500);

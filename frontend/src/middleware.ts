@@ -48,18 +48,21 @@ export async function middleware(req: NextRequest) {
       );
       const { payload } = await jwtVerify(token, secret);
       
-      // Edge-compatible database session validation
+      // Edge-compatible database session validation (3 s timeout to prevent middleware hang)
       try {
         const verifyUrl = new URL(`/api/auth/verify-session?userId=${payload.userId}`, req.url);
-        const res = await fetch(verifyUrl.toString(), { cache: 'no-store' });
+        const controller = new AbortController();
+        const tid = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch(verifyUrl.toString(), { cache: 'no-store', signal: controller.signal });
+        clearTimeout(tid);
         if (res.ok) {
           const data = await res.json();
           if (data.tokenVersion !== undefined && data.tokenVersion !== payload.tokenVersion) {
             return null; // Invalidated session
           }
         }
-      } catch (err) {
-        // Fallback gracefully if internal fetch fails
+      } catch {
+        // Fetch failed or timed out — treat token as valid (signature already verified above)
       }
 
       return payload;
@@ -134,7 +137,23 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── 3.5. API: /api/audit-logs — requires valid JWT ───────────────────────
+  // ─── 3.5. API: /api/admin/* — requires valid JWT (super_admin only at route level) ─
+  if (pathname.startsWith('/api/admin')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── 3.6. API: /api/audit-logs — requires valid JWT ───────────────────────
   if (pathname.startsWith('/api/audit-logs')) {
     const payload = await verifyToken();
     if (!payload) {
@@ -200,6 +219,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  // ─── Analytics & Customers — requires valid JWT ───────────────────────────
+  if (pathname.startsWith('/api/analytics') || pathname.startsWith('/api/customers')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // ─── 4. DASHBOARD ROUTES — redirect to /login if not authenticated ────────
   if (pathname.startsWith('/dashboard')) {
     const payload = await verifyToken();
@@ -247,5 +282,11 @@ export const config = {
     '/api/shop/:path*',
     '/api/reviews',
     '/api/reviews/:path*',
+    '/api/admin',
+    '/api/admin/:path*',
+    '/api/analytics',
+    '/api/analytics/:path*',
+    '/api/customers',
+    '/api/customers/:path*',
   ],
 };

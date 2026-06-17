@@ -1,29 +1,21 @@
 "use client";
 
-/**
- * SUPER ADMIN SETTINGS — /dashboard/super-admin/settings
- * Professional tabbed settings page with dark theme support
- */
-
 import DashboardShell from "@/components/DashboardShell";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import api from "@/lib/api";
 import {
   Settings, Globe, Bell, Shield, CreditCard, Mail,
   Save, Loader2, CheckCircle2, AlertTriangle,
   ChevronDown, Lock, Clock, Key, RefreshCw,
 } from "lucide-react";
 
-// ─── Tabs ─────────────────────────────────────────────────────────────────────
-
 const TABS = [
-  { key: "general",       label: "General",       icon: Globe },
-  { key: "security",      label: "Security",      icon: Shield },
-  { key: "notifications", label: "Notifications", icon: Bell },
-  { key: "billing",       label: "Billing",       icon: CreditCard },
-  { key: "email",         label: "Email / SMTP",  icon: Mail },
+  { key: "general",       label: "General",       icon: Globe     },
+  { key: "security",      label: "Security",       icon: Shield    },
+  { key: "notifications", label: "Notifications",  icon: Bell      },
+  { key: "billing",       label: "Billing",        icon: CreditCard },
+  { key: "email",         label: "Email / SMTP",   icon: Mail      },
 ];
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function Toggle({ checked, onChange, danger }: { checked: boolean; onChange: (v: boolean) => void; danger?: boolean }) {
   return (
@@ -40,9 +32,7 @@ function Toggle({ checked, onChange, danger }: { checked: boolean; onChange: (v:
   );
 }
 
-function InputField({
-  label, value, onChange, placeholder, icon: Icon, type = "text", hint,
-}: {
+function InputField({ label, value, onChange, placeholder, icon: Icon, type = "text", hint }: {
   label: string; value: string; onChange: (v: string) => void;
   placeholder?: string; icon?: any; type?: string; hint?: string;
 }) {
@@ -61,9 +51,7 @@ function InputField({
   );
 }
 
-function SelectField({
-  label, value, onChange, options, icon: Icon,
-}: {
+function SelectField({ label, value, onChange, options, icon: Icon }: {
   label: string; value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[]; icon?: any;
 }) {
@@ -131,8 +119,6 @@ function ComingSoonPanel({ section }: { section: string }) {
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
-
 export default function SuperAdminSettingsPage() {
   return (
     <DashboardShell requiredRole="super_admin">
@@ -143,41 +129,91 @@ export default function SuperAdminSettingsPage() {
 
 function SettingsContent({ user }: { user: any }) {
   const [tab, setTab] = useState("general");
+  const [loadingInit, setLoadingInit] = useState(true);
+  const [initError,   setInitError]   = useState("");
 
   // General
-  const [platformName, setPlatformName]   = useState("RepairShop SaaS");
-  const [domain, setDomain]               = useState("repairshop.app");
-  const [supportEmail, setSupportEmail]   = useState("support@repairshop.app");
-  const [timezone, setTimezone]           = useState("Asia/Karachi");
-  const [currency, setCurrency]           = useState("PKR");
-  const [maintenanceMode, setMaintenance] = useState(false);
+  const [platformName,   setPlatformName]   = useState("RepairShop SaaS");
+  const [domain,         setDomain]         = useState("repairshop.app");
+  const [supportEmail,   setSupportEmail]   = useState("support@repairshop.app");
+  const [timezone,       setTimezone]       = useState("Asia/Karachi");
+  const [currency,       setCurrency]       = useState("PKR");
+  const [maintenanceMode, setMaintenance]   = useState(false);
   const [savingG, setSavingG] = useState(false);
-  const [savedG, setSavedG]   = useState(false);
+  const [savedG,  setSavedG]  = useState(false);
 
   // Security
-  const [twoFactor, setTwoFactor]         = useState(false);
-  const [sessionTimeout, setSessionTimeout] = useState("60");
+  const [twoFactor,         setTwoFactor]         = useState(false);
+  const [sessionTimeout,    setSessionTimeout]    = useState("60");
   const [passwordMinLength, setPasswordMinLength] = useState("8");
-  const [ipWhitelist, setIpWhitelist]     = useState("");
+  const [ipWhitelist,       setIpWhitelist]       = useState("");
   const [savingS, setSavingS] = useState(false);
-  const [savedS, setSavedS]   = useState(false);
+  const [savedS,  setSavedS]  = useState(false);
 
   // Notifications
   const [notifs, setNotifs] = useState({
-    newTenant: true, ticketEscalation: true, dailyReport: false,
-    paymentFailed: true, systemAlert: true,
+    newTenant:        true,
+    ticketEscalation: true,
+    dailyReport:      false,
+    paymentFailed:    true,
+    systemAlert:      true,
   });
   const [savingN, setSavingN] = useState(false);
-  const [savedN, setSavedN]   = useState(false);
+  const [savedN,  setSavedN]  = useState(false);
 
-  const fakeSave = (setSaving: any, setSaved: any) => {
+  // Load settings on mount
+  useEffect(() => {
+    api.get("/api/admin/settings")
+      .then((res) => {
+        const s = res.data?.data;
+        if (!s) return;
+        setPlatformName(s.platformName   ?? "RepairShop SaaS");
+        setDomain(s.domain               ?? "repairshop.app");
+        setSupportEmail(s.supportEmail   ?? "support@repairshop.app");
+        setTimezone(s.timezone           ?? "Asia/Karachi");
+        setCurrency(s.currency           ?? "PKR");
+        setMaintenance(s.maintenanceMode ?? false);
+        setTwoFactor(s.twoFactor         ?? false);
+        setSessionTimeout(String(s.sessionTimeout    ?? 60));
+        setPasswordMinLength(String(s.passwordMinLength ?? 8));
+        setIpWhitelist(s.ipWhitelist     ?? "");
+        if (s.notifs) setNotifs(s.notifs);
+      })
+      .catch((err) => {
+        setInitError(err.response?.data?.message || "Could not load settings.");
+      })
+      .finally(() => setLoadingInit(false));
+  }, []);
+
+  const saveSection = async (
+    payload: Record<string, any>,
+    setSaving: (v: boolean) => void,
+    setSaved: (v: boolean) => void
+  ) => {
     setSaving(true);
-    setTimeout(() => { setSaving(false); setSaved(true); setTimeout(() => setSaved(false), 2500); }, 900);
+    try {
+      await api.patch("/api/admin/settings", payload);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      // silently fail — could show toast here
+    } finally {
+      setSaving(false);
+    }
   };
+
+  if (loadingInit) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="animate-spin w-8 h-8 mr-3" />
+        <span className="font-medium">Loading settings…</span>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      {/* ── Header ──────────────────────────────────────────────────────── */}
+      {/* Header */}
       <div className="flex items-center gap-4">
         <div className="bg-violet-600 w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg shadow-violet-600/20">
           <Settings className="w-5 h-5 text-white" />
@@ -188,8 +224,15 @@ function SettingsContent({ user }: { user: any }) {
         </div>
       </div>
 
+      {initError && (
+        <div className="flex items-center gap-3 bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3">
+          <AlertTriangle size={14} className="text-destructive shrink-0" />
+          <p className="text-sm font-semibold text-destructive">{initError}</p>
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* ── Tab Nav ─────────────────────────────────────────────────────── */}
+        {/* Tab Nav */}
         <nav className="flex lg:flex-col gap-1 lg:w-52 shrink-0 overflow-x-auto lg:overflow-visible pb-1 lg:pb-0">
           {TABS.map(({ key, label, icon: Icon }) => (
             <button
@@ -207,9 +250,7 @@ function SettingsContent({ user }: { user: any }) {
           ))}
         </nav>
 
-        {/* ── Panels ──────────────────────────────────────────────────────── */}
         <div className="flex-1 min-w-0">
-
           {/* General */}
           {tab === "general" && (
             <div className="bg-card border border-border rounded-2xl overflow-hidden">
@@ -228,8 +269,8 @@ function SettingsContent({ user }: { user: any }) {
                     label="Timezone" icon={Clock} value={timezone} onChange={setTimezone}
                     options={[
                       { value: "Asia/Karachi", label: "Asia/Karachi (PKT)" },
-                      { value: "UTC", label: "UTC" },
-                      { value: "Asia/Dubai", label: "Asia/Dubai (GST)" },
+                      { value: "UTC",          label: "UTC"                  },
+                      { value: "Asia/Dubai",   label: "Asia/Dubai (GST)"    },
                       { value: "Europe/London", label: "Europe/London (GMT)" },
                     ]}
                   />
@@ -237,13 +278,12 @@ function SettingsContent({ user }: { user: any }) {
                     label="Currency" value={currency} onChange={setCurrency}
                     options={[
                       { value: "PKR", label: "PKR — Pakistani Rupee" },
-                      { value: "USD", label: "USD — US Dollar" },
-                      { value: "AED", label: "AED — UAE Dirham" },
+                      { value: "USD", label: "USD — US Dollar"       },
+                      { value: "AED", label: "AED — UAE Dirham"      },
                     ]}
                   />
                 </div>
 
-                {/* Maintenance Mode */}
                 <div className={`flex items-center justify-between gap-6 rounded-xl px-4 py-4 border transition-all ${maintenanceMode ? "bg-destructive/5 border-destructive/20" : "bg-muted/40 border-border"}`}>
                   <div>
                     <p className="text-sm font-bold text-foreground">Maintenance Mode</p>
@@ -258,7 +298,13 @@ function SettingsContent({ user }: { user: any }) {
                   </div>
                 )}
                 <div className="pt-1 flex justify-end">
-                  <SaveButton loading={savingG} saved={savedG} onClick={() => fakeSave(setSavingG, setSavedG)} />
+                  <SaveButton
+                    loading={savingG} saved={savedG}
+                    onClick={() => saveSection(
+                      { platformName, domain, supportEmail, timezone, currency, maintenanceMode },
+                      setSavingG, setSavedG
+                    )}
+                  />
                 </div>
               </div>
             </div>
@@ -298,7 +344,13 @@ function SettingsContent({ user }: { user: any }) {
                   </div>
                 </div>
                 <div className="pt-1 flex justify-end">
-                  <SaveButton loading={savingS} saved={savedS} onClick={() => fakeSave(setSavingS, setSavedS)} />
+                  <SaveButton
+                    loading={savingS} saved={savedS}
+                    onClick={() => saveSection(
+                      { twoFactor, sessionTimeout: Number(sessionTimeout), passwordMinLength: Number(passwordMinLength), ipWhitelist },
+                      setSavingS, setSavedS
+                    )}
+                  />
                 </div>
               </div>
             </div>
@@ -313,11 +365,11 @@ function SettingsContent({ user }: { user: any }) {
               </div>
               <div className="px-6 py-2">
                 {[
-                  { key: "newTenant",        label: "New Tenant Registered",   sub: "Alert when a new shop signs up on the platform" },
-                  { key: "ticketEscalation", label: "Ticket Escalation",       sub: "Alert when a ticket is overdue or manually escalated" },
-                  { key: "paymentFailed",    label: "Payment Failed",          sub: "Alert when a tenant subscription payment fails" },
-                  { key: "dailyReport",      label: "Daily Summary Report",    sub: "Receive a daily platform summary email each morning" },
-                  { key: "systemAlert",      label: "System / Infra Alerts",   sub: "Critical alerts for server errors or downtime" },
+                  { key: "newTenant",        label: "New Tenant Registered",  sub: "Alert when a new shop signs up on the platform"       },
+                  { key: "ticketEscalation", label: "Ticket Escalation",      sub: "Alert when a ticket is overdue or manually escalated" },
+                  { key: "paymentFailed",    label: "Payment Failed",         sub: "Alert when a tenant subscription payment fails"       },
+                  { key: "dailyReport",      label: "Daily Summary Report",   sub: "Receive a daily platform summary email each morning"  },
+                  { key: "systemAlert",      label: "System / Infra Alerts",  sub: "Critical alerts for server errors or downtime"        },
                 ].map(({ key, label, sub }) => (
                   <ToggleRow
                     key={key} label={label} sub={sub}
@@ -327,12 +379,15 @@ function SettingsContent({ user }: { user: any }) {
                 ))}
               </div>
               <div className="px-6 py-4 border-t border-border flex justify-end">
-                <SaveButton loading={savingN} saved={savedN} onClick={() => fakeSave(setSavingN, setSavedN)} />
+                <SaveButton
+                  loading={savingN} saved={savedN}
+                  onClick={() => saveSection({ notifs }, setSavingN, setSavedN)}
+                />
               </div>
             </div>
           )}
 
-          {tab === "billing" && <ComingSoonPanel section="billing" />}
+          {tab === "billing" && <ComingSoonPanel section="billing"      />}
           {tab === "email"   && <ComingSoonPanel section="email / SMTP" />}
         </div>
       </div>
