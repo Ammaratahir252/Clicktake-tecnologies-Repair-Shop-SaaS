@@ -19,20 +19,22 @@
 //   app/sections/ContactSection.tsx      ← 6 contact channels + demo booking
 //   app/sections/Footer.tsx              ← Multi-col footer with socials
 
+import dynamic from "next/dynamic";
 import Header              from "./sections/Header";
 import HeroSection         from "./sections/HeroSection";
-import FeaturesSection     from "./sections/FeaturesSection";
-import HowItWorksSection   from "./sections/how-it-works-section";
-import RolesSection        from "./sections/RolesSection";
-import TestimonialsSection from "./sections/TestimonialsSection";
-import PricingSection      from "./sections/PricingSection";
-import AboutSection        from "./sections/AboutSection";
-import FAQSection          from "./sections/FAQSection";
-import CTABanner           from "./sections/CTABanner";
-import ContactSection      from "./sections/ContactSection";
-import Footer              from "./sections/footer";
-
 import { GLOBAL_STYLES }   from ".././components/theme";
+
+// Lazy-load all below-the-fold sections — they are not needed until the user scrolls
+const FeaturesSection     = dynamic(() => import("./sections/FeaturesSection"));
+const HowItWorksSection   = dynamic(() => import("./sections/how-it-works-section"));
+const RolesSection        = dynamic(() => import("./sections/RolesSection"));
+const TestimonialsSection = dynamic(() => import("./sections/TestimonialsSection"));
+const PricingSection      = dynamic(() => import("./sections/PricingSection"));
+const AboutSection        = dynamic(() => import("./sections/AboutSection"));
+const FAQSection          = dynamic(() => import("./sections/FAQSection"));
+const CTABanner           = dynamic(() => import("./sections/CTABanner"));
+const ContactSection      = dynamic(() => import("./sections/ContactSection"));
+const Footer              = dynamic(() => import("./sections/footer"));
 
 /* Wave divider helper — keeps page.tsx clean */
 const Wave = ({ fill, flip = false }: { fill: string; flip?: boolean }) => (

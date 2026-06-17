@@ -21,7 +21,7 @@ import api from "@/lib/api";
 import {
   Ticket, CreditCard, Clock, Truck, MapPin,
   ChevronRight, CheckCircle, AlertCircle, Loader2,
-  Star, Package, MessageCircle
+  Star, Package, MessageCircle, Store, Wrench
 } from "lucide-react";
 
 // Repair status pipeline per blueprint M2 standard
@@ -36,6 +36,22 @@ const STATUS_STEPS = [
 ];
 
 const MODULES = [
+  {
+    key: "shops",
+    icon: Store,
+    title: "Find a Shop",
+    desc: "Browse repair shops and book a repair",
+    href: "/dashboard/customer/shops",
+    color: "bg-teal-600",
+  },
+  {
+    key: "book",
+    icon: Wrench,
+    title: "Book a Repair",
+    desc: "Submit a new repair request to a shop",
+    href: "/dashboard/customer/shops",
+    color: "bg-rose-500",
+  },
   {
     key: "track",
     icon: Ticket,
@@ -71,10 +87,10 @@ const MODULES = [
   {
     key: "delivery",
     icon: Truck,
-    title: "Book Pickup",
-    desc: "Schedule doorstep device pickup",
+    title: "Track Delivery",
+    desc: "Live delivery tracking for your device",
     href: "/dashboard/customer/delivery",
-    color: "bg-rose-500",
+    color: "bg-indigo-500",
   },
   {
     key: "chat",
@@ -209,7 +225,10 @@ function CustomerContent({ user }: { user: any }) {
           <div className="text-center py-12">
             <Ticket className="mx-auto text-muted-foreground/30 w-10 h-10 mb-3" />
             <p className="text-muted-foreground font-semibold text-sm">No active repairs found.</p>
-            <p className="text-muted-foreground/60 text-xs mt-1">Visit the shop to create a repair ticket.</p>
+            <p className="text-muted-foreground/60 text-xs mt-1">
+            <a href="/dashboard/customer/shops" className="text-primary hover:underline font-semibold">Find a shop</a>
+            {" "}and book your first repair.
+          </p>
           </div>
         )}
 

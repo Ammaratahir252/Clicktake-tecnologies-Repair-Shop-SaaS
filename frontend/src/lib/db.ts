@@ -6,8 +6,6 @@ if (!MONGODB_URI) {
   throw new Error('Please define the MONGODB_URI environment variable inside .env.local');
 }
 
-/** * Global is used here to maintain a cached connection across hot reloads
- */
 let cached = (global as any).mongoose;
 
 if (!cached) {
@@ -15,18 +13,41 @@ if (!cached) {
 }
 
 async function connectDB() {
+  // Reuse cached connection, but verify it is still alive first
   if (cached.conn) {
-    return cached.conn;
+    if (mongoose.connection.readyState === 1) {
+      return cached.conn;
+    }
+    // Connection dropped — reset so we reconnect below
+    cached.conn = null;
+    cached.promise = null;
   }
 
   if (!cached.promise) {
-    const opts = {
-      bufferCommands: false,
-    };
+    cached.promise = mongoose.connect(MONGODB_URI, {
+      // Keep pool small — Next.js API routes are stateless/serverless-style.
+      // Without this, each cold start adds to the pool until Atlas M0's
+      // 100-connection limit is hit and requests start failing.
+      maxPoolSize: 5,
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      console.log('✅ MongoDB Atlas Connected Successfully');
-      return mongoose;
+      // Fail fast if Atlas is unreachable. Default is 30 000ms — that's why
+      // login/register feels "frozen" on a cold start against a slow Atlas node.
+      serverSelectionTimeoutMS: 5000,
+
+      // Hard deadline for individual socket ops so a hung query doesn't block
+      // an API route indefinitely.
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+
+      // Keep buffering ON (the default). With bufferCommands: false, any
+      // mongoose call made in the ~100ms window while the connection promise
+      // is pending throws immediately. Since we always await connectDB() first
+      // this was safe before, but buffering gives a second layer of protection
+      // during hot-reload races in development.
+      bufferCommands: true,
+    }).then((m) => {
+      console.log('✅ MongoDB connected');
+      return m;
     });
   }
 
