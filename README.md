@@ -1,33 +1,31 @@
-# 🔧 DibnowRepairSaaS — Repair Shop Management Platform
+# DibnowRepairSaaS
 
-> A production-grade, multi-tenant SaaS platform built for repair shops. Covers the full repair lifecycle — from ticket intake to delivery — with role-based access control, multi-gateway payments, doorstep delivery logistics, and a real-time inventory system.
+A production-grade, multi-tenant SaaS platform built for repair shops. DibnowRepairSaaS covers the full repair lifecycle — from customer intake and technician workflow to billing, inventory, doorstep delivery logistics, and AI-powered diagnostics — under a single, role-isolated dashboard.
 
 ---
 
-## 📌 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Tech Stack](#tech-stack)
 - [Architecture](#architecture)
-- [Features by Module](#features-by-module)
+- [Features](#features)
 - [User Roles & Permissions](#user-roles--permissions)
 - [Project Structure](#project-structure)
 - [Database Design](#database-design)
-- [API Overview](#api-overview)
-- [Payment Gateways](#payment-gateways)
-- [Environment Variables](#environment-variables)
 - [Getting Started](#getting-started)
+- [Environment Variables](#environment-variables)
+- [Running the App](#running-the-app)
 - [Running Tests](#running-tests)
-- [Deployment](#deployment)
+- [API Modules](#api-modules)
 - [Security](#security)
+- [Deployment](#deployment)
 
 ---
 
 ## Overview
 
-**DibnowRepairSaaS** is a full-stack multi-tenant SaaS application purpose-built for device repair shops. Each repair shop operates as an isolated **tenant** accessed via their own subdomain (e.g., `shopname.dibnow.com`). The system supports 7 distinct user roles, each with their own dashboard and access permissions.
-
-The codebase is structured as a **monorepo** with a clear separation between the Next.js frontend (which also handles its own API routes) and a standalone Fastify microservice backend dedicated to the Doorstep Delivery & Logistics module.
+DibnowRepairSaaS is a white-label platform where each repair shop signs up as a **tenant** and gets its own isolated workspace, subdomain, and configuration. The platform is modular — built across multiple versioned releases (M1–M9) — and supports multi-currency billing, real-time notifications, UK doorstep delivery logistics, Stripe/PayPal/JazzCash/EasyPaisa payments, and a Groq-powered AI assistant.
 
 ---
 
@@ -39,260 +37,236 @@ The codebase is structured as a **monorepo** with a clear separation between the
 | Framework | Next.js 14 (App Router) |
 | Language | TypeScript |
 | Styling | Tailwind CSS |
-| Auth | JWT + `jose` (Edge-compatible) |
-| HTTP Client | Axios |
-| Validation | Zod |
-| Icons | Lucide React |
+| UI Components | Custom + shadcn/ui |
+| State / Data Fetching | TanStack React Query v5 |
+| Animation | Framer Motion |
+| Forms | React Hook Form + Zod |
+| Auth | jose (JWT), js-cookie |
+| AI Client | Anthropic SDK, Groq SDK |
 
-### Backend (Delivery Microservice)
+### Backend
 | Layer | Technology |
 |---|---|
-| Framework | Fastify 4 |
+| Runtime | Node.js |
+| Framework | Fastify v4 |
 | Language | TypeScript |
 | Validation | Zod |
-| Logger | Custom structured logger |
+| ORM / Query | Mongoose (MongoDB), pg Pool (PostgreSQL) |
+| Cache / Queue | ioredis (Redis) |
+| File Storage | Cloudinary |
+| Email | Resend |
+| SMS | Twilio |
+
+### AI Assistant
+| Layer | Technology |
+|---|---|
+| Runtime | Python 3.10+ |
+| Framework | FastAPI + Uvicorn |
+| AI Model | Groq Cloud — Llama3-8b-8192 (free tier) |
 
 ### Databases
-| Purpose | Database |
+| Database | Purpose |
 |---|---|
-| Core operational data (users, tickets, inventory, tenants) | MongoDB Atlas (Mongoose) |
-| Financial data (estimates, invoices, payments) | PostgreSQL (Supabase) |
-| Real-time GPS tracking & caching | Redis (ioredis) |
-
-### Infrastructure & Services
-| Service | Purpose |
-|---|---|
-| Cloudinary | Repair photo & proof-of-delivery uploads |
-| Stripe | Card payments & SaaS subscriptions |
-| JazzCash | Pakistan mobile wallet payments |
-| EasyPaisa | Pakistan mobile wallet payments |
-| PayPal | International payments |
-| Resend | Transactional email |
-| Sentry | Error monitoring (optional) |
+| **MongoDB Atlas** | Tenants, users, tickets, inventory, audit logs, notifications, delivery jobs |
+| **PostgreSQL (Supabase)** | Financial data — estimates, invoices, payments (ACID-compliant) |
+| **Redis** | Rate limiting, session cache, brute-force counters, live GPS pings |
 
 ---
 
 ## Architecture
 
+DibnowRepairSaaS follows a **modular monorepo** approach with a clean separation between the Next.js frontend, the Fastify backend API, and a standalone Python AI service.
+
 ```
-dibnow.com / [tenant].dibnow.com
-          │
-          ▼
-┌─────────────────────────────────────┐
-│         Next.js 14 Frontend         │
-│  ┌─────────────┐  ┌──────────────┐  │
-│  │  App Router │  │  API Routes  │  │
-│  │  /dashboard │  │  /api/...    │  │
-│  └─────────────┘  └──────────────┘  │
-│         │                │          │
-│    Edge Middleware        │          │
-│    (JWT + RBAC)           │          │
-└─────────────────────────────────────┘
-          │                │
-          │        ┌───────▼────────┐
-          │        │  Fastify M9    │
-          │        │  (Delivery     │
-          │        │   Microservice)│
-          │        └───────┬────────┘
-          │                │
-    ┌─────▼────────────────▼─────┐
-    │        Data Layer          │
-    │  MongoDB  PostgreSQL  Redis│
-    └────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                    Client Browser                   │
+│              Next.js 14 (App Router)                │
+│         Role-based dashboard per tenant             │
+└────────────────────┬────────────────────────────────┘
+                     │ HTTPS / REST
+         ┌───────────▼───────────┐
+         │    Fastify API Server  │
+         │  (Node.js / TypeScript)│
+         │                       │
+         │  ┌─────────────────┐  │
+         │  │  Auth Middleware │  │
+         │  │  RBAC Middleware │  │
+         │  │ Tenant Middleware│  │
+         │  │  Rate Limiter   │  │
+         │  └────────┬────────┘  │
+         │           │           │
+         │  ┌────────▼────────┐  │
+         │  │    Modules      │  │
+         │  │ billing         │  │
+         │  │ delivery        │  │
+         │  │ notifications   │  │
+         │  │ payments        │  │
+         │  └────────┬────────┘  │
+         └───────────┼───────────┘
+                     │
+        ┌────────────┼────────────┐
+        ▼            ▼            ▼
+   MongoDB       PostgreSQL     Redis
+  (operational) (financial)   (cache/queue)
 ```
 
-The platform follows a **modular monolith** pattern on the frontend (Next.js API routes per domain) and extracts the delivery module as a **standalone Fastify microservice** to allow independent scaling of logistics workloads.
+### Key Architectural Decisions
+
+**Multi-tenancy** — Every database record carries a `tenantId`. The tenant middleware validates the `X-Tenant-Id` header on every request and enforces data isolation at the service layer. There is no cross-tenant data leakage by design.
+
+**Polyglot persistence** — Operational data (tickets, users, inventory) lives in MongoDB for flexible schema evolution. Financial data (estimates, invoices, payments) lives in PostgreSQL for ACID guarantees. Redis handles ephemeral data — rate limit counters, live GPS pings, session tokens.
+
+**Finite State Machines** — Both ticket status and delivery job status follow explicit FSM transition maps. Invalid state jumps are rejected at the service layer before touching the database.
+
+**Event-driven notifications** — An in-process `EventEmitter`-based event bus (`notificationEventBus`) decouples business events from notification delivery. Events fan out to email (Resend), SMS (Twilio), and in-app channels based on a per-event channel map.
 
 ---
 
-## Features by Module
+## Features
 
-### M1 — Authentication & Multi-Tenancy
-- JWT-based auth with refresh token support
-- Tenant isolation via subdomain detection (`x-subdomain` header)
-- Session invalidation via `tokenVersion` comparison
-- Forgot / reset password flows
-- Edge-compatible middleware (Next.js `middleware.ts` using `jose`)
+### Core Platform
+- Multi-tenant architecture with subdomain routing per shop
+- Three subscription plans: Free, Growth, Enterprise
+- Tenant-level configuration: currency, timezone, tax rate, invoice prefix, payment gateways
 
-### M2 — Repair Ticket Management
-- Full ticket lifecycle: `received → diagnosed → estimate_sent → approved → in_repair → ready → delivered`
-- Enforced FSM: invalid status transitions are rejected at the service layer
-- Ticket notes, status history, technician assignment
-- Photos per ticket (Cloudinary)
-- Ticket number generation (`TKT-XXXX`)
+### Ticket Management
+- Full repair lifecycle: `received → diagnosed → estimate_sent → approved → in_repair → ready → delivered`
+- Ticket assignment to technicians with status update tracking
+- Photo uploads per ticket via Cloudinary
 
-### M3 — Inventory & Parts Management
-- Parts catalog with SKU, brand, cost, and selling price
-- Stock adjustment with movement types: `added`, `used`, `adjusted`, `returned`, `damaged`
-- Stock movement audit trail per part
-- Technician part requests linked to tickets
-- Low-stock detection
+### Billing & Payments
+- Estimates with line items (parts, labour, service, fees), tax, and discounts (percentage or fixed)
+- Customer digital signature on estimate approval
+- Invoice generation from approved estimates with auto-numbered invoice codes
+- Partial payment support
+- Multi-gateway: **Stripe**, **PayPal**, **JazzCash**, **EasyPaisa**
+- Stripe webhook handling for asynchronous payment confirmation
 
-### M4 — Estimates & Invoices (PostgreSQL)
-- Line item estimates: `part`, `labor`, `service`, `fee`
-- Tax rate, discount (percentage or fixed), and currency support
-- Customer approval / rejection with digital signature capture
-- Auto-conversion of approved estimate to invoice
-- PostgreSQL migrations: `001_create_estimates`, `002_create_invoices`, `003_create_payments`
+### Inventory Management
+- Parts catalogue per tenant
+- Stock movement tracking: added, used, adjusted, returned, damaged
+- Low-stock alerts via notification event bus
+- Technician part requests, manager approvals
 
-### M5 — Payments
-- Pluggable gateway architecture (`IPaymentGateway` interface)
-- Stripe integration (card payments + webhook handling)
-- JazzCash integration (HMAC-SHA256 signed requests)
-- EasyPaisa integration
-- PayPal integration
-- Webhook handlers for async payment confirmation
-
-### M6 — Customer Portal
-- Self-service dashboard: track repair status, view estimates/invoices, approve estimates, pay invoices
-- Repair history
-- Review submission
-
-### M7 — Reporting & Analytics
-- Financial reports (owner / manager)
-- Technician performance reports
-- Lead tracking
-
-### M8 — Audit Logs
-- Immutable audit trail for all critical actions
-- Viewable by `super_admin` and `owner`
-- Stored in MongoDB (`AuditLog` model)
-
-### M9 — Doorstep Delivery & Logistics (UK)
-- Postcode-based service zone management
-- Haversine distance calculation for zone matching
-- Dynamic pricing models: `flat`, `per_km`, `tiered`
-- Delivery FSM: `PENDING → ASSIGNED → EN_ROUTE → ARRIVED → PICKED_UP → IN_TRANSIT → DELIVERED`
-- Real-time GPS tracking via Redis (TTL-based live pings + Mongo snapshots on completion)
-- Proof-of-delivery photo capture
-- Driver self-service dashboard
+### Doorstep Delivery (UK — Module 9)
+- Postcode-based service zone configuration
+- Haversine distance calculation for delivery fee pricing
+- FSM-guarded delivery status: `PENDING → ASSIGNED → EN_ROUTE → ARRIVED → PICKED_UP → IN_TRANSIT → DELIVERED`
+- Real-time driver GPS tracking via Redis (TTL-backed live pings, MongoDB snapshot on completion)
+- Proof of delivery recording
 - UK GDPR / ICO right-to-erasure: `anonymiseJobForErasure`
-- Driver payment tracking per job
+
+### Notifications
+- Event bus architecture — business logic emits events, notification workers consume them
+- Channels: in-app, email (Resend), SMS (Twilio)
+- Quiet hours support with urgent-event bypass (`payment_received`, `payment_failed`, `ready_for_pickup`)
+- BullMQ-style queue with a Redis-backed notification worker
+
+### AI Assistant (Module 8)
+- Standalone FastAPI service powered by Groq Cloud (Llama3-8b — free tier)
+- Streaming responses with multi-turn conversation memory per session
+- Capabilities: device diagnostics, repair cost estimation, workflow automation guidance, inventory intelligence, customer FAQ, business analytics
+- Role-aware context (technician, owner, manager)
+- Also integrated in the Next.js frontend via Anthropic SDK for in-dashboard AI features
+
+### Leads Management
+- Lead routing to shops based on GPS proximity
+- Claim/unclaim flow with auto-expiry
+- Lead pipeline views for owner and manager roles
+
+### Reporting & Analytics
+- Financial reports per tenant
+- Technician performance KPIs
+- Revenue forecasting (owner dashboard)
+- Platform-wide analytics (super admin)
+
+### Audit Logging
+- Immutable audit trail for every sensitive action (estimates approved, payments processed, settings changed)
+- Stored in MongoDB with actor, IP address, action type, and before/after snapshots
+- Viewable by owner and super admin
 
 ---
 
 ## User Roles & Permissions
 
-| Role | Dashboard Route | Key Capabilities |
+| Role | Dashboard | Key Capabilities |
 |---|---|---|
-| `super_admin` | `/dashboard/super-admin` | All tenants, impersonation, platform analytics, global audit logs |
-| `owner` | `/dashboard/owner` | Full shop access, settings, user management, billing, audit logs |
+| `super_admin` | `/dashboard/super-admin` | All tenants, impersonation, platform analytics, global settings |
+| `owner` | `/dashboard/owner` | Full shop access — tickets, billing, inventory, team, settings, audit logs, forecasting |
 | `manager` | `/dashboard/manager` | Tickets, inventory, team, reports, leads |
-| `frontdesk` | `/dashboard/frontdesk` | Ticket intake, customer management, delivery booking, payments |
-| `technician` | `/dashboard/technician` | Assigned tickets, inventory requests, AI diagnostic assistant, time tracking |
-| `customer` | `/dashboard/customer` | Track device, view/approve estimates, pay invoices, review |
-| `driver` | `/dashboard/driver` | Active delivery jobs, GPS navigation, proof-of-delivery, payment |
+| `frontdesk` | `/dashboard/frontdesk` | Create tickets, customer intake, process payments |
+| `technician` | `/dashboard/technician` | Assigned tickets, inventory requests, AI diagnostics, photo uploads, time tracking |
+| `customer` | `/dashboard/customer` | Repair tracker, invoice view, payment |
+| `driver` | `/dashboard/driver` | Active delivery jobs, GPS ping, status updates |
 
-Permission enforcement happens at two layers:
-1. **Edge Middleware** (`frontend/src/middleware.ts`) — guards dashboard routes and API routes via JWT verification
-2. **Permission Middleware** (`frontend/src/middleware/permissionMiddleware.ts`) — fine-grained permission checks using the `PERMISSIONS` matrix in `src/lib/rbac.ts`
+Permissions are enforced on both the frontend (route guards via `middleware.ts`) and the backend (`roleMiddleware.ts`). The permission matrix is the single source of truth in `src/lib/rbac.ts`.
 
 ---
 
 ## Project Structure
 
 ```
-├── .env.local                          # Root environment config
-├── frontend/
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── api/                    # Next.js API routes
-│   │   │   │   ├── auth/               # login, register, logout, forgot/reset password
-│   │   │   │   ├── tickets/            # CRUD + status, notes, assign, estimate, parts
-│   │   │   │   ├── parts/              # Inventory CRUD + stock adjustments
-│   │   │   │   ├── users/              # User management
-│   │   │   │   ├── audit-logs/         # Audit log retrieval
-│   │   │   │   └── tenant/             # Tenant resolution
-│   │   │   └── dashboard/              # Role-scoped UI pages
-│   │   │       ├── super-admin/
-│   │   │       ├── owner/
-│   │   │       ├── manager/
-│   │   │       ├── frontdesk/
-│   │   │       ├── technician/
-│   │   │       ├── customer/
-│   │   │       └── driver/
-│   │   ├── components/                 # Shared UI components
-│   │   │   ├── DashboardShell.tsx
-│   │   │   ├── StatusBadge.tsx
-│   │   │   └── tickets/                # TicketList, TicketForm, TicketDetail
-│   │   ├── lib/                        # Core utilities
-│   │   │   ├── rbac.ts                 # Permission matrix + role metadata
-│   │   │   ├── enums.ts                # TicketStatus FSM, StockMovementType, Roles
-│   │   │   ├── permissions.ts
-│   │   │   ├── subdomain.ts
-│   │   │   ├── db.ts                   # MongoDB connection helper
-│   │   │   └── auth.helper.ts
-│   │   ├── models/                     # Mongoose models
-│   │   │   ├── ticket.model.ts
-│   │   │   ├── user.model.ts
-│   │   │   ├── tenant.model.ts
-│   │   │   ├── customer.model.ts
-│   │   │   ├── part.model.ts
-│   │   │   ├── stockMovement.model.ts
-│   │   │   └── auditLog.model.ts
-│   │   ├── modules/                    # Feature controllers
-│   │   │   ├── auth/auth.service.ts
-│   │   │   ├── inventory/part.controller.ts
-│   │   │   └── tickets/ticket.controller.ts
-│   │   ├── services/                   # Business logic services
-│   │   │   ├── tickets/ticket.service.ts
-│   │   │   └── auditLog.service.ts
-│   │   ├── middleware/
-│   │   │   └── permissionMiddleware.ts
-│   │   ├── utils/
-│   │   │   ├── apiResponse.ts
-│   │   │   ├── passwordPolicy.ts
-│   │   │   └── response.helper.ts
-│   │   └── middleware.ts               # Edge middleware (JWT + RBAC guards)
-│   ├── tailwind.config.js
-│   └── tsconfig.json
+/
+├── backend/                        # Fastify API (Node.js / TypeScript)
+│   └── src/
+│       ├── config/                 # env.ts, mongodb.ts, postgres.ts, redis.ts
+│       ├── database/
+│       │   └── migrations/         # PostgreSQL SQL migrations (001–003)
+│       ├── errors/                 # Typed error classes (NotFound, Forbidden, etc.)
+│       ├── middleware/
+│       │   ├── authMiddleware.ts   # JWT verification
+│       │   ├── roleMiddleware.ts   # RBAC enforcement
+│       │   ├── tenantMiddleware.ts # Tenant isolation
+│       │   ├── securityMiddleware.ts # Helmet, CORS, rate limiting
+│       │   └── fileUploadMiddleware.ts
+│       ├── models/
+│       │   ├── tenant.model.ts
+│       │   └── auditLog.model.ts
+│       └── modules/
+│           ├── billing/            # Estimates + invoices (controller / service / routes)
+│           ├── delivery/           # Doorstep logistics (controller / service / model / validators / utils)
+│           ├── notifications/      # Event bus, queue, worker, providers (email/SMS/in-app)
+│           └── payments/           # Stripe / PayPal / JazzCash / EasyPaisa gateways
 │
-└── backend/                            # M9 Delivery Microservice (Fastify)
-    └── src/
-        ├── server.ts                   # Fastify bootstrap
-        ├── config/
-        │   ├── env.ts                  # Zod-validated env schema
-        │   ├── mongodb.ts
-        │   ├── postgres.ts
-        │   └── redis.ts
-        ├── database/
-        │   ├── migrate.ts
-        │   └── migrations/
-        │       ├── 001_create_estimates.sql
-        │       ├── 002_create_invoices.sql
-        │       └── 003_create_payments.sql
-        ├── errors/                     # Custom error classes
-        ├── middleware/
-        │   ├── authMiddleware.ts
-        │   ├── errorHandler.ts
-        │   ├── fileUploadMiddleware.ts
-        │   ├── roleMiddleware.ts
-        │   ├── securityMiddleware.ts
-        │   └── tenantMiddleware.ts
-        ├── models/
-        │   ├── tenant.model.ts
-        │   └── auditLog.model.ts
-        ├── modules/
-        │   ├── billing/                # Estimates + invoices (PostgreSQL)
-        │   ├── delivery/               # M9 doorstep logistics
-        │   │   ├── model/
-        │   │   ├── service/
-        │   │   ├── controller/
-        │   │   ├── routes/
-        │   │   ├── validators/
-        │   │   └── utils/
-        │   └── payments/               # Multi-gateway payment processing
-        │       ├── gateways/
-        │       │   ├── gateway.interface.ts
-        │       │   ├── stripe.gateway.ts
-        │       │   ├── jazzcash.gateway.ts
-        │       │   └── index.ts
-        │       ├── service/
-        │       └── routes/
-        ├── types/
-        └── utils/
-            ├── encryption/             # AES-256-CBC
-            └── logger/
+├── frontend/                       # Next.js 14 App Router
+│   └── src/
+│       ├── app/
+│       │   ├── dashboard/
+│       │   │   ├── super-admin/    # Platform management
+│       │   │   ├── owner/          # Shop owner workspace
+│       │   │   ├── manager/        # Manager workspace
+│       │   │   ├── frontdesk/      # Front desk workspace
+│       │   │   ├── technician/     # Technician workspace
+│       │   │   ├── customer/       # Customer portal
+│       │   │   └── driver/         # Driver workspace
+│       │   ├── login/
+│       │   ├── register/
+│       │   ├── forgot-password/
+│       │   ├── reset-password/
+│       │   └── sections/           # Landing page sections
+│       ├── components/
+│       │   ├── tickets/            # TicketForm, TicketList, TicketDetail
+│       │   ├── customer/           # RepairTracker
+│       │   ├── ui/                 # shadcn-style primitives
+│       │   └── DashboardShell.tsx  # Authenticated layout wrapper
+│       ├── lib/
+│       │   ├── rbac.ts             # Permission matrix + role metadata
+│       │   ├── enums.ts            # TicketStatus, Role, StockMovementType
+│       │   ├── permissions.ts
+│       │   └── ai/                 # Anthropic client + prompt templates
+│       ├── models/                 # TypeScript interfaces for all entities
+│       ├── modules/                # Client-side controllers (auth, tickets, inventory)
+│       ├── services/               # API service layer
+│       └── middleware.ts           # Next.js route protection + role redirect
+│
+├── main.py                         # FastAPI AI chatbot service (Groq / Llama3)
+├── requirements.txt                # Python dependencies
+├── static/
+│   └── index.html                  # AI chatbot UI
+├── scripts/
+│   └── create-admin.mjs            # Seed script: create initial super admin
+├── .env.local                      # Environment variable template
+└── SETUP.md                        # AI chatbot standalone setup guide
 ```
 
 ---
@@ -300,305 +274,312 @@ Permission enforcement happens at two layers:
 ## Database Design
 
 ### MongoDB Collections
-| Collection | Description |
-|---|---|
-| `users` | All user accounts across tenants |
-| `tenants` | Repair shop registrations + subdomain + subscription info |
-| `tickets` | Repair jobs with FSM status, notes, history, parts used |
-| `customers` | Customer profiles per tenant |
-| `parts` | Inventory catalogue per tenant |
-| `stockmovements` | Audit trail for every inventory change |
-| `auditlogs` | Immutable system-wide action log |
-| `deliveryjobs` | M9 delivery bookings with GPS trail |
-| `servicezones` | UK postcode district-based delivery zones |
 
-### PostgreSQL Tables (Financial — via Supabase)
-| Table | Description |
-|---|---|
-| `estimates` | Quote header with status, tax, discount, currency |
-| `estimate_line_items` | Individual line items per estimate |
-| `invoices` | Finalized invoice converted from approved estimate |
-| `invoice_line_items` | Invoice line items |
-| `payments` | Payment records linked to invoices with gateway details |
+**`tenants`** — Root of every data record. Stores subdomain, plan, settings (tax rate, invoice prefix, allowed payment gateways), and feature flags.
 
----
+**`users`** — Belongs to a tenant. Stores role, hashed password, profile, and session metadata.
 
-## API Overview
+**`tickets`** — Core repair record. Linked to customer, technician, and tenant. FSM-controlled status field.
 
-### Next.js API Routes (`/api/...`)
+**`parts`** — Inventory items per tenant. Tracks stock levels, reorder thresholds, cost, and sell price.
 
-| Method | Endpoint | Auth | Description |
-|---|---|---|---|
-| `POST` | `/api/auth/register` | Public | Register new user |
-| `POST` | `/api/auth/login` | Public | Login, returns JWT cookie |
-| `POST` | `/api/auth/logout` | Auth | Clear session |
-| `POST` | `/api/auth/forgot-password` | Public | Send reset email |
-| `POST` | `/api/auth/reset-password` | Public | Apply new password |
-| `GET` | `/api/auth/verify-session` | Auth | Validate token version |
-| `GET/POST` | `/api/tickets` | Auth | List / create tickets |
-| `GET/PUT/DELETE` | `/api/tickets/[id]` | Auth | Get / update / delete ticket |
-| `PATCH` | `/api/tickets/[id]/status` | Auth | FSM status transition |
-| `POST` | `/api/tickets/[id]/assign` | Auth | Assign technician |
-| `POST` | `/api/tickets/[id]/notes` | Auth | Add internal note |
-| `POST` | `/api/tickets/[id]/estimate` | Auth | Attach estimate |
-| `POST` | `/api/tickets/[id]/parts` | Auth | Log parts used |
-| `GET/POST` | `/api/parts` | Auth | List / create parts |
-| `GET/PUT/DELETE` | `/api/parts/[partId]` | Auth | Manage a specific part |
-| `POST` | `/api/parts/[partId]/stock` | Auth | Adjust stock |
-| `GET/POST` | `/api/stock-movements` | Auth | List / record stock movements |
-| `GET/POST` | `/api/users` | Auth (owner/manager) | List / create users |
-| `GET/PUT/DELETE` | `/api/users/[userId]` | Auth | Manage a specific user |
-| `GET` | `/api/audit-logs` | Auth (owner/super_admin) | Retrieve audit log |
-| `GET` | `/api/tenant/resolve` | Public | Resolve tenant from subdomain |
+**`stockMovements`** — Append-only ledger of every inventory change (added, used, adjusted, returned, damaged).
 
-### Fastify Delivery Microservice (`/api/delivery/...`)
+**`leads`** — Inbound repair enquiries. Routed to nearest shop, claimable by owner/manager.
 
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/health` | Health check |
-| `POST` | `/api/delivery/jobs` | Book a delivery job |
-| `GET` | `/api/delivery/jobs` | List delivery jobs (paginated) |
-| `GET` | `/api/delivery/jobs/:id` | Get job details |
-| `PATCH` | `/api/delivery/jobs/:id/status` | Update delivery status (FSM) |
-| `PATCH` | `/api/delivery/jobs/:id/assign` | Assign a driver |
-| `POST` | `/api/delivery/jobs/:id/gps` | Record live GPS ping |
-| `GET` | `/api/delivery/jobs/:id/location` | Get live driver location |
-| `POST` | `/api/delivery/jobs/:id/complete` | Complete with proof of delivery |
-| `DELETE` | `/api/delivery/jobs/:id/erasure` | GDPR right-to-erasure |
-| `GET` | `/api/delivery/driver/jobs` | Driver's active jobs |
-| `GET/POST` | `/api/delivery/zones` | List / create service zones |
-| `GET` | `/api/delivery/zones/check` | Check postcode coverage |
+**`deliveryJobs`** — Doorstep delivery records per tenant. Includes postcode pair, pricing, FSM status, GPS trail snapshots, and proof of delivery.
 
----
+**`serviceZones`** — Postcode-district-based delivery zones per tenant with pricing rules.
 
-## Payment Gateways
+**`notifications`** — In-app notification records per user.
 
-All payment gateways implement the `IPaymentGateway` interface:
+**`auditLogs`** — Immutable event log. Actor, action, entity, before/after data, IP address, timestamp.
 
-```typescript
-interface IPaymentGateway {
-  createPayment(input: PaymentGatewayInput): Promise<CreatePaymentResult>;
-  verifyPayment(paymentId: string): Promise<VerifyPaymentResult>;
-  refundPayment(paymentId: string, amount?: number): Promise<RefundResult>;
-}
-```
+### PostgreSQL Tables (Financial)
 
-| Gateway | Region | Notes |
-|---|---|---|
-| **Stripe** | Global | Webhook signature verification via `STRIPE_WEBHOOK_SECRET` |
-| **JazzCash** | Pakistan | HMAC-SHA256 signed requests; sandbox + live URLs |
-| **EasyPaisa** | Pakistan | Hash-based request signing |
-| **PayPal** | Global | Sandbox and live mode |
+**`estimates`** — Line items, subtotal, tax, discount, total, status (draft → sent → approved/rejected/expired), customer digital signature.
 
-The active gateway is selected at runtime based on the payment method chosen at checkout. Webhooks for all gateways are handled in `backend/src/modules/payments/routes/webhook.handler.ts`.
+**`invoices`** — Generated from approved estimates. Auto-numbered (`INV-0001`). Tracks amount paid and outstanding balance.
 
----
-
-## Environment Variables
-
-Copy `.env.local` and fill in your values. All variables are validated at startup using Zod — the application will **refuse to start** if any required variable is missing or malformed.
-
-```env
-# Server
-NODE_ENV=development
-PORT=4000
-APP_URL=http://localhost:3000
-
-# JWT (minimum 32 characters)
-JWT_SECRET=your_jwt_secret_minimum_32_chars_here
-JWT_EXPIRES_IN=30d
-JWT_REFRESH_SECRET=your_refresh_secret_minimum_32_chars
-
-# MongoDB Atlas
-MONGODB_URI=mongodb+srv://user:pass@cluster.mongodb.net/dibnow
-
-# PostgreSQL (Supabase or self-hosted)
-POSTGRES_URI=postgresql://user:pass@host:5432/dibnow
-
-# Redis
-REDIS_URL=redis://localhost:6379
-
-# Encryption (AES-256-CBC — exactly 32 / 16 chars)
-ENCRYPTION_KEY=your_32_char_encryption_key_here!!
-ENCRYPTION_IV=your_16_char_iv!!
-
-# Stripe
-STRIPE_SECRET_KEY=sk_test_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_PUBLISHABLE_KEY=pk_test_...
-
-# PayPal
-PAYPAL_CLIENT_ID=...
-PAYPAL_CLIENT_SECRET=...
-PAYPAL_MODE=sandbox
-
-# JazzCash (optional)
-JAZZCASH_MERCHANT_ID=
-JAZZCASH_PASSWORD=
-JAZZCASH_INTEGRITY_SALT=
-
-# EasyPaisa (optional)
-EASYPAISA_STORE_ID=
-EASYPAISA_HASH_KEY=
-
-# Cloudinary
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
-
-# Email
-RESEND_API_KEY=re_...
-
-# Sentry (optional)
-SENTRY_DSN=
-
-# CORS
-ALLOWED_ORIGINS=http://localhost:3000
-
-# Rate Limiting
-RATE_LIMIT_MAX=100
-RATE_LIMIT_WINDOW=60000
-
-# Session
-SESSION_INACTIVITY_TIMEOUT=1800
-```
+**`payments`** — Payment transactions. Gateway, reference ID, amount, currency, status. Links to invoice.
 
 ---
 
 ## Getting Started
 
 ### Prerequisites
-- Node.js >= 18
-- MongoDB Atlas cluster (or local MongoDB)
+
+- Node.js 20+
+- Python 3.10+
+- MongoDB Atlas account (or local MongoDB)
 - PostgreSQL database (Supabase recommended)
-- Redis instance (local or Redis Cloud)
+- Redis instance (Upstash or local)
+- Cloudinary account
+- Resend account (email)
+- Stripe account
 
-### 1. Clone and install
-
-```bash
-git clone https://github.com/your-org/dibnow-repair-saas.git
-cd dibnow-repair-saas
-
-# Install frontend dependencies
-cd frontend && npm install
-
-# Install backend dependencies
-cd ../backend && npm install
-```
-
-### 2. Configure environment
+### Clone the Repository
 
 ```bash
-cp .env.local .env
-# Edit .env and fill in all required values
+git clone <repository-url>
+cd Clicktake-tecnologies-Repair-Shop-SaaS-main
 ```
 
-### 3. Run PostgreSQL migrations
+---
+
+## Environment Variables
+
+Copy `.env.local` to `.env` in both the root and `backend/` directories, then fill in all required values.
+
+```env
+# ── Server ──────────────────────────────────────────────────────
+NODE_ENV=development
+PORT=4000
+APP_URL=http://localhost:4000
+
+# ── JWT ─────────────────────────────────────────────────────────
+JWT_SECRET=<min 32 characters>
+JWT_EXPIRES_IN=30d
+JWT_REFRESH_SECRET=<min 32 characters>
+
+# ── Databases ───────────────────────────────────────────────────
+MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net/dibnow
+POSTGRES_URI=postgresql://<user>:<pass>@<host>:5432/<db>
+REDIS_URL=redis://localhost:6379
+
+# ── Encryption (AES-256-CBC) ────────────────────────────────────
+ENCRYPTION_KEY=<exactly 32 characters>
+ENCRYPTION_IV=<exactly 16 characters>
+
+# ── Stripe ──────────────────────────────────────────────────────
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+# ── PayPal ──────────────────────────────────────────────────────
+PAYPAL_CLIENT_ID=...
+PAYPAL_CLIENT_SECRET=...
+PAYPAL_MODE=sandbox
+
+# ── JazzCash (optional) ─────────────────────────────────────────
+JAZZCASH_MERCHANT_ID=
+JAZZCASH_PASSWORD=
+JAZZCASH_INTEGRITY_SALT=
+
+# ── EasyPaisa (optional) ────────────────────────────────────────
+EASYPAISA_STORE_ID=
+EASYPAISA_HASH_KEY=
+
+# ── Cloudinary ──────────────────────────────────────────────────
+CLOUDINARY_CLOUD_NAME=...
+CLOUDINARY_API_KEY=...
+CLOUDINARY_API_SECRET=...
+
+# ── Email (Resend) ──────────────────────────────────────────────
+RESEND_API_KEY=re_...
+
+# ── CORS ────────────────────────────────────────────────────────
+ALLOWED_ORIGINS=http://localhost:3000
+
+# ── Rate Limiting ───────────────────────────────────────────────
+RATE_LIMIT_MAX=100
+RATE_LIMIT_WINDOW=60000
+
+# ── AI Chatbot ──────────────────────────────────────────────────
+GROQ_API_KEY=gsk_...
+NEXT_PUBLIC_ANTHROPIC_API_KEY=sk-ant-...
+```
+
+> The backend validates all required variables with Zod on startup and exits with a descriptive error if any are missing or malformed. Never start with a bad config.
+
+---
+
+## Running the App
+
+### 1. Run PostgreSQL Migrations
 
 ```bash
 cd backend
-npm run dev
-# The migration script at src/database/migrate.ts runs on startup
-# or run manually:
 npx ts-node src/database/migrate.ts
 ```
 
-### 4. Start the development servers
+This runs the three migration files in order (`001_create_estimates.sql`, `002_create_invoices.sql`, `003_create_payments.sql`).
+
+### 2. Seed the Super Admin
 
 ```bash
-# Terminal 1 — Next.js frontend (port 3000)
-cd frontend
-npm run dev
-
-# Terminal 2 — Fastify delivery microservice (port 4001)
-cd backend
-npm run dev
+node scripts/create-admin.mjs
 ```
 
-### 5. Access the app
+### 3. Start the Backend API
 
-- Main app: [http://localhost:3000](http://localhost:3000)
-- Delivery API health: [http://localhost:4001/health](http://localhost:4001/health)
-- Tenant subdomain (local): add `127.0.0.1 myshop.localhost` to `/etc/hosts`, then visit `http://myshop.localhost:3000`
+```bash
+cd backend
+npm install
+npm run dev
+# Starts Fastify on http://localhost:4000
+```
+
+### 4. Start the Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+# Starts Next.js on http://localhost:3000
+```
+
+### 5. Start the AI Chatbot Service (optional)
+
+```bash
+pip install -r requirements.txt
+export GROQ_API_KEY=gsk_your_key_here
+python main.py
+# Starts FastAPI on http://localhost:8000
+```
 
 ---
 
 ## Running Tests
 
-The backend delivery module includes a Jest test suite:
+The backend uses Jest with `ts-jest`. Tests are co-located with their modules under `__tests__/` directories.
 
 ```bash
 cd backend
-
-# Run all tests
-npm test
-
-# Watch mode
-npm run test:watch
-
-# With coverage
-npm test -- --coverage
+npm test              # run all tests once
+npm run test:watch    # watch mode
 ```
 
-Test files are located at:
-- `backend/src/modules/delivery/__tests__/delivery.test.ts`
+Test coverage includes:
+
+- Auth middleware (token validation, role enforcement)
+- Error handler middleware
+- File upload middleware
+- Billing service (estimate creation, approval, invoice generation)
+- Delivery service (booking, driver assignment, status transitions, GPS)
+- Payment flows
+- Model validation
 
 ---
 
-## Deployment
+## API Modules
 
-### Frontend — Vercel
+All backend routes are mounted under `/api/v1/`.
 
-```bash
-cd frontend
-vercel --prod
-```
+### Billing — `/api/v1/billing`
 
-Set all environment variables in the Vercel project dashboard. For multi-tenant subdomain support, configure a wildcard domain: `*.dibnow.com`.
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/estimates` | owner, manager | Create a new estimate |
+| `GET` | `/estimates/:id` | owner, manager, frontdesk | Get estimate by ID |
+| `POST` | `/estimates/:id/approve` | owner, manager, customer | Approve or reject an estimate |
+| `POST` | `/invoices` | owner, manager | Convert approved estimate to invoice |
+| `GET` | `/invoices/:id` | owner, manager, frontdesk, customer | Get invoice |
 
-### Backend Microservice — Docker
+### Delivery — `/api/v1/delivery`
 
-```dockerfile
-# Build
-docker build -t dibnow-delivery-m9 ./backend
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `POST` | `/jobs` | owner, manager, frontdesk | Book a delivery job |
+| `GET` | `/jobs/:id` | authenticated | Get job details |
+| `GET` | `/jobs` | owner, manager, frontdesk | List all jobs (paginated) |
+| `POST` | `/jobs/:id/assign` | owner, manager | Assign a driver |
+| `PATCH` | `/jobs/:id/status` | driver, owner, manager | Update delivery status (FSM-validated) |
+| `POST` | `/jobs/:id/gps` | driver | Record live GPS ping |
+| `GET` | `/jobs/:id/location` | owner, manager, frontdesk | Get live driver location |
+| `POST` | `/jobs/:id/complete` | driver | Complete job with proof of delivery |
+| `DELETE` | `/jobs/:id/erasure` | super_admin | GDPR erasure |
+| `GET` | `/drivers/:driverId/jobs` | driver | Driver's active jobs |
+| `PUT` | `/zones` | owner | Create or update a service zone |
+| `GET` | `/zones` | owner, manager | List all zones |
+| `POST` | `/zones/check` | public | Check if a postcode is in a service zone |
 
-# Run
-docker run -p 4001:4001 --env-file .env dibnow-delivery-m9
-```
+### Notifications — `/api/v1/notifications`
 
-Or deploy to any Node.js-compatible host (Railway, Render, AWS ECS).
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `GET` | `/` | authenticated | List notifications for current user |
+| `PATCH` | `/:id/read` | authenticated | Mark notification as read |
+| `PATCH` | `/read-all` | authenticated | Mark all as read |
 
-### Database
+### Payments — `/api/v1/payments`
 
-- **MongoDB**: Use MongoDB Atlas with network access restricted to your server IPs
-- **PostgreSQL**: Supabase free tier works well for getting started; migrate to dedicated Postgres for production
-- **Redis**: Redis Cloud or AWS ElastiCache for production
+Gateway-specific routes for Stripe, PayPal, JazzCash, and EasyPaisa with webhook endpoints for async confirmation.
 
 ---
 
 ## Security
 
-| Layer | Implementation |
+### Authentication
+- JWT-based with a configurable expiry (default 30 days) and a separate refresh token secret
+- Tokens validated on every request via `authMiddleware`
+- Brute-force login protection: Redis-backed attempt counter with account lockout
+
+### Authorization
+- Role-Based Access Control enforced by `roleMiddleware` on all protected routes
+- Frontend route protection via Next.js `middleware.ts` — unauthorized role access redirects to the correct home page, not a 403 page
+
+### Transport & Headers
+- Fastify Helmet: Content-Security-Policy, HSTS (1-year, preload), `X-Frame-Options: deny`, `X-Content-Type-Options: nosniff`, XSS filter
+- Strict CORS — only origins listed in `ALLOWED_ORIGINS` are accepted
+- Signed cookies (`@fastify/cookie` with `JWT_SECRET`)
+
+### Rate Limiting
+- Global: 100 requests / 60 seconds per IP + tenantId (Redis-backed)
+- Auth endpoints: 10 requests / 15 minutes
+- Payment endpoints: 20 requests / 1 minute
+
+### Data
+- AES-256-CBC encryption for sensitive fields (key + IV validated at startup)
+- Financial records isolated in PostgreSQL with full ACID transactions
+- Tenant data isolation enforced at every query — no shared collections without a `tenantId` filter
+- GDPR anonymisation support for delivery jobs (`anonymiseJobForErasure`)
+
+### File Uploads
+- Size limit: 10 MB per file, max 5 files per request
+- Stored in Cloudinary, not on local disk
+
+---
+
+## Deployment
+
+### Recommended Stack
+
+| Service | Provider |
 |---|---|
-| Authentication | JWT (HS256) with `tokenVersion` session invalidation |
-| Password hashing | bcryptjs |
-| Sensitive data encryption | AES-256-CBC (`ENCRYPTION_KEY` + `ENCRYPTION_IV`) |
-| API protection | Edge middleware JWT verification on all `/api/*` and `/dashboard/*` routes |
-| Role enforcement | Permission matrix in `rbac.ts` checked at middleware and service layer |
-| Multi-tenancy isolation | `tenantId` scoped on every MongoDB query |
-| Payment signing | HMAC-SHA256 for JazzCash; Stripe webhook signature verification |
-| Env validation | Zod schema — app refuses to start with invalid config |
-| CORS | Explicit allowlist via `ALLOWED_ORIGINS` |
-| Rate limiting | Configurable via `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` |
-| GDPR | Right-to-erasure endpoint anonymises delivery job PII |
-| Security headers | `securityMiddleware.ts` sets standard security headers |
+| Frontend | Vercel (Next.js native) |
+| Backend API | Railway, Render, or EC2 |
+| AI Chatbot | Railway or a small VPS |
+| MongoDB | MongoDB Atlas |
+| PostgreSQL | Supabase |
+| Redis | Upstash |
+| File Storage | Cloudinary |
+| Email | Resend |
+| SMS | Twilio |
+
+### Vercel (Frontend)
+
+1. Connect the repository to Vercel.
+2. Set the root directory to `frontend/`.
+3. Add all `NEXT_PUBLIC_*` environment variables in the Vercel dashboard.
+4. Deploy — Vercel handles the Next.js build automatically.
+
+### Backend
+
+```bash
+cd backend
+npm run build       # compiles TypeScript to dist/
+npm start           # runs dist/server.js
+```
+
+Set `NODE_ENV=production` in your environment. The PostgreSQL pool enables TLS (`rejectUnauthorized: true`) automatically in production.
+
+### Docker (optional)
+
+A `Dockerfile` can be added to both `backend/` and `frontend/` following standard Node.js multi-stage build patterns. The backend has no filesystem dependency (all uploads go to Cloudinary), making it stateless and horizontally scalable.
 
 ---
 
 ## License
 
-Proprietary — Clicktake Technologies. All rights reserved.
-
----
-
-*Built with ❤️ by the Clicktake Technologies team.*
+Proprietary — Dibnow Engineering © 2026. All rights reserved.
