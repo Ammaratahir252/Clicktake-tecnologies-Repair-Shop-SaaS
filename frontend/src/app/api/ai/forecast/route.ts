@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { groq, AI_MODEL, DEFAULT_MAX_TOKENS } from "@/lib/ai/anthropic";
+import { createAICompletion } from "@/lib/ai/client";
 import { buildForecastSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Part from "@/models/part.model";
@@ -94,23 +94,11 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       })
       .join("\n");
 
-    // ── Step 5: Groq analyses the real data ───────────────────────────────────
-    const response = await groq.chat.completions.create({
-      model: AI_MODEL,
-      max_tokens: DEFAULT_MAX_TOKENS,
-      messages: [
-        {
-          role: "system",
-          content: buildForecastSystemPrompt(inventoryContext),
-        },
-        {
-          role: "user",
-          content: `Analyse the inventory and provide reorder recommendations. Total parts: ${parts.length}. Total stock movements in 30d: ${movements.length}.`,
-        },
-      ],
-    });
-
-    const rawText = response.choices[0]?.message?.content ?? "";
+    // ── Step 5: AI analyses the real data ────────────────────────────────────
+    const rawText = await createAICompletion([
+      { role: "system", content: buildForecastSystemPrompt(inventoryContext) },
+      { role: "user",   content: `Analyse the inventory and provide reorder recommendations. Total parts: ${parts.length}. Total stock movements in 30d: ${movements.length}.` },
+    ], 1024);
 
     let parsed;
     try {
@@ -131,7 +119,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       ...parsed,
       partsAnalysed: parts.length,
       movementsAnalysed: movements.length,
-      model: AI_MODEL,
     });
   } catch (err: any) {
     console.error("[AI/forecast]", err.message);

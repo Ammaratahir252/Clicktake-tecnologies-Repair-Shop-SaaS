@@ -6,16 +6,55 @@ import api from "@/lib/api";
 import {
   Settings, Globe, Bell, Shield, CreditCard, Mail,
   Save, Loader2, CheckCircle2, AlertTriangle,
-  ChevronDown, Lock, Clock, Key, RefreshCw,
+  ChevronDown, Lock, Clock, Key, RefreshCw, Cpu,
 } from "lucide-react";
 
 const TABS = [
   { key: "general",       label: "General",       icon: Globe     },
   { key: "security",      label: "Security",       icon: Shield    },
   { key: "notifications", label: "Notifications",  icon: Bell      },
+  { key: "ai",            label: "AI Models",      icon: Cpu       },
   { key: "billing",       label: "Billing",        icon: CreditCard },
   { key: "email",         label: "Email / SMTP",   icon: Mail      },
 ];
+
+const AI_PROVIDERS = [
+  { value: "groq",   label: "Groq",    badge: "Default",  color: "emerald", description: "Llama 3.3 & Mixtral models via Groq Cloud. Fast inference, free tier available." },
+  { value: "openai", label: "OpenAI",  badge: "GPT-4o",   color: "blue",    description: "GPT-4o and GPT-4 Turbo. Industry-leading quality for complex reasoning." },
+  { value: "google", label: "Gemini",  badge: "Google",   color: "orange",  description: "Gemini 1.5 Pro/Flash & 2.0 Flash. Strong multimodal capabilities." },
+  { value: "glm",    label: "GLM 5.2", badge: "Zhipu AI", color: "violet",  description: "ChatGLM 5.2 by Zhipu AI. Excellent Chinese & English language support." },
+];
+
+const AI_MODELS: Record<string, { value: string; label: string }[]> = {
+  groq: [
+    { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile (Recommended)" },
+    { value: "llama-3.1-8b-instant",    label: "Llama 3.1 8B Instant (Fast)" },
+    { value: "mixtral-8x7b-32768",      label: "Mixtral 8x7B" },
+  ],
+  openai: [
+    { value: "gpt-4o",      label: "GPT-4o" },
+    { value: "gpt-4o-mini", label: "GPT-4o Mini (Cost-efficient)" },
+    { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+  ],
+  google: [
+    { value: "gemini-1.5-pro",   label: "Gemini 1.5 Pro" },
+    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash (Fast)" },
+    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash (Latest)" },
+  ],
+  glm: [
+    { value: "glm-4-flash", label: "GLM-4 Flash (GLM 5.2 Fast)" },
+    { value: "glm-4-plus",  label: "GLM-4 Plus (GLM 5.2 Pro)" },
+    { value: "glm-4-air",   label: "GLM-4 Air (GLM 5.2 Balanced)" },
+    { value: "glm-z1-flash", label: "GLM-Z1 Flash (Reasoning)" },
+  ],
+};
+
+const BADGE_COLORS: Record<string, string> = {
+  emerald: "bg-emerald-500/10 text-emerald-600 border-emerald-500/20",
+  blue:    "bg-blue-500/10 text-blue-600 border-blue-500/20",
+  orange:  "bg-orange-500/10 text-orange-600 border-orange-500/20",
+  violet:  "bg-violet-500/10 text-violet-600 border-violet-500/20",
+};
 
 function Toggle({ checked, onChange, danger }: { checked: boolean; onChange: (v: boolean) => void; danger?: boolean }) {
   return (
@@ -161,6 +200,12 @@ function SettingsContent({ user }: { user: any }) {
   const [savingN, setSavingN] = useState(false);
   const [savedN,  setSavedN]  = useState(false);
 
+  // AI Models
+  const [aiProvider, setAiProvider] = useState("groq");
+  const [aiModel,    setAiModel]    = useState("llama-3.3-70b-versatile");
+  const [savingAI,   setSavingAI]   = useState(false);
+  const [savedAI,    setSavedAI]    = useState(false);
+
   // Load settings on mount
   useEffect(() => {
     api.get("/api/admin/settings")
@@ -178,6 +223,8 @@ function SettingsContent({ user }: { user: any }) {
         setPasswordMinLength(String(s.passwordMinLength ?? 8));
         setIpWhitelist(s.ipWhitelist     ?? "");
         if (s.notifs) setNotifs(s.notifs);
+        if (s.aiProvider) setAiProvider(s.aiProvider);
+        if (s.aiModel)    setAiModel(s.aiModel);
       })
       .catch((err) => {
         setInitError(err.response?.data?.message || "Could not load settings.");
@@ -386,6 +433,100 @@ function SettingsContent({ user }: { user: any }) {
               </div>
             </div>
           )}
+
+          {/* AI Models */}
+          {tab === "ai" && (() => {
+            const activeProvider = AI_PROVIDERS.find(p => p.value === aiProvider)!;
+            const models = AI_MODELS[aiProvider] ?? [];
+
+            return (
+              <div className="space-y-5">
+                <div className="bg-card border border-border rounded-2xl overflow-hidden">
+                  <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
+                    <div>
+                      <h2 className="font-bold text-foreground">AI Model Configuration</h2>
+                      <p className="text-xs text-muted-foreground mt-0.5">Select the provider and model used across all AI features platform-wide</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-xl bg-primary/10 border border-primary/20">
+                      <Cpu className="w-3.5 h-3.5 text-primary" />
+                      <span className="text-xs font-bold text-primary">{activeProvider?.label} · {aiModel}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    {/* Provider cards */}
+                    <div>
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-3">Provider</p>
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        {AI_PROVIDERS.map(p => (
+                          <button
+                            key={p.value}
+                            onClick={() => {
+                              setAiProvider(p.value);
+                              setAiModel(AI_MODELS[p.value][0].value);
+                            }}
+                            className={`text-left p-4 rounded-xl border transition-all ${
+                              aiProvider === p.value
+                                ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20"
+                                : "bg-muted/40 border-border hover:bg-muted/60"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-2 mb-1.5">
+                              <p className="font-bold text-sm text-foreground">{p.label}</p>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${BADGE_COLORS[p.color]}`}>
+                                {p.badge}
+                              </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground leading-relaxed">{p.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Model selector */}
+                    <div className="space-y-1.5">
+                      <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Model</p>
+                      <div className="relative max-w-sm">
+                        <select
+                          value={aiModel}
+                          onChange={e => setAiModel(e.target.value)}
+                          className="w-full appearance-none bg-background border border-border rounded-xl px-4 py-3 pr-8 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
+                        >
+                          {models.map(m => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                        <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                      </div>
+                    </div>
+
+                    {/* API key notice */}
+                    <div className="flex items-start gap-3 bg-muted/50 border border-border rounded-xl px-4 py-3">
+                      <Key className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
+                      <p className="text-xs text-muted-foreground">
+                        API keys are loaded from server environment variables (<code className="font-mono text-foreground/70">GROQ_API_KEY</code>, <code className="font-mono text-foreground/70">OPENAI_API_KEY</code>, <code className="font-mono text-foreground/70">GEMINI_API_KEY</code>, <code className="font-mono text-foreground/70">GLM_API_KEY</code>). Contact your system administrator to rotate keys.
+                      </p>
+                    </div>
+
+                    <div className="pt-1 flex justify-end">
+                      <SaveButton
+                        loading={savingAI} saved={savedAI}
+                        onClick={() => saveSection({ aiProvider, aiModel }, setSavingAI, setSavedAI)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-muted/40 border border-border rounded-xl px-5 py-4 flex gap-3">
+                  <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-sm font-semibold text-foreground">Applies platform-wide immediately</p>
+                    <p className="text-xs text-muted-foreground">This controls the model used by AI Diagnostics, Cost Estimation, Inventory Forecasting, Automation Validation, and the Customer Chatbot across all tenants.</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
 
           {tab === "billing" && <ComingSoonPanel section="billing"      />}
           {tab === "email"   && <ComingSoonPanel section="email / SMTP" />}

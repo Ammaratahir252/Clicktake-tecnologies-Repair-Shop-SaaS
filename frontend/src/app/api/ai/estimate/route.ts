@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { groq, AI_MODEL, DEFAULT_MAX_TOKENS } from "@/lib/ai/anthropic";
+import { createAICompletion } from "@/lib/ai/client";
 import { buildEstimateSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
@@ -76,22 +76,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             .join("\n")
         : "No historical estimate data available for this shop yet.";
 
-    const response = await groq.chat.completions.create({
-      model: AI_MODEL,
-      max_tokens: DEFAULT_MAX_TOKENS,
-      messages: [
-        {
-          role: "system",
-          content: buildEstimateSystemPrompt(historicalContext),
-        },
-        {
-          role: "user",
-          content: `Predict repair cost for:\nDevice: ${deviceBrand ?? "Unknown"} ${deviceModel ?? "Unknown model"}\nIssue: "${issue}"`,
-        },
-      ],
-    });
-
-    const rawText = response.choices[0]?.message?.content ?? "";
+    const rawText = await createAICompletion([
+      { role: "system", content: buildEstimateSystemPrompt(historicalContext) },
+      { role: "user",   content: `Predict repair cost for:\nDevice: ${deviceBrand ?? "Unknown"} ${deviceModel ?? "Unknown model"}\nIssue: "${issue}"` },
+    ], 1024);
 
     let parsed;
     try {
@@ -111,7 +99,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return sendResponse(true, "Estimate prediction complete", {
       ...parsed,
       samplesUsed: historicalTickets.length,
-      model: AI_MODEL,
     });
   } catch (err: any) {
     console.error("[AI/estimate]", err.message);

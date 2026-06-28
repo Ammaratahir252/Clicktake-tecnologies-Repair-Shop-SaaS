@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { groq, AI_MODEL } from "@/lib/ai/anthropic";
+import { createAICompletion } from "@/lib/ai/client";
 import { buildAutomationSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import AutomationRule from "@/models/automationRule.model";
@@ -105,26 +105,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     };
 
     try {
-      const aiResponse = await groq.chat.completions.create({
-        model: AI_MODEL,
-        max_tokens: 256,
-        messages: [
-          {
-            role: "system",
-            content: buildAutomationSystemPrompt(),
-          },
-          {
-            role: "user",
-            content: `Validate this automation rule:
-Name: "${body.name}"
-Trigger: ${body.trigger} (value: ${body.triggerValue ?? "N/A"})
-Action: ${body.action} (target: ${body.actionTarget ?? "N/A"})
-Description: ${body.description ?? "none"}`,
-          },
-        ],
-      });
-
-      const rawText = aiResponse.choices[0]?.message?.content ?? "{}";
+      const rawText = await createAICompletion([
+        { role: "system", content: buildAutomationSystemPrompt() },
+        {
+          role: "user",
+          content: `Validate this automation rule:\nName: "${body.name}"\nTrigger: ${body.trigger} (value: ${body.triggerValue ?? "N/A"})\nAction: ${body.action} (target: ${body.actionTarget ?? "N/A"})\nDescription: ${body.description ?? "none"}`,
+        },
+      ], 256);
 
       try {
         validation = JSON.parse(rawText);

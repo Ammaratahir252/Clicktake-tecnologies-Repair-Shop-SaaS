@@ -18,7 +18,9 @@ export interface IPlatformSettings extends Document {
     paymentFailed:    boolean;
     systemAlert:      boolean;
   };
-  updatedAt: Date;
+  aiProvider: string;
+  aiModel:    string;
+  updatedAt:  Date;
 }
 
 const schema = new Schema<IPlatformSettings>(
@@ -40,6 +42,8 @@ const schema = new Schema<IPlatformSettings>(
       paymentFailed:    { type: Boolean, default: true },
       systemAlert:      { type: Boolean, default: true },
     },
+    aiProvider: { type: String, default: 'groq' },
+    aiModel:    { type: String, default: 'llama-3.3-70b-versatile' },
   },
   { timestamps: true }
 );

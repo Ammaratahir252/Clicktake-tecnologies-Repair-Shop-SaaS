@@ -12,7 +12,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { groq, AI_MODEL, DEFAULT_MAX_TOKENS } from "@/lib/ai/anthropic";
+import { createAICompletion } from "@/lib/ai/client";
 import { buildDiagnosticSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
@@ -76,23 +76,11 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             .join("\n")
         : "No relevant repair history available yet for this shop.";
 
-    // ── Step 2: Call Groq with real context injected ──────────────────────────
-    const response = await groq.chat.completions.create({
-      model: AI_MODEL,
-      max_tokens: DEFAULT_MAX_TOKENS,
-      messages: [
-        {
-          role: "system",
-          content: buildDiagnosticSystemPrompt(historyContext),
-        },
-        {
-          role: "user",
-          content: `Device: ${deviceBrand ?? "Unknown brand"} ${deviceModel ?? "Unknown model"}\nIssue reported by customer: "${issue}"`,
-        },
-      ],
-    });
-
-    const rawText = response.choices[0]?.message?.content ?? "";
+    // ── Step 2: Call AI with real context injected ───────────────────────────
+    const rawText = await createAICompletion([
+      { role: "system", content: buildDiagnosticSystemPrompt(historyContext) },
+      { role: "user",   content: `Device: ${deviceBrand ?? "Unknown brand"} ${deviceModel ?? "Unknown model"}\nIssue reported by customer: "${issue}"` },
+    ], 1024);
 
     let parsed;
     try {
@@ -112,7 +100,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     return sendResponse(true, "Diagnostic analysis complete", {
       ...parsed,
       ticketsAnalysed: recentTickets.length,
-      model: AI_MODEL,
     });
   } catch (err: any) {
     console.error("[AI/diagnostic]", err.message);

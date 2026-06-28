@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import groq, { AI_MODEL } from "@/lib/ai/anthropic";
+import { createAICompletion } from "@/lib/ai/client";
 import { buildChatbotSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
@@ -79,19 +79,10 @@ Warranty: 30-day warranty on all repairs`;
       { role: "user", content: body.message },
     ];
 
-    const response = await groq.chat.completions.create({
-      model: AI_MODEL,
-      max_tokens: 512,
-      messages: [
-        {
-          role: "system",
-          content: buildChatbotSystemPrompt(ticketContext, shopInfo),
-        },
-        ...conversationMessages,
-      ],
-    });
-
-    const rawText = response.choices[0]?.message?.content ?? "";
+    const rawText = await createAICompletion([
+      { role: "system", content: buildChatbotSystemPrompt(ticketContext, shopInfo) },
+      ...conversationMessages,
+    ], 512);
 
     let parsed: {
       message: string;

@@ -127,6 +127,15 @@ const THEME_OPTIONS = [
 ] as const;
 
 // ── Main Component ─────────────────────────────────────────────────────────────
+interface NotifItem {
+  _id: string;
+  title: string;
+  message: string;
+  type: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export default function DashboardShell({ requiredRole, children }: DashboardShellProps) {
   const router   = useRouter();
   const pathname = usePathname();
@@ -138,6 +147,8 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
   const [notifOpen, setNotifOpen]     = useState(false);
   const [themeOpen, setThemeOpen]     = useState(false);
   const [mounted, setMounted]         = useState(false);
+  const [notifications, setNotifications] = useState<NotifItem[]>([]);
+  const [unreadCount, setUnreadCount]     = useState(0);
   const notifRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
 
@@ -160,6 +171,40 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
       router.replace("/login");
     }
   }, []);
+
+  // Fetch notifications + poll every 30 s
+  useEffect(() => {
+    if (!user) return;
+    const fetchNotifs = async () => {
+      try {
+        const res = await api.get('/api/notifications?limit=10');
+        const data = res.data?.data;
+        if (data) {
+          setNotifications(data.items ?? []);
+          setUnreadCount(data.unread ?? 0);
+        }
+      } catch {}
+    };
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 30_000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const markAllRead = async () => {
+    try {
+      await api.patch('/api/notifications/read-all');
+      setNotifications(prev => prev.map(n => ({ ...n, readAt: new Date().toISOString() })));
+      setUnreadCount(0);
+    } catch {}
+  };
+
+  const markOneRead = async (id: string) => {
+    try {
+      await api.patch(`/api/notifications/${id}`);
+      setNotifications(prev => prev.map(n => n._id === id ? { ...n, readAt: new Date().toISOString() } : n));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    } catch {}
+  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -510,30 +555,58 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
                 className="p-2 rounded-xl relative transition-all hover:bg-accent text-muted-foreground hover:text-accent-foreground"
               >
                 <Bell size={18} />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[16px] h-4 px-0.5 rounded-full bg-destructive text-white text-[9px] font-black flex items-center justify-center leading-none">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
               </button>
               {notifOpen && (
                 <div className="absolute right-0 top-12 w-80 bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden z-50">
                   <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                     <p className="font-bold text-sm text-popover-foreground">Notifications</p>
-                    <span className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md"
-                          style={{ backgroundColor: accent }}>3 New</span>
+                    {unreadCount > 0 && (
+                      <button
+                        onClick={markAllRead}
+                        className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md"
+                        style={{ backgroundColor: accent }}
+                      >
+                        Mark all read
+                      </button>
+                    )}
                   </div>
-                  {[
-                    { t: "New lead routed to your shop",  s: "2 min ago",   dot: "#ef4444" },
-                    { t: "REP-2026-00451 ready for QC",   s: "15 min ago",  dot: "#f59e0b" },
-                    { t: "Low stock: iPhone 15 Screen",   s: "1 hr ago",    dot: "#8b5cf6" },
-                  ].map((n, i) => (
-                    <div key={i} className="px-4 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-accent">
-                      <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: n.dot }} />
-                      <div>
-                        <p className="text-sm font-medium text-popover-foreground">{n.t}</p>
-                        <p className="text-xs text-muted-foreground">{n.s}</p>
-                      </div>
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                      No notifications yet
                     </div>
-                  ))}
+                  ) : (
+                    notifications.map((n) => {
+                      const isUnread = !n.readAt;
+                      const timeAgo = (() => {
+                        const diff = Date.now() - new Date(n.createdAt).getTime();
+                        if (diff < 60_000) return 'Just now';
+                        if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+                        if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+                        return `${Math.floor(diff / 86_400_000)}d ago`;
+                      })();
+                      return (
+                        <div
+                          key={n._id}
+                          onClick={() => isUnread && markOneRead(n._id)}
+                          className={`px-4 py-3 flex items-start gap-3 transition-colors cursor-pointer hover:bg-accent ${isUnread ? 'bg-accent/40' : ''}`}
+                        >
+                          <div className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${isUnread ? 'bg-primary' : 'bg-muted-foreground/30'}`} />
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm text-popover-foreground truncate ${isUnread ? 'font-semibold' : 'font-medium'}`}>{n.title}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.message}</p>
+                            <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo}</p>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                   <div className="px-4 py-2.5 border-t border-border text-center">
-                    <button className="text-xs font-bold" style={{ color: accent }}>View all notifications</button>
+                    <span className="text-xs text-muted-foreground">Showing last {notifications.length} notifications</span>
                   </div>
                 </div>
               )}
