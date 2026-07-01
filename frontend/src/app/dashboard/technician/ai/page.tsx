@@ -344,6 +344,22 @@ export default function TechnicianAIPage() {
     }
   };
 
+  const clearChat = () => {
+    setMessages([]);
+  };
+
+  const copyToClipboard = (text: string, idx: number) => {
+    navigator.clipboard.writeText(text);
+    setCopied(idx);
+    setTimeout(() => setCopied(null), 2000);
+  };
+
+  const setHelpful = (idx: number, helpful: boolean) => {
+    setMessages((prev) =>
+      prev.map((msg, i) => (i === idx ? { ...msg, helpful } : msg))
+    );
+  };
+
   return (
     <DashboardShell requiredRole="technician">
       {() => (

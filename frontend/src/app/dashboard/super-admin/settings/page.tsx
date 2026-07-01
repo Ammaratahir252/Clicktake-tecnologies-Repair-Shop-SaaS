@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * SUPER ADMIN SETTINGS — /dashboard/super-admin/settings
+ * Professional tabbed settings page with dark theme support
+ */
+
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";

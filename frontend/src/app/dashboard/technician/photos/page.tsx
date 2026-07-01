@@ -138,6 +138,36 @@ function PhotosContent() {
             </div>
           </div>
 
+          {/* ── Stats strip ── */}
+          <div className="grid grid-cols-3 gap-3 animate-in fade-in slide-in-from-top duration-700 delay-100">
+            <div className="bg-card border border-border rounded-2xl p-4 hover:shadow-lg transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <Images size={18} className="text-primary" />
+                <span className="text-2xl font-black text-primary">{photos.length}</span>
+              </div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Total Photos</p>
+            </div>
+            <div className="bg-card border border-border rounded-2xl p-4 hover:shadow-lg transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <ShieldCheck size={18} className="text-emerald-600 dark:text-emerald-400" />
+                <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                  {photos.filter((p) => p.type === "after").length}
+                </span>
+              </div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">After Repair</p>
+            </div>
+            <div className="bg-card border border-border rounded-2xl p-4 hover:shadow-lg transition-all duration-300">
+              <div className="flex items-center justify-between mb-2">
+                <AlertTriangle size={18} className="text-amber-600 dark:text-amber-400" />
+                <span className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                  {photos.filter((p) => p.type === "damage").length}
+                </span>
+              </div>
+              <p className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Damage Docs</p>
+            </div>
+          </div>
+
+          {/* ── Success Alert ── */}
           {success && (
             <div className="flex items-center gap-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-700/30 rounded-2xl p-4 shadow-sm">
               <div className="w-9 h-9 bg-emerald-500 rounded-full flex items-center justify-center flex-shrink-0">

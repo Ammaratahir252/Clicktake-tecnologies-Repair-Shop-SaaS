@@ -234,6 +234,7 @@ function TimeContent() {
                 </div>
               )}
             </div>
+          )}
 
             {/* Timer Display */}
             <div className="text-center py-8 bg-gradient-to-b from-primary/5 to-transparent rounded-xl">
@@ -384,6 +385,36 @@ function TimeContent() {
               );
             })}
           </div>
+
+          {/* Weekly Summary */}
+          {ticketSessions.length > 0 && (
+            <div className="bg-gradient-to-br from-card to-muted/30 border-2 border-border rounded-2xl p-6 shadow-lg">
+              <h2 className="text-lg font-black text-foreground mb-4">Time by Ticket</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {ticketSessions
+                  .sort((a, b) => b.duration - a.duration)
+                  .map((ts) => {
+                    const ticket = MOCK_TICKETS.find((t) => t.id === ts.ticketId);
+                    const percentage = (ts.duration / totalToday) * 100;
+                    return (
+                      <div key={ts.ticketId} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-sm text-foreground truncate">{ts.ticketId}</p>
+                          <p className="text-sm font-bold text-muted-foreground">{formatDuration(ts.duration)}</p>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all"
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">{ts.count} sessions</p>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

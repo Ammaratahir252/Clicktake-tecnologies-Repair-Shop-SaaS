@@ -280,6 +280,115 @@ function PrintContent() {
               </button>
             </div>
           </div>
+
+          {/* Preview Modal */}
+          {preview && previewTicket && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+              <div className="bg-card rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                {/* Modal Header */}
+                <div className="flex items-center justify-between p-6 border-b border-border">
+                  <div>
+                    <h2 className="text-xl font-bold text-foreground">
+                      {PRINT_TYPES.find((t) => t.key === printType)?.label} Preview
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">{previewTicket.id}</p>
+                  </div>
+                  <button
+                    onClick={() => setPreview(null)}
+                    className="p-2 hover:bg-muted rounded-lg transition-all"
+                  >
+                    <X size={20} className="text-muted-foreground" />
+                  </button>
+                </div>
+
+                {/* Modal Body - Preview Content */}
+                <div className="flex-1 overflow-y-auto p-6 bg-white text-black">
+                  <div className="max-w-2xl mx-auto space-y-6">
+                    {/* Company Header */}
+                    <div className="text-center border-b pb-6">
+                      <h1 className="text-2xl font-bold">TechFix</h1>
+                      <p className="text-sm text-gray-600">Professional Device Repair Service</p>
+                      <p className="text-xs text-gray-500 mt-2">Phone: +92-300-XXXXX | Email: info@techfix.pk</p>
+                    </div>
+
+                    {/* Document Type */}
+                    <div className="text-center">
+                      <h2 className="text-lg font-bold uppercase">
+                        {PRINT_TYPES.find((t) => t.key === printType)?.label}
+                      </h2>
+                    </div>
+
+                    {/* Ticket Details */}
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-xs font-bold text-gray-600 uppercase">Ticket ID</p>
+                        <p className="text-lg font-bold mt-1">{previewTicket.id}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-gray-600 uppercase">Status</p>
+                        <p className="text-lg font-bold mt-1 capitalize">{previewTicket.status}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs font-bold text-gray-600 uppercase">Customer Name</p>
+                        <p className="text-lg font-bold mt-1">{previewTicket.customer}</p>
+                      </div>
+                    </div>
+
+                    {/* Device Details */}
+                    <div className="border-t border-b py-4">
+                      <h3 className="font-bold mb-3 text-sm">Device Information</h3>
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Device:</span>
+                          <span className="font-bold">{previewTicket.device}</span>
+                        </div>
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600">Amount:</span>
+                          <span className="font-bold">Rs. {previewTicket.amount.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Notes/Terms */}
+                    <div className="text-xs text-gray-600 space-y-2">
+                      <p className="font-bold">Terms & Conditions:</p>
+                      <ul className="list-disc pl-5 space-y-1">
+                        <li>Please keep your ticket safe for reference</li>
+                        <li>Device will be held for 30 days only</li>
+                        <li>Payment required before handover</li>
+                      </ul>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="text-center text-xs text-gray-500 border-t pt-4">
+                      <p>Thank you for choosing TechFix</p>
+                      <p>Print Date: {new Date().toLocaleDateString("en-PK")}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Modal Footer - Actions */}
+                <div className="flex items-center gap-2 p-6 border-t border-border bg-muted/50">
+                  <button
+                    onClick={() => setPreview(null)}
+                    className="flex-1 px-4 py-2.5 bg-muted text-foreground font-bold rounded-lg hover:bg-muted/70 transition-all text-sm"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      handlePrint(previewTicket.id);
+                      setPreview(null);
+                    }}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-bold rounded-lg hover:opacity-90 transition-all text-sm"
+                  >
+                    <Printer size={14} />
+                    Print Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
