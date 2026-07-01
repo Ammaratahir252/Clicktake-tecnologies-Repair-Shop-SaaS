@@ -1,0 +1,125 @@
+"use client";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+import { Loader2, ShieldAlert } from "lucide-react";
+import DashboardShell from "@/components/DashboardShell";
+
+interface AuditLog {
+  _id: string;
+  action: string;
+  userId: string;
+  entity: string;
+  ipAddress?: string;
+  createdAt: string;
+}
+
+export default function AuditLogsPage() {
+  const router = useRouter();
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [filter, setFilter] = useState("All");
+
+  useEffect(() => {
+    const raw = localStorage.getItem("user");
+    if (!raw) { router.replace("/login"); return; }
+    let user: any;
+    try { user = JSON.parse(raw); } catch { router.replace("/login"); return; }
+    const role = (user?.role ?? '').toString().trim().toLowerCase();
+    if (role !== "owner") { router.replace("/dashboard/owner"); return; }
+    fetchLogs(filter);
+  }, [filter]);
+
+  const fetchLogs = async (currentFilter: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      let url = "/api/audit-logs?limit=50";
+      if (currentFilter !== "All") url += `&action=${currentFilter}`;
+      const res = await api.get(url);
+      setLogs(res.data?.data?.logs || []);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to load audit logs.");
+      if (err.response?.status === 403) router.replace("/dashboard/owner");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getActionColor = (action: string) => {
+    if (action.includes("LOGIN") || action.includes("LOGOUT")) return "bg-blue-100 text-blue-700";
+    if (action.includes("REGISTER")) return "bg-emerald-100 text-emerald-700";
+    if (action.includes("ERROR") || action.includes("FAILED")) return "bg-red-100 text-red-700";
+    if (action.includes("PASSWORD")) return "bg-amber-100 text-amber-700";
+    return "bg-muted text-muted-foreground";
+  };
+
+  const filters = ["All", "AUTH_LOGIN", "AUTH_REGISTER", "AUTH_LOGOUT", "AUTH_PASSWORD_RESET_REQUEST"];
+
+  return (
+    <DashboardShell requiredRole="owner">
+      {() => (
+        <div className="space-y-6">
+          <h1 className="text-2xl font-black text-foreground">Audit Logs</h1>
+
+          <div className="flex flex-wrap gap-2">
+            {filters.map(f => (
+              <button key={f} onClick={() => setFilter(f)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${filter === f ? "bg-primary text-primary-foreground shadow-md" : "bg-card text-muted-foreground border border-border hover:border-border/80"
+                  }`}>
+                {f}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <Loader2 className="animate-spin w-8 h-8 mb-4" />
+                <p>Loading audit trail...</p>
+              </div>
+            ) : error ? (
+              <div className="p-6">
+                <div className="bg-destructive/10 text-destructive p-4 rounded-xl flex items-center gap-3 font-semibold border border-destructive/20">
+                  <ShieldAlert className="w-5 h-5" />{error}
+                </div>
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="text-center py-20 text-muted-foreground font-medium">No logs found for this filter.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="bg-muted border-b border-border text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                      <th className="px-6 py-4">Action</th>
+                      <th className="px-6 py-4">User ID</th>
+                      <th className="px-6 py-4">Entity</th>
+                      <th className="px-6 py-4">IP Address</th>
+                      <th className="px-6 py-4">Date & Time</th>
+                    </tr>
+                  </thead>
+                  <tbody className="text-sm font-medium text-card-foreground divide-y divide-border">
+                    {logs.map((log) => (
+                      <tr key={log._id} className="hover:bg-muted/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <span className={`px-2.5 py-1 rounded-md text-[10px] font-black tracking-wider uppercase ${getActionColor(log.action)}`}>
+                            {log.action}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{log.userId}</td>
+                        <td className="px-6 py-4">{log.entity}</td>
+                        <td className="px-6 py-4 font-mono text-xs">{log.ipAddress || "N/A"}</td>
+                        <td className="px-6 py-4 text-muted-foreground">{new Date(log.createdAt).toLocaleString()}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </DashboardShell>
+  );
+}
