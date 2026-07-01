@@ -24,7 +24,9 @@ const NEXT_LABEL: Record<string, string> = {
 
 const DRIVER_RELEVANT = ["received", "ready", "delivered"];
 
-function StatusBadge({ status, gradient }: { status: string; gradient?: string }) {
+const DRIVER_RELEVANT = ["received", "ready", "delivered"];
+
+function StatusBadge({ status }: { status: string }) {
   const s = JOB_STATUSES.find((x) => x.key === status) ?? JOB_STATUSES[0];
   return <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>;
 }
@@ -115,150 +117,83 @@ function JobCard({ job, advancing, onAdvance }: { job: any; advancing: string | 
   );
 }
 
-function JobCard({
-  job,
-  advancing,
-  onAdvance,
-}: {
-  job: (typeof MOCK_JOBS)[0];
-  advancing: string | null;
-  onAdvance: (jobId: string, status: string) => void;
-}) {
+function JobCard({ job, advancing, onAdvance }: { job: any; advancing: string | null; onAdvance: (id: string, status: string) => void }) {
   const statusObj = JOB_STATUSES.find((x) => x.key === job.status) ?? JOB_STATUSES[0];
   const nextStatus = NEXT_STATUS[job.status];
+  const address = job.customerId?.address ?? "Address on file";
 
   return (
-    <div className="group bg-card border border-border rounded-2xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 hover:border-primary/50 overflow-hidden">
-      {/* Animated Background Gradient */}
+    <div className="group bg-card border border-border rounded-2xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 hover:border-primary/50 overflow-hidden relative">
       <div className={`absolute inset-0 opacity-0 group-hover:opacity-5 bg-gradient-to-br ${statusObj.gradient} transition-opacity duration-300`} />
-
       <div className="relative space-y-4">
-        {/* Header */}
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div
-              className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-gradient-to-br ${
-                job.jobType === "pickup"
-                  ? "from-orange-100 to-orange-50 dark:from-orange-900/30 dark:to-orange-800/20"
-                  : "from-blue-100 to-blue-50 dark:from-blue-900/30 dark:to-blue-800/20"
-              } group-hover:scale-110 transition-transform duration-300`}
-            >
-              {job.jobType === "pickup" ? (
-                <Package size={24} className="text-orange-600 dark:text-orange-400" />
-              ) : (
-                <Truck size={24} className="text-blue-600 dark:text-blue-400" />
-              )}
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-100 dark:bg-blue-900/30">
+              <Truck size={24} className="text-blue-600 dark:text-blue-400" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">
-                {job.ticketNumber}
-              </p>
+              <p className="font-bold text-foreground text-sm">{job.ticketNumber}</p>
               <p className="text-xs text-muted-foreground capitalize font-medium mt-0.5">
-                {job.jobType} · {job.scheduledTime}
+                {job.deviceBrand} {job.deviceModel}
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {job.priority === "high" && (
-              <div className="flex items-center gap-1 bg-red-50 dark:bg-red-900/20 px-2 py-1 rounded-lg border border-red-200 dark:border-red-700/50 animate-pulse">
-                <Flame size={12} className="text-red-500" />
-                <span className="text-xs font-bold text-red-600 dark:text-red-400">High</span>
-              </div>
-            )}
-            <StatusBadge status={job.status} gradient={statusObj.gradient} />
-          </div>
+          <StatusBadge status={job.status} />
         </div>
 
-        {/* Divider */}
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
-        {/* Details */}
         <div className="space-y-2.5">
-          {/* Customer */}
-          <div className="flex items-center gap-3 text-sm group/item">
-            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 group-hover/item:bg-primary/10 transition-colors">
-              <User size={16} className="text-muted-foreground group-hover/item:text-primary transition-colors" />
+          <div className="flex items-center gap-3 text-sm">
+            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+              <User size={16} className="text-muted-foreground" />
             </div>
-            <span className="font-semibold text-foreground group-hover/item:text-primary transition-colors">
-              {job.customerName}
-            </span>
+            <span className="font-semibold text-foreground">{job.customerId?.name ?? "Customer"}</span>
           </div>
-
-          {/* Phone */}
-          <div className="flex items-center gap-3 text-sm group/item">
-            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 group-hover/item:bg-primary/10 transition-colors">
-              <Phone size={16} className="text-muted-foreground group-hover/item:text-primary transition-colors" />
+          <div className="flex items-center gap-3 text-sm">
+            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+              <Phone size={16} className="text-muted-foreground" />
             </div>
-            <a
-              href={`tel:${job.customerPhone}`}
-              className="text-primary font-medium hover:underline transition-all"
-            >
-              {job.customerPhone}
+            <a href={`tel:${job.customerId?.phone}`} className="text-primary font-medium hover:underline">
+              {job.customerId?.phone ?? "—"}
             </a>
           </div>
-
-          {/* Address */}
-          <div className="flex items-start gap-3 text-sm group/item">
-            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5 group-hover/item:bg-primary/10 transition-colors">
-              <MapPin size={16} className="text-muted-foreground group-hover/item:text-primary transition-colors" />
+          <div className="flex items-start gap-3 text-sm">
+            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Zap size={16} className="text-muted-foreground" />
             </div>
-            <span className="text-muted-foreground line-clamp-2">{job.address}</span>
+            <span className="text-muted-foreground font-medium">{job.issue}</span>
           </div>
-
-          {/* Device */}
-          <div className="flex items-center gap-3 text-sm group/item">
-            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 group-hover/item:bg-primary/10 transition-colors">
-              <Zap size={16} className="text-muted-foreground group-hover/item:text-primary transition-colors" />
-            </div>
-            <span className="text-muted-foreground font-medium">{job.deviceType}</span>
-          </div>
-
-          {/* Notes */}
           {job.notes && (
-            <div className="flex items-start gap-3 text-sm pl-0.5 mt-1 p-2.5 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-700/30">
-              <AlertCircle size={16} className="text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 text-sm p-2.5 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-700/30">
+              <AlertCircle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
               <span className="text-amber-700 dark:text-amber-400 font-medium">{job.notes}</span>
             </div>
           )}
         </div>
 
-        {/* Divider */}
         <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
-        {/* Actions */}
         <div className="flex gap-2">
           <a
-            href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`}
+            href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-xl text-xs transition-all duration-300 hover:scale-105 active:scale-95"
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-xl text-xs transition-all"
           >
             <Navigation size={14} />
             Maps
           </a>
           {nextStatus && (
             <button
-              onClick={() => onAdvance(job.id, job.status)}
-              disabled={advancing === job.id}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-bold rounded-xl text-xs transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-md hover:shadow-lg disabled:scale-100 disabled:opacity-60 ${
-                advancing === job.id
-                  ? "bg-gradient-to-r from-primary/80 to-primary/60"
-                  : `bg-gradient-to-r ${statusObj.gradient} text-white hover:shadow-lg`
-              }`}
+              onClick={() => onAdvance(job._id, job.status)}
+              disabled={advancing === job._id}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-bold rounded-xl text-xs transition-all bg-gradient-to-r ${statusObj.gradient} text-white hover:shadow-lg disabled:opacity-60`}
             >
-              {advancing === job.id ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Updating…</span>
-                </>
+              {advancing === job._id ? (
+                <><Loader2 size={14} className="animate-spin" /><span>Updating…</span></>
               ) : (
-                <>
-                  <ArrowRight size={14} />
-                  <span className="hidden sm:inline">
-                    {JOB_STATUSES.find((s) => s.key === nextStatus)?.label}
-                  </span>
-                  <span className="sm:hidden">Next</span>
-                </>
+                <><ArrowRight size={14} /><span>{NEXT_LABEL[job.status] ?? "Next"}</span></>
               )}
             </button>
           )}

@@ -170,137 +170,35 @@ function NavigateContent() {
               </div>
             </div>
 
-            {/* Right Column - Address & Navigation */}
-            <div className="lg:col-span-2 space-y-6 animate-in fade-in slide-in-from-right duration-500">
-              {/* Status Badge */}
-              <div
-                className={`border rounded-2xl p-4 flex items-center gap-3 animate-in fade-in ${getPriorityBg(selectedJob.priority)}`}
-              >
-                <div className={`w-10 h-10 bg-gradient-to-br ${getPriorityColor(selectedJob.priority)} rounded-full flex items-center justify-center flex-shrink-0`}>
-                  {getStatusIcon(selectedJob.status)}
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-muted-foreground uppercase">
-                    {selectedJob.priority === "high" ? "🔴 High Priority" : "ℹ️ Normal Priority"}
-                  </p>
-                  <p className="text-sm font-bold text-foreground capitalize mt-0.5">{selectedJob.jobType}</p>
-                </div>
-              </div>
+            <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
 
-              {/* Address Card - Enhanced */}
-              <div className="bg-card border border-border rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 backdrop-blur-sm bg-opacity-90 space-y-4">
-                <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">📍 Destination</p>
-
-                {/* Customer Info */}
-                <div className="space-y-4">
-                  {/* Name */}
-                  <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 bg-gradient-to-br from-primary/20 to-primary/10 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <MapPin size={24} className="text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold text-muted-foreground uppercase">Customer Location</p>
-                      <p className="font-bold text-lg text-foreground mt-1">{selectedJob.customerName}</p>
-                      <p className="text-sm text-muted-foreground mt-1 break-words">{selectedJob.address}</p>
-                    </div>
-                  </div>
-
-                  {/* Actions for Address */}
-                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/50">
-                    <button
-                      onClick={handleCopyAddress}
-                      className="flex items-center justify-center gap-2 py-2 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-lg text-xs transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                      <Copy size={14} />
-                      Copy
-                    </button>
-                    <button
-                      onClick={handleShare}
-                      className="flex items-center justify-center gap-2 py-2 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-lg text-xs transition-all duration-300 hover:scale-105 active:scale-95"
-                    >
-                      <Share2 size={14} />
-                      Share
-                    </button>
-                  </div>
-                </div>
-
-                {/* Divider */}
-                <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-
-                {/* Phone */}
+            {customerPhone && (
+              <>
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-blue-200 dark:border-blue-700/50">
+                  <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-blue-200 dark:border-blue-700/50">
                     <Phone size={20} className="text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="flex-1">
                     <p className="text-xs font-bold text-muted-foreground uppercase">Contact</p>
                     <a
-                      href={`tel:${selectedJob.customerPhone}`}
+                      href={`tel:${customerPhone}`}
                       className="text-lg font-bold text-primary hover:text-primary/80 transition-colors mt-1 block"
                     >
-                      {selectedJob.customerPhone}
+                      {customerPhone}
                     </a>
                   </div>
                 </div>
-
-                {/* Divider */}
                 <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+              </>
+            )}
 
-                {/* Device Info */}
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-purple-200 dark:border-purple-700/50">
-                    <Truck size={20} className="text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-bold text-muted-foreground uppercase">Device</p>
-                    <p className="font-bold text-foreground mt-1 capitalize">{selectedJob.deviceType}</p>
-                  </div>
-                </div>
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-purple-50 dark:bg-purple-900/30 rounded-xl flex items-center justify-center flex-shrink-0 border border-purple-200 dark:border-purple-700/50">
+                <Truck size={20} className="text-purple-600 dark:text-purple-400" />
               </div>
-
-              {/* Navigation Buttons */}
-              <div className="space-y-3">
-                {/* Google Maps Button */}
-                <button
-                  onClick={openMaps}
-                  disabled={mapOpen === "google"}
-                  className={`w-full flex items-center justify-between px-6 py-4 font-bold rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl ${
-                    mapOpen === "google"
-                      ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white opacity-75"
-                      : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Navigation size={20} />
-                    <span>Google Maps</span>
-                  </div>
-                  <ExternalLink size={16} className="opacity-70" />
-                </button>
-
-                {/* Waze Button */}
-                <button
-                  onClick={openWaze}
-                  disabled={mapOpen === "waze"}
-                  className={`w-full flex items-center justify-between px-6 py-4 font-bold rounded-2xl transition-all duration-300 transform hover:scale-105 active:scale-95 border-2 ${
-                    mapOpen === "waze"
-                      ? "bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 border-amber-300 dark:border-amber-700/50 text-amber-700 dark:text-amber-400"
-                      : "bg-card border-border text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Navigation size={20} />
-                    <span>Waze</span>
-                  </div>
-                  <ExternalLink size={16} />
-                </button>
-              </div>
-
-              {/* Tip Box */}
-              <div className="bg-gradient-to-r from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-800/20 rounded-2xl p-4 border border-amber-200 dark:border-amber-700/50">
-                <p className="text-sm font-bold text-amber-800 dark:text-amber-400 flex items-start gap-2">
-                  <Zap size={16} className="flex-shrink-0 mt-0.5" />
-                  <span>Choose your preferred navigation app to reach the customer</span>
-                </p>
+              <div>
+                <p className="text-xs font-bold text-muted-foreground uppercase">Device</p>
+                <p className="font-bold text-foreground mt-1">{deviceLabel || "Unknown"}</p>
               </div>
             </div>
 
@@ -417,6 +315,41 @@ function NavigateContent() {
                 <p className="font-bold text-foreground mt-1">{deviceLabel || "Unknown"}</p>
               </div>
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <button
+              onClick={openMaps}
+              disabled={mapOpen === "google"}
+              className={`w-full flex items-center justify-between px-6 py-4 font-bold rounded-2xl transition-all transform hover:scale-105 active:scale-95 shadow-lg ${
+                mapOpen === "google"
+                  ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white opacity-75"
+                  : "bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700"
+              }`}
+            >
+              <div className="flex items-center gap-3"><Navigation size={20} /><span>Google Maps</span></div>
+              <ExternalLink size={16} className="opacity-70" />
+            </button>
+
+            <button
+              onClick={openWaze}
+              disabled={mapOpen === "waze"}
+              className={`w-full flex items-center justify-between px-6 py-4 font-bold rounded-2xl transition-all border-2 hover:scale-105 active:scale-95 ${
+                mapOpen === "waze"
+                  ? "bg-amber-50 dark:bg-amber-900/20 border-amber-300 text-amber-700 dark:text-amber-400"
+                  : "bg-card border-border text-foreground hover:bg-muted"
+              }`}
+            >
+              <div className="flex items-center gap-3"><Navigation size={20} /><span>Waze</span></div>
+              <ExternalLink size={16} />
+            </button>
+          </div>
+
+          <div className="bg-amber-50 dark:bg-amber-900/20 rounded-2xl p-4 border border-amber-200 dark:border-amber-700/50">
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-400 flex items-start gap-2">
+              <Zap size={16} className="flex-shrink-0 mt-0.5" />
+              Choose your preferred navigation app to reach the customer
+            </p>
           </div>
 
           <div className="space-y-3">

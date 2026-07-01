@@ -386,35 +386,95 @@ function TimeContent() {
             })}
           </div>
 
-          {/* Weekly Summary */}
-          {ticketSessions.length > 0 && (
-            <div className="bg-gradient-to-br from-card to-muted/30 border-2 border-border rounded-2xl p-6 shadow-lg">
-              <h2 className="text-lg font-black text-foreground mb-4">Time by Ticket</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {ticketSessions
-                  .sort((a, b) => b.duration - a.duration)
-                  .map((ts) => {
-                    const ticket = MOCK_TICKETS.find((t) => t.id === ts.ticketId);
-                    const percentage = (ts.duration / totalToday) * 100;
-                    return (
-                      <div key={ts.ticketId} className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="font-bold text-sm text-foreground truncate">{ts.ticketId}</p>
-                          <p className="text-sm font-bold text-muted-foreground">{formatDuration(ts.duration)}</p>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                          <div
-                            className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all"
-                            style={{ width: `${percentage}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">{ts.count} sessions</p>
-                      </div>
-                    );
-                  })}
+          {sessions.length === 0 ? (
+            <div className="bg-gradient-to-br from-card to-muted/30 border-2 border-dashed border-border rounded-2xl p-12 text-center">
+              <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                <Timer size={36} className="text-muted-foreground" />
               </div>
+              <p className="font-bold text-foreground text-lg">No sessions logged yet</p>
+              <p className="text-sm text-muted-foreground mt-2">Start timing a repair to log your work</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {sessions.map((session) => (
+                <div key={session.id} className="bg-gradient-to-r from-card to-muted/30 border-2 border-border hover:border-primary/50 rounded-2xl p-4 transition-all shadow-sm">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center flex-shrink-0 mt-1">
+                        <Clock size={18} className="text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-foreground text-sm truncate">{session.label}</p>
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+                          <Calendar size={12} />
+                          {formatTime(session.start)} → {session.end ? formatTime(session.end) : "ongoing"}
+                        </p>
+                        {session.notes && (
+                          <p className="text-sm text-muted-foreground mt-2 bg-muted/50 px-3 py-2 rounded-lg border border-border">
+                            {session.notes}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {editingId === session.id ? (
+                        <>
+                          <input
+                            type="number"
+                            value={editDuration}
+                            onChange={(e) => setEditDuration(parseInt(e.target.value) || 0)}
+                            className="w-20 bg-background border border-border rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                          <button onClick={() => handleUpdateSession(session.id)} className="w-9 h-9 flex items-center justify-center bg-green-500 hover:bg-green-600 text-white rounded-lg">
+                            <Save size={16} />
+                          </button>
+                          <button onClick={() => setEditingId(null)} className="w-9 h-9 flex items-center justify-center bg-muted hover:bg-muted/70 text-foreground rounded-lg">
+                            <X size={16} />
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="text-right">
+                            <p className="text-lg font-black text-foreground tabular-nums">{formatDuration(session.duration)}</p>
+                          </div>
+                          <button onClick={() => { setEditingId(session.id); setEditDuration(session.duration); }} className="w-9 h-9 flex items-center justify-center bg-muted hover:bg-blue-500/20 text-muted-foreground hover:text-blue-600 rounded-lg transition-all">
+                            <Edit2 size={16} />
+                          </button>
+                          <button onClick={() => handleDeleteSession(session.id)} className="w-9 h-9 flex items-center justify-center bg-muted hover:bg-red-500/20 text-muted-foreground hover:text-red-600 rounded-lg transition-all">
+                            <Trash2 size={16} />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Time by Ticket */}
+      {ticketSessions.length > 0 && (
+        <div className="bg-gradient-to-br from-card to-muted/30 border-2 border-border rounded-2xl p-6 shadow-lg">
+          <h2 className="text-lg font-black text-foreground mb-4">Time by Ticket</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {ticketSessions.sort((a, b) => b.duration - a.duration).map((ts) => {
+              const percentage = totalToday > 0 ? (ts.duration / totalToday) * 100 : 0;
+              return (
+                <div key={ts.ticketId} className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-sm text-foreground truncate">{ts.label}</p>
+                    <p className="text-sm font-bold text-muted-foreground">{formatDuration(ts.duration)}</p>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                    <div className="h-full bg-gradient-to-r from-primary to-primary/60 rounded-full transition-all" style={{ width: `${percentage}%` }} />
+                  </div>
+                  <p className="text-xs text-muted-foreground">{ts.count} session{ts.count !== 1 ? "s" : ""}</p>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

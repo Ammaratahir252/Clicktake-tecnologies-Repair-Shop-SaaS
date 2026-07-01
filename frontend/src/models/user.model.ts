@@ -73,6 +73,8 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.index({ tenantId: 1, email: 1 }, { unique: true, sparse: true });
+// Standalone index so User.findOne({ email }) during login doesn't full-scan
+userSchema.index({ email: 1 });
 
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', userSchema, 'users');
 

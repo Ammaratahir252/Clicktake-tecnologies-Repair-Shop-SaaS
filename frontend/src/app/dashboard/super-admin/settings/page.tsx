@@ -1,17 +1,12 @@
 "use client";
 
-/**
- * SUPER ADMIN SETTINGS — /dashboard/super-admin/settings
- * Professional tabbed settings page with dark theme support
- */
-
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import {
   Settings, Globe, Bell, Shield, CreditCard, Mail,
   Save, Loader2, CheckCircle2, AlertTriangle,
-  ChevronDown, Lock, Clock, Key, RefreshCw,
+  ChevronDown, Lock, Clock, Key, RefreshCw, Cpu,
 } from "lucide-react";
 
 const TABS = [

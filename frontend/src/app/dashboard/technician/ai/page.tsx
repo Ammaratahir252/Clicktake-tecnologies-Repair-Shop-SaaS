@@ -344,20 +344,27 @@ export default function TechnicianAIPage() {
     }
   };
 
-  const clearChat = () => {
-    setMessages([]);
-  };
+      if (!res.data.success) throw new Error(res.data.message);
 
-  const copyToClipboard = (text: string, idx: number) => {
-    navigator.clipboard.writeText(text);
-    setCopied(idx);
-    setTimeout(() => setCopied(null), 2000);
-  };
+      const diagnostic: DiagnosticResult = res.data.data;
 
-  const setHelpful = (idx: number, helpful: boolean) => {
-    setMessages((prev) =>
-      prev.map((msg, i) => (i === idx ? { ...msg, helpful } : msg))
-    );
+      const aiMsg: Message = {
+        role: "assistant",
+        content: diagnostic.summary,
+        id: (Date.now() + 1).toString(),
+        diagnostic,
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+    } catch (err: any) {
+      const errorMsg: Message = {
+        role: "assistant",
+        content: `⚠️ ${err.response?.data?.message ?? err.message ?? "AI diagnostic failed. Check your API key and connection."}`,
+        id: (Date.now() + 1).toString(),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
