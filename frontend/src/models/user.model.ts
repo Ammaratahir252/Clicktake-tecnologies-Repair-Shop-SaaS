@@ -16,6 +16,14 @@ export interface IUser extends Document {
   failedLoginAttempts: number;
   lockoutUntil?: Date;
   tokenVersion: number;
+  // ── GPS (Module: Global GPS) — live location for driver role ─────────────
+  currentLocation?: {
+    lat: number;
+    lng: number;
+    heading?: number; // compass bearing in degrees, 0-360
+    speed?: number;   // meters/second
+    updatedAt: Date;
+  };
 }
 
 const userSchema = new Schema<IUser>(
@@ -65,7 +73,14 @@ const userSchema = new Schema<IUser>(
     tokenVersion: { 
       type: Number, 
       default: 0 
-    }
+    },
+    currentLocation: {
+      lat:       { type: Number },
+      lng:       { type: Number },
+      heading:   { type: Number },
+      speed:     { type: Number },
+      updatedAt: { type: Date },
+    },
   },
   { 
     timestamps: true 
@@ -73,8 +88,6 @@ const userSchema = new Schema<IUser>(
 );
 
 userSchema.index({ tenantId: 1, email: 1 }, { unique: true, sparse: true });
-// Standalone index so User.findOne({ email }) during login doesn't full-scan
-userSchema.index({ email: 1 });
 
 const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', userSchema, 'users');
 

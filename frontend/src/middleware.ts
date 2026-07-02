@@ -235,6 +235,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  // ─── GPS: /api/driver/* — requires valid JWT (driver / super_admin) ──────
+  if (pathname.startsWith('/api/driver')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // ─── 4. DASHBOARD ROUTES — redirect to /login if not authenticated ────────
   if (pathname.startsWith('/dashboard')) {
     const payload = await verifyToken();
@@ -288,5 +304,7 @@ export const config = {
     '/api/analytics/:path*',
     '/api/customers',
     '/api/customers/:path*',
+    '/api/driver',
+    '/api/driver/:path*',
   ],
 };

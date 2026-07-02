@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
             as: 'user',
           },
         },
-        { $unwind: { path: '$user', preserveNullAndEmpty: true } },
+        { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
         {
           $project: {
             name:    '$user.name',

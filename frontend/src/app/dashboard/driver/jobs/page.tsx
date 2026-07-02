@@ -24,97 +24,9 @@ const NEXT_LABEL: Record<string, string> = {
 
 const DRIVER_RELEVANT = ["received", "ready", "delivered"];
 
-const DRIVER_RELEVANT = ["received", "ready", "delivered"];
-
 function StatusBadge({ status }: { status: string }) {
   const s = JOB_STATUSES.find((x) => x.key === status) ?? JOB_STATUSES[0];
   return <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>;
-}
-
-function JobCard({ job, advancing, onAdvance }: { job: any; advancing: string | null; onAdvance: (id: string, status: string) => void }) {
-  const statusObj = JOB_STATUSES.find((x) => x.key === job.status) ?? JOB_STATUSES[0];
-  const nextStatus = NEXT_STATUS[job.status];
-  const address = job.customerId?.address ?? "Address on file";
-
-  return (
-    <div className="group bg-card border border-border rounded-2xl p-5 shadow-lg hover:shadow-2xl transition-all duration-300 hover:border-primary/50 overflow-hidden relative">
-      <div className={`absolute inset-0 opacity-0 group-hover:opacity-5 bg-gradient-to-br ${statusObj.gradient} transition-opacity duration-300`} />
-      <div className="relative space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 bg-blue-100 dark:bg-blue-900/30">
-              <Truck size={24} className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-bold text-foreground text-sm">{job.ticketNumber}</p>
-              <p className="text-xs text-muted-foreground capitalize font-medium mt-0.5">
-                {job.deviceBrand} {job.deviceModel}
-              </p>
-            </div>
-          </div>
-          <StatusBadge status={job.status} />
-        </div>
-
-        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-
-        <div className="space-y-2.5">
-          <div className="flex items-center gap-3 text-sm">
-            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
-              <User size={16} className="text-muted-foreground" />
-            </div>
-            <span className="font-semibold text-foreground">{job.customerId?.name ?? "Customer"}</span>
-          </div>
-          <div className="flex items-center gap-3 text-sm">
-            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
-              <Phone size={16} className="text-muted-foreground" />
-            </div>
-            <a href={`tel:${job.customerId?.phone}`} className="text-primary font-medium hover:underline">
-              {job.customerId?.phone ?? "—"}
-            </a>
-          </div>
-          <div className="flex items-start gap-3 text-sm">
-            <div className="w-8 h-8 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-              <Zap size={16} className="text-muted-foreground" />
-            </div>
-            <span className="text-muted-foreground font-medium">{job.issue}</span>
-          </div>
-          {job.notes && (
-            <div className="flex items-start gap-3 text-sm p-2.5 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-700/30">
-              <AlertCircle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <span className="text-amber-700 dark:text-amber-400 font-medium">{job.notes}</span>
-            </div>
-          )}
-        </div>
-
-        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-
-        <div className="flex gap-2">
-          <a
-            href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-xl text-xs transition-all"
-          >
-            <Navigation size={14} />
-            Maps
-          </a>
-          {nextStatus && (
-            <button
-              onClick={() => onAdvance(job._id, job.status)}
-              disabled={advancing === job._id}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 font-bold rounded-xl text-xs transition-all bg-gradient-to-r ${statusObj.gradient} text-white hover:shadow-lg disabled:opacity-60`}
-            >
-              {advancing === job._id ? (
-                <><Loader2 size={14} className="animate-spin" /><span>Updating…</span></>
-              ) : (
-                <><ArrowRight size={14} /><span>{NEXT_LABEL[job.status] ?? "Next"}</span></>
-              )}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function JobCard({ job, advancing, onAdvance }: { job: any; advancing: string | null; onAdvance: (id: string, status: string) => void }) {

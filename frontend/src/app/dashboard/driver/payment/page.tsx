@@ -282,6 +282,7 @@ function PaymentContent() {
                       Rs. {Math.abs(balance).toLocaleString()}
                     </span>
                   </div>
+                )}
 
                 {balance !== null && balance < 0 && (
                   <div className="flex items-center gap-3 px-5 py-4 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-700/50">

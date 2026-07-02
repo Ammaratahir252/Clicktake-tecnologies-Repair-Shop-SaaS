@@ -7,7 +7,7 @@ import {
   Settings, Store, Clock, Bell, ShieldAlert,
   Loader2, Save, CheckCircle2, AlertTriangle,
   Phone, MapPin, Link as LinkIcon, ChevronDown,
-  Globe, Zap, Users, Calendar, TrendingUp,
+  Globe, Zap, Users, Calendar, TrendingUp, Satellite,
 } from "lucide-react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -195,6 +195,11 @@ function SettingsContent({ user }: { user: any }) {
   const [dangerConfirm, setDangerConfirm] = useState("");
   const [dangerError, setDangerError] = useState("");
 
+  // ── GPS (Module: Global GPS) — precise shop coordinates for nearby search ──
+  const [gpsState, setGpsState] = useState<"idle" | "locating" | "saving" | "done" | "error">("idle");
+  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsError, setGpsError] = useState("");
+
   // ── Analytics stats ──
   const [statsLoading, setStatsLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -273,6 +278,40 @@ function SettingsContent({ user }: { user: any }) {
     } finally {
       setSavingProfile(false);
     }
+  };
+
+  // ── GPS (Module: Global GPS) — capture precise shop coordinates ────────────
+  // Lets the shop appear correctly in "nearby shops" search worldwide,
+  // regardless of how the free-text address field is written.
+  const captureShopLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsState("error");
+      setGpsError("GPS is not supported on this device/browser.");
+      return;
+    }
+    setGpsState("locating");
+    setGpsError("");
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setGpsCoords({ lat: latitude, lng: longitude });
+        setGpsState("saving");
+        try {
+          await api.patch("/api/shop/profile", { lat: latitude, lng: longitude });
+          setGpsState("done");
+          setTimeout(() => setGpsState("idle"), 4000);
+        } catch {
+          setGpsState("error");
+          setGpsError("Location captured but failed to save. Please try again.");
+        }
+      },
+      (err) => {
+        setGpsState("error");
+        setGpsError(err.message || "Unable to get your location.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
   };
 
   const saveHours = async () => {
@@ -371,6 +410,36 @@ function SettingsContent({ user }: { user: any }) {
                     onChange={(v) => setProfile((p) => ({ ...p, address: v }))}
                     placeholder="Street, City, Country"
                   />
+
+                  {/* ── GPS (Module: Global GPS) ── */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap bg-muted/30 border border-border/50 rounded-xl px-4 py-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Satellite size={14} className="flex-shrink-0" />
+                      {gpsState === "done" && gpsCoords ? (
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          Location saved ({gpsCoords.lat.toFixed(4)}, {gpsCoords.lng.toFixed(4)}) — you'll now show up in nearby search
+                        </span>
+                      ) : gpsError ? (
+                        <span className="font-medium text-amber-700 dark:text-amber-400">{gpsError}</span>
+                      ) : (
+                        <span>Set your exact pin so customers anywhere can find you via "Nearby Shops"</span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={captureShopLocation}
+                      disabled={gpsState === "locating" || gpsState === "saving"}
+                      className="flex items-center gap-2 px-3.5 py-2 bg-primary/10 hover:bg-primary/20 text-primary font-bold rounded-lg text-xs transition-all disabled:opacity-60 flex-shrink-0"
+                    >
+                      {gpsState === "locating" || gpsState === "saving" ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Satellite size={14} />
+                      )}
+                      {gpsState === "locating" ? "Locating…" : gpsState === "saving" ? "Saving…" : "Use my current location"}
+                    </button>
+                  </div>
+
                   <Field
                     label="Phone Number"
                     icon={Phone}

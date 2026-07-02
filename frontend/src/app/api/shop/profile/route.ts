@@ -43,11 +43,22 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (!['owner', 'super_admin'].includes(role)) return sendResponse(false, 'Forbidden', null, 403);
 
     const body = await req.json();
-    const allowed = ['name', 'tagline', 'description', 'phone', 'address', 'city', 'postcode',
+    const allowed = ['name', 'tagline', 'description', 'phone', 'address', 'city', 'postcode', 'country',
                      'acceptedDevices', 'servicesOffered', 'openingHours', 'logo', 'socialLinks'];
     const update: Record<string, unknown> = {};
     for (const key of allowed) {
       if (body[key] !== undefined) update[key] = body[key];
+    }
+
+    // ── GPS (Module: Global GPS) ─────────────────────────────────────────
+    // Accepts { lat, lng } captured from the browser (navigator.geolocation)
+    // and stores it as a GeoJSON Point, which is what the 2dsphere index
+    // and "nearby shops" $geoNear query require. Works for any country.
+    const lat = Number(body.lat);
+    const lng = Number(body.lng);
+    if (Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      update.location = { type: 'Point', coordinates: [lng, lat] };
+      update.locationUpdatedAt = new Date();
     }
 
     const shop = await Tenant.findByIdAndUpdate(

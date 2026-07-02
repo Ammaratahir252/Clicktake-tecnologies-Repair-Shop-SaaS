@@ -49,6 +49,16 @@ export interface ITicket extends Document {
   notes:          ITicketNote[];
   statusHistory:  ITicketHistoryEntry[];
   partsUsed:      ITicketPartUsed[];  // M3 — parts consumed in this repair
+  // ── GPS (Module: Global GPS) ──────────────────────────────────────────────
+  // Snapshot of where THIS delivery should go — independent of the customer's
+  // saved address, since a customer may want delivery somewhere else (work,
+  // a relative's house, etc). Set via device GPS on the customer delivery page.
+  deliveryLocation?: {
+    lat: number;
+    lng: number;
+    address?: string;    // reverse-geocoded human-readable address
+    updatedAt: Date;
+  };
   createdAt:      Date;
   updatedAt:      Date;
 }
@@ -164,6 +174,12 @@ const TicketSchema = new Schema<ITicket>(
         ),
       ],
       default: [],
+    },
+    deliveryLocation: {
+      lat:       { type: Number },
+      lng:       { type: Number },
+      address:   { type: String },
+      updatedAt: { type: Date },
     },
   },
   { timestamps: true }

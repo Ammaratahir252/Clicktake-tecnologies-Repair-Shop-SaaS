@@ -6,7 +6,7 @@ import api from "@/lib/api";
 import {
   Settings, Globe, Bell, Shield, CreditCard, Mail,
   Save, Loader2, CheckCircle2, AlertTriangle,
-  ChevronDown, Lock, Clock, Key, RefreshCw, Cpu,
+  ChevronDown, Lock, Clock, Key, RefreshCw,
 } from "lucide-react";
 
 const TABS = [

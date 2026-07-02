@@ -2,14 +2,16 @@
 
 import React, { useState, useEffect } from 'react'
 import DashboardShell from '@/components/DashboardShell'
+import GpsMap from '@/components/GpsMap'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
+import api from '@/lib/api'
 import {
   MapPin, Phone, Clock, Truck, CheckCircle, User,
   Star, Map, ArrowRight, Info, Package, Bike, Rocket,
-  MessageCircle, FileText
+  MessageCircle, FileText, Satellite, Loader2, AlertCircle,
 } from 'lucide-react'
 
 // ------- Types -------
@@ -82,6 +84,78 @@ export default function DeliveryTrackingPage() {
   const currentIdx = statusOrder.indexOf(delivery.status)
   const progressPct = Math.round(((currentIdx + 1) / statusOrder.length) * 100)
   const [etaLeft, setEtaLeft] = useState(delivery.etaMinutes)
+
+  // ── GPS (Module: Global GPS) — real ticket + delivery-location capture ──
+  const [activeTicket, setActiveTicket] = useState<any>(null);
+  const [gpsState, setGpsState] = useState<'idle' | 'locating' | 'saving' | 'done' | 'error'>('idle');
+  const [gpsError, setGpsError] = useState('');
+  const [savedLocation, setSavedLocation] = useState<any>(null);
+  const [liveTracking, setLiveTracking] = useState<any>(null);
+
+  useEffect(() => {
+    api.get('/api/tickets')
+      .then((res) => {
+        const tickets: any[] = res.data?.data ?? [];
+        const active = tickets.find((t) => !['delivered', 'cancelled'].includes(t.status)) ?? tickets[0];
+        setActiveTicket(active ?? null);
+        if (active?.deliveryLocation?.lat) setSavedLocation(active.deliveryLocation);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Poll the assigned driver's live position while the ticket is out for delivery.
+  useEffect(() => {
+    if (!activeTicket?._id) return;
+    if (!['ready', 'delivered'].includes(activeTicket.status)) return;
+
+    const poll = () => {
+      api.get(`/api/tickets/${activeTicket._id}/driver-location`)
+        .then((res) => setLiveTracking(res.data?.data ?? null))
+        .catch(() => {});
+    };
+    poll();
+    const interval = setInterval(poll, 15000);
+    return () => clearInterval(interval);
+  }, [activeTicket?._id, activeTicket?.status]);
+
+  const setDeliveryLocation = () => {
+    if (!navigator.geolocation) {
+      setGpsState('error');
+      setGpsError('GPS is not supported on this device/browser.');
+      return;
+    }
+    if (!activeTicket?._id) {
+      setGpsState('error');
+      setGpsError('No active repair ticket found to attach a delivery location to.');
+      return;
+    }
+    setGpsState('locating');
+    setGpsError('');
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setGpsState('saving');
+        try {
+          const res = await api.patch(`/api/tickets/${activeTicket._id}/delivery-location`, {
+            lat: latitude,
+            lng: longitude,
+          });
+          setSavedLocation(res.data?.data ?? { lat: latitude, lng: longitude });
+          setGpsState('done');
+          setTimeout(() => setGpsState('idle'), 4000);
+        } catch {
+          setGpsState('error');
+          setGpsError('Failed to save your delivery location. Please try again.');
+        }
+      },
+      (err) => {
+        setGpsState('error');
+        setGpsError(err.message || 'Unable to get your location.');
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
+  };
 
   // Countdown timer
   useEffect(() => {
@@ -209,6 +283,29 @@ export default function DeliveryTrackingPage() {
                 </div>
               </CardHeader>
               <CardContent className="p-0">
+                {liveTracking?.driverLocation && (liveTracking?.destination || savedLocation) ? (
+                  <GpsMap
+                    height={240}
+                    className="rounded-none border-0"
+                    markers={[
+                      {
+                        lng: liveTracking.driverLocation.lng,
+                        lat: liveTracking.driverLocation.lat,
+                        color: "#6366f1",
+                        popupText: liveTracking.driverLocation.driverName ?? "Your driver",
+                        pulse: true,
+                      },
+                      ...(liveTracking?.destination || savedLocation
+                        ? [{
+                            lng: (liveTracking?.destination ?? savedLocation).lng,
+                            lat: (liveTracking?.destination ?? savedLocation).lat,
+                            color: "#ef4444",
+                            popupText: "Delivery address",
+                          }]
+                        : []),
+                    ]}
+                  />
+                ) : (
                 <div className="h-60 bg-muted relative overflow-hidden">
                   {/* Map grid lines */}
                   <svg width="100%" height="100%" className="absolute inset-0 opacity-10">
@@ -245,9 +342,10 @@ export default function DeliveryTrackingPage() {
                   {/* Map label */}
                   <div className="absolute bottom-0 right-0 bg-card/90 backdrop-blur-sm px-2 py-1 text-xs text-muted-foreground border-t border-l border-border rounded-tl">
                     <Info className="w-3 h-3 inline mr-1" />
-                    Mapbox GL JS — Live GPS updates every 30s
+                    {activeTicket ? "Waiting for driver GPS…" : "Mapbox GL JS — Live GPS updates every 15s"}
                   </div>
                 </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -334,6 +432,44 @@ export default function DeliveryTrackingPage() {
                   <Clock className="w-4 h-4 text-muted-foreground" />
                   <span className="text-muted-foreground">Updated:</span>
                   <span className="font-medium">{delivery.updatedAt}</span>
+                </div>
+
+                {/* ── GPS (Module: Global GPS) — set precise drop-off point ── */}
+                <hr className="border-border" />
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Precise Delivery Location
+                  </div>
+                  {savedLocation?.lat ? (
+                    <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5 flex-shrink-0" />
+                      Pin set{savedLocation.address ? `: ${savedLocation.address}` : ` (${savedLocation.lat.toFixed(4)}, ${savedLocation.lng.toFixed(4)})`}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Set your exact GPS pin so the driver can find you precisely — works anywhere in the world.
+                    </p>
+                  )}
+                  {gpsError && (
+                    <p className="text-xs font-medium text-amber-700 dark:text-amber-400 flex items-start gap-1.5">
+                      <AlertCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                      {gpsError}
+                    </p>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full flex items-center gap-2"
+                    onClick={setDeliveryLocation}
+                    disabled={gpsState === 'locating' || gpsState === 'saving'}
+                  >
+                    {gpsState === 'locating' || gpsState === 'saving' ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <Satellite className="w-4 h-4" />
+                    )}
+                    {gpsState === 'locating' ? 'Locating…' : gpsState === 'saving' ? 'Saving…' : 'Set delivery location with GPS'}
+                  </Button>
                 </div>
               </CardContent>
             </Card>

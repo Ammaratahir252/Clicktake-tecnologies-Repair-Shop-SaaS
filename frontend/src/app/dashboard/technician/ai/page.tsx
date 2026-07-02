@@ -344,29 +344,6 @@ export default function TechnicianAIPage() {
     }
   };
 
-      if (!res.data.success) throw new Error(res.data.message);
-
-      const diagnostic: DiagnosticResult = res.data.data;
-
-      const aiMsg: Message = {
-        role: "assistant",
-        content: diagnostic.summary,
-        id: (Date.now() + 1).toString(),
-        diagnostic,
-      };
-      setMessages((prev) => [...prev, aiMsg]);
-    } catch (err: any) {
-      const errorMsg: Message = {
-        role: "assistant",
-        content: `⚠️ ${err.response?.data?.message ?? err.message ?? "AI diagnostic failed. Check your API key and connection."}`,
-        id: (Date.now() + 1).toString(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <DashboardShell requiredRole="technician">
       {() => (
