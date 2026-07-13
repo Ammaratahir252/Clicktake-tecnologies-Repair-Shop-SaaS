@@ -2,6 +2,7 @@
 
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import {
   Search, Ticket, Building2, AlertCircle, Filter,
@@ -33,8 +34,7 @@ interface TicketRecord {
   _id:           string;
   ticketNumber:  string;
   tenantId?:     { _id: string; name: string; subdomain: string } | string;
-  customerName:  string;
-  customerPhone: string;
+  customerId?:   { _id: string; name: string; phone: string } | string;
   deviceBrand:   string;
   deviceModel:   string;
   technicianId?: { _id: string; name: string } | string;
@@ -45,13 +45,14 @@ interface TicketRecord {
 
 export default function SuperAdminTicketsPage() {
   return (
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {() => <TicketsContent />}
     </DashboardShell>
   );
 }
 
 function TicketsContent() {
+  const router = useRouter();
   const [tickets,      setTickets]      = useState<TicketRecord[]>([]);
   const [loading,      setLoading]      = useState(true);
   const [error,        setError]        = useState("");
@@ -86,6 +87,11 @@ function TicketsContent() {
     return null;
   };
 
+  const customerInfo = (t: TicketRecord) => {
+    if (!t.customerId || typeof t.customerId !== "object") return { name: "—", phone: "" };
+    return { name: t.customerId.name || "—", phone: t.customerId.phone || "" };
+  };
+
   const uniqueTenants = Array.from(
     new Set(tickets.map((t) => tenantName(t)).filter((n) => n !== "—"))
   );
@@ -94,7 +100,7 @@ function TicketsContent() {
     const q = search.toLowerCase();
     const matchSearch =
       t.ticketNumber.toLowerCase().includes(q) ||
-      t.customerName.toLowerCase().includes(q) ||
+      customerInfo(t).name.toLowerCase().includes(q) ||
       `${t.deviceBrand} ${t.deviceModel}`.toLowerCase().includes(q);
     const matchStatus = statusFilter === "all" || t.status === statusFilter;
     const matchTenant = tenantFilter === "all" || tenantName(t) === tenantFilter;
@@ -219,7 +225,11 @@ function TicketsContent() {
               </thead>
               <tbody>
                 {filtered.map((t) => (
-                  <tr key={t._id} className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors">
+                  <tr
+                    key={t._id}
+                    onClick={() => router.push(`/dashboard/super-admin/tickets/${t._id}`)}
+                    className="border-b border-border last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                  >
                     <td className="px-5 py-3.5 font-bold text-primary text-xs">{t.ticketNumber}</td>
                     <td className="px-5 py-3.5">
                       <span className="flex items-center gap-1.5 text-xs font-medium text-foreground">
@@ -228,8 +238,8 @@ function TicketsContent() {
                       </span>
                     </td>
                     <td className="px-5 py-3.5">
-                      <p className="font-medium text-foreground">{t.customerName}</p>
-                      <p className="text-xs text-muted-foreground font-mono">{t.customerPhone}</p>
+                      <p className="font-medium text-foreground">{customerInfo(t).name}</p>
+                      <p className="text-xs text-muted-foreground font-mono">{customerInfo(t).phone}</p>
                     </td>
                     <td className="px-5 py-3.5 text-muted-foreground text-xs">{t.deviceBrand} {t.deviceModel}</td>
                     <td className="px-5 py-3.5">

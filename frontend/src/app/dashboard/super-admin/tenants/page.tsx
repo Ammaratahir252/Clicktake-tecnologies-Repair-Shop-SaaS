@@ -6,12 +6,14 @@ import api from "@/lib/api";
 import {
   Building2, Plus, Search, Globe, Users, Ticket, ChevronRight,
   CheckCircle, AlertCircle, Clock, Loader2, AlertTriangle, RefreshCw, XCircle,
+  Trash2, Mail, Key, Snowflake, CalendarX, ArrowLeftRight, Eraser,
 } from "lucide-react";
 
 interface Tenant {
   _id:       string;
   name:      string;
   subdomain: string;
+  ownerName?: string;
   plan:      string;
   isActive:  boolean;
   email?:    string;
@@ -31,7 +33,7 @@ function tenantStatus(t: Tenant) {
 
 export default function SuperAdminTenantsPage() {
   return (
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {() => <TenantsContent />}
     </DashboardShell>
   );
@@ -46,6 +48,10 @@ function TenantsContent() {
   const [filter,   setFilter]   = useState("all");
   const [selected, setSelected] = useState<Tenant | null>(null);
   const [acting,   setActing]   = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [noticeMsg,  setNoticeMsg]  = useState("");
+  const [sendingNotice, setSendingNotice] = useState(false);
 
   const fetchTenants = useCallback(async () => {
     setLoading(true);
@@ -76,6 +82,42 @@ function TenantsContent() {
     return matchSearch && matchFilter;
   });
 
+  const runAction = async (id: string, type: string, payload: Record<string, any> | undefined, msg: string) => {
+    setActing(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post(`/api/admin/tenants/${id}/actions`, { type, payload });
+      setSuccess(res.data?.message || msg);
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Action failed.");
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const transferOwnership = async (tenant: Tenant) => {
+    try {
+      const res = await api.get(`/api/admin/users?tenantId=${tenant._id}&limit=100`);
+      const users: any[] = res.data?.data ?? [];
+      if (users.length === 0) { setError("No staff accounts found for this tenant."); return; }
+      const list = users.map((u, i) => `${i + 1}. ${u.name} (${u.role}) — ${u.email}`).join("\n");
+      const pick = window.prompt(`Transfer ownership of ${tenant.name} to which user? Enter a number:\n\n${list}`);
+      const idx = pick ? parseInt(pick, 10) - 1 : -1;
+      if (idx < 0 || idx >= users.length) return;
+      await runAction(tenant._id, "transferOwnership", { newOwnerUserId: users[idx]._id }, `Ownership transferred to ${users[idx].name}.`);
+    } catch {
+      setError("Failed to load this tenant's staff accounts.");
+    }
+  };
+
+  const resetTenantData = async (tenant: Tenant) => {
+    const typed = window.prompt(`This permanently deletes ${tenant.name}'s tickets, customers, and leads (keeps the tenant, its users, and subscription). Type the tenant name to confirm: "${tenant.name}"`);
+    if (typed !== tenant.name) return;
+    await runAction(tenant._id, "resetData", { confirmName: tenant.name }, "Tenant operational data reset.");
+  };
+
   const patchTenant = async (id: string, patch: Record<string, any>, msg: string) => {
     setActing(true);
     setError("");
@@ -91,6 +133,82 @@ function TenantsContent() {
       setError(err.response?.data?.message || "Action failed.");
     } finally {
       setActing(false);
+    }
+  };
+
+  const deleteTenant = async (tenant: Tenant) => {
+    if (!window.confirm(
+      `Permanently delete "${tenant.name}"? This will also permanently delete all of its tickets, customers, staff accounts, leads, and its subscription record. This cannot be undone.`
+    )) return;
+    setDeleting(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.delete(`/api/admin/tenants/${tenant._id}`);
+      setTenants((prev) => prev.filter((t) => t._id !== tenant._id));
+      if (selected?._id === tenant._id) setSelected(null);
+      setSuccess(`${tenant.name} and all related data permanently deleted.`);
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to delete tenant.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const addTenant = async () => {
+    const shopName = window.prompt("Shop name:");
+    if (!shopName) return;
+    const subdomain = window.prompt("Subdomain (letters, numbers, hyphens only):");
+    if (!subdomain) return;
+    const ownerName = window.prompt("Owner's full name:");
+    if (!ownerName) return;
+    const email = window.prompt("Owner's email:");
+    if (!email) return;
+    const password = window.prompt("Temporary password for the owner (min 8 chars):");
+    if (!password) return;
+
+    setActing(true);
+    setError("");
+    setSuccess("");
+    try {
+      const res = await api.post("/api/auth/register", {
+        role: "owner",
+        shopName,
+        subdomain,
+        ownerName,
+        email,
+        password,
+      });
+      setSuccess(res.data?.message || `${shopName} created.`);
+      setTimeout(() => setSuccess(""), 4000);
+      await fetchTenants();
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to create tenant.");
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const sendNotice = async () => {
+    if (!selected || !noticeMsg.trim()) return;
+    setSendingNotice(true);
+    setError("");
+    try {
+      await api.post("/api/admin/notices", {
+        tenantId: selected._id,
+        email: selected.email,
+        name: selected.ownerName || selected.name,
+        message: noticeMsg.trim(),
+      });
+      setSuccess(`Notice sent to ${selected.name}.`);
+      setTimeout(() => setSuccess(""), 3000);
+      setNoticeMsg("");
+      setNoticeOpen(false);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to send notice.");
+    } finally {
+      setSendingNotice(false);
     }
   };
 
@@ -117,7 +235,11 @@ function TenantsContent() {
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
           </button>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-all text-sm">
+          <button
+            onClick={addTenant}
+            disabled={acting}
+            className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-all text-sm disabled:opacity-60"
+          >
             <Plus size={16} />
             Add Tenant
           </button>
@@ -318,7 +440,7 @@ function TenantsContent() {
                   ))}
                 </div>
                 <a
-                  href={`https://${selected.subdomain}.dibnow.com`}
+                  href={`/shop/${selected.subdomain}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full py-2.5 bg-primary/10 text-primary font-bold rounded-xl text-sm hover:bg-primary/20 transition-all flex items-center justify-center gap-2"
@@ -326,6 +448,78 @@ function TenantsContent() {
                   <Globe size={14} />
                   Open Shop
                 </a>
+                <button
+                  onClick={() => setNoticeOpen((v) => !v)}
+                  className="w-full py-2.5 bg-muted text-foreground font-bold rounded-xl text-sm hover:bg-muted/70 transition-all flex items-center justify-center gap-2"
+                >
+                  <Mail size={14} />
+                  Send Notice
+                </button>
+                {noticeOpen && (
+                  <div className="space-y-2">
+                    <textarea
+                      value={noticeMsg}
+                      onChange={(e) => setNoticeMsg(e.target.value)}
+                      placeholder="Message to send to this shop's owner…"
+                      rows={3}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <button
+                      onClick={sendNotice}
+                      disabled={sendingNotice || !noticeMsg.trim()}
+                      className="w-full py-2 bg-primary text-primary-foreground font-bold rounded-xl text-sm hover:opacity-90 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                    >
+                      {sendingNotice && <Loader2 size={13} className="animate-spin" />}
+                      Send
+                    </button>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    onClick={() => runAction(selected._id, "forcePasswordReset", undefined, "All accounts must reset their password.")}
+                    disabled={acting}
+                    className="py-2 bg-muted text-foreground font-bold rounded-lg text-xs hover:bg-muted/70 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
+                  >
+                    <Key size={12} /> Force Pwd Reset
+                  </button>
+                  <button
+                    onClick={() => runAction(selected._id, "freezeSubscription", undefined, "Subscription frozen.")}
+                    disabled={acting}
+                    className="py-2 bg-muted text-foreground font-bold rounded-lg text-xs hover:bg-muted/70 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
+                  >
+                    <Snowflake size={12} /> Freeze Sub
+                  </button>
+                  <button
+                    onClick={() => runAction(selected._id, "forceTrialEnd", undefined, "Trial ended — moved to free plan.")}
+                    disabled={acting}
+                    className="py-2 bg-muted text-foreground font-bold rounded-lg text-xs hover:bg-muted/70 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
+                  >
+                    <CalendarX size={12} /> Force Trial End
+                  </button>
+                  <button
+                    onClick={() => transferOwnership(selected)}
+                    disabled={acting}
+                    className="py-2 bg-muted text-foreground font-bold rounded-lg text-xs hover:bg-muted/70 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
+                  >
+                    <ArrowLeftRight size={12} /> Transfer Owner
+                  </button>
+                </div>
+                <button
+                  onClick={() => resetTenantData(selected)}
+                  disabled={acting}
+                  className="w-full py-2.5 bg-amber-500/10 text-amber-600 font-bold rounded-xl text-sm hover:bg-amber-500/20 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  <Eraser size={14} />
+                  Reset Tenant Data
+                </button>
+                <button
+                  onClick={() => deleteTenant(selected)}
+                  disabled={deleting}
+                  className="w-full py-2.5 bg-red-600 text-white font-bold rounded-xl text-sm hover:bg-red-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={14} />}
+                  Delete Permanently
+                </button>
               </div>
             </div>
           ) : (

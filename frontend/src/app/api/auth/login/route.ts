@@ -4,18 +4,27 @@ import User from '../../../../models/user.model';
 import { sendResponse } from '../../../../utils/apiResponse';
 import { getTenantBySubdomain } from '../../../../lib/subdomain';
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
 import { createAuditLog } from '../../../../services/auditLog.service';
 import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
+import { sendEmail, emailTwoFactorCode } from '../../../../lib/notifications';
+import { getPlatformSettings, isMaintenanceActive } from '@/lib/platformSettings';
+import { issueSession } from '@/lib/auth/issueSession';
+import { notifySuperAdmins } from '@/lib/notifications';
 
 export async function POST(req: NextRequest) {
   try {
     await connectDB();
     const { email, password } = await req.json();
-    
+    const settings = await getPlatformSettings();
+    const ip = req.headers.get('x-forwarded-for') || 'unknown';
+
     const user = await User.findOne({ email });
     if (!user) {
       return sendResponse(false, 'Invalid email or password.', null, 401);
+    }
+
+    if (user.role === 'super_admin' && settings.adminIpWhitelist.length > 0 && !settings.adminIpWhitelist.includes(ip)) {
+      return sendResponse(false, 'Login blocked: this network is not on the super-admin IP whitelist.', null, 403);
     }
 
     const xTenantId = req.headers.get('x-tenant-id');
@@ -33,6 +42,22 @@ export async function POST(req: NextRequest) {
       return sendResponse(false, 'Invalid email or password.', null, 401);
     }
 
+    if (user.isActive === false) {
+      return sendResponse(false, 'This account has been deactivated.', null, 403);
+    }
+
+    if (isMaintenanceActive(settings) && user.role !== 'super_admin') {
+      return sendResponse(false, settings.maintenanceMessage || 'The platform is currently under maintenance. Please try again shortly.', null, 503);
+    }
+
+    if (settings.emergencyLockdown && user.role !== 'super_admin') {
+      return sendResponse(false, 'The platform is under an emergency lockdown. Only super admins may log in right now.', null, 503);
+    }
+
+    if (settings.requireEmailVerification && !user.emailVerified) {
+      return sendResponse(false, 'Please verify your email address before logging in — check your inbox for the verification link.', null, 403);
+    }
+
     if (user.lockoutUntil && user.lockoutUntil > new Date()) {
       const minutesLeft = Math.ceil((user.lockoutUntil.getTime() - Date.now()) / 60000);
       return sendResponse(false, `Account locked. Try again in ${minutesLeft} minute(s).`, null, 423);
@@ -42,72 +67,82 @@ export async function POST(req: NextRequest) {
 
     if (!isMatch) {
       const attempts = (user.failedLoginAttempts || 0) + 1;
-      if (attempts >= 5) {
+      createAuditLog({
+        tenantId: user.tenantId ? user.tenantId.toString() : user._id.toString(),
+        userId: user._id.toString(),
+        action: AUDIT_ACTIONS.AUTH_LOGIN_FAILED,
+        entity: 'user',
+        entityId: user._id.toString(),
+        details: { email: user.email, attempts },
+        ipAddress: ip,
+        userAgent: req.headers.get('user-agent') || 'unknown',
+      });
+
+      if (attempts >= settings.maxLoginAttempts) {
         await User.findByIdAndUpdate(user._id, {
           failedLoginAttempts: 0,
-          lockoutUntil: new Date(Date.now() + 15 * 60 * 1000),
+          lockoutUntil: new Date(Date.now() + settings.lockoutDurationMinutes * 60 * 1000),
         });
-        return sendResponse(false, "Too many failed attempts. Account locked for 15 minutes.", null, 423);
+        if (settings.notifs.failedLoginAlert) {
+          void notifySuperAdmins('Account Locked — Repeated Failed Logins', `<p>${user.email} was locked out after ${attempts} failed login attempts from IP ${ip}.</p>`);
+        }
+        return sendResponse(false, `Too many failed attempts. Account locked for ${settings.lockoutDurationMinutes} minutes.`, null, 423);
       }
       await User.findByIdAndUpdate(user._id, { failedLoginAttempts: attempts });
       return sendResponse(false, "Invalid email or password.", null, 401);
     }
 
+    if (user.forcePasswordReset) {
+      return sendResponse(false, 'Your password must be reset before you can log in. Use "Forgot password" to set a new one.', null, 403);
+    }
+    if (settings.passwordExpiryDays > 0 && user.passwordChangedAt) {
+      const ageDays = (Date.now() - new Date(user.passwordChangedAt).getTime()) / 86_400_000;
+      if (ageDays > settings.passwordExpiryDays) {
+        return sendResponse(false, 'Your password has expired. Use "Forgot password" to set a new one.', null, 403);
+      }
+    }
+
     // Reset lockout counters without running full document validators
     await User.findByIdAndUpdate(user._id, { failedLoginAttempts: 0, lockoutUntil: null });
 
-    const token = jwt.sign(
-      { 
-        userId: user._id, 
-        tenantId: user.tenantId, 
-        role: user.role,
-        tokenVersion: user.tokenVersion || 0
-      },
-      process.env.JWT_SECRET || 'fallback_secret_key',
-      { expiresIn: '1d' }
-    );
+    const needsOtp =
+      (user.role === 'super_admin' && settings.twoFactor) ||
+      ((user.role === 'owner' || user.role === 'manager') && settings.twoFactorOwners);
 
-    const userData = {
-      id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      tenantId: user.tenantId
-    };
+    if (needsOtp) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const codeHash = await bcrypt.hash(code, 10);
+      await User.findByIdAndUpdate(user._id, {
+        twoFactorOtpHash: codeHash,
+        twoFactorOtpExpiry: Date.now() + 10 * 60 * 1000,
+      });
 
-    createAuditLog({
-      tenantId: user.tenantId ? user.tenantId.toString() : user._id.toString(),
-      userId: user._id.toString(),
-      action: AUDIT_ACTIONS.AUTH_LOGIN,
-      entity: 'user',
-      entityId: user._id.toString(),
-      details: { email: user.email },
-      ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
-      userAgent: req.headers.get('user-agent') || 'unknown'
-    });
-    
-    const response = sendResponse(true, 'Login successful. Welcome back!', { 
-      user: userData, 
-      token 
-    });
-    
-    // Cookie must NOT be httpOnly — JS must be able to delete it on logout/401.
-    response.cookies.set('token', token, {
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 86400,
-      path: '/',
-    });
+      createAuditLog({
+        tenantId: user.tenantId ? user.tenantId.toString() : user._id.toString(),
+        userId: user._id.toString(),
+        action: AUDIT_ACTIONS.AUTH_OTP_SENT,
+        entity: 'user',
+        entityId: user._id.toString(),
+        ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+        userAgent: req.headers.get('user-agent') || 'unknown',
+      });
 
-    return response;
+      sendEmail(user.email, 'Your verification code', emailTwoFactorCode(code)).catch(() => {});
+
+      return sendResponse(true, 'Verification code sent to your email.', {
+        requiresOtp: true,
+        userId: user._id,
+      });
+    }
+
+    return issueSession(user, req, settings.sessionTimeout, settings.preventMultipleSessions);
 
   } catch (error: any) {
     console.error("Login API Failure:", error.message);
     return sendResponse(
-      false, 
-      error.message || 'Authentication failed. Please verify your credentials.', 
-      null, 
+      false,
+      error.message || 'Authentication failed. Please verify your credentials.',
+      null,
       401
     );
   }

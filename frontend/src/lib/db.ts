@@ -58,6 +58,11 @@ async function connectDB() {
     throw e;
   }
 
+  // Lazily boot the in-process job scheduler (backups/cleanup/resource sampling) the
+  // first time a DB connection succeeds. Dynamic import avoids a require cycle since
+  // scheduler.ts itself calls connectDB().
+  import('./scheduler').then((m) => m.startScheduler()).catch(() => {});
+
   return cached.conn;
 }
 

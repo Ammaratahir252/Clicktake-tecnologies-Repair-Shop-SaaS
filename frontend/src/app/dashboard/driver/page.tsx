@@ -21,13 +21,11 @@ import {
   AlertCircle, Package, ShieldCheck
 } from "lucide-react";
 
-// Delivery status progression per blueprint M9
+// Driver-relevant ticket statuses (tickets, not a separate delivery-job model)
 const JOB_STATUSES = [
-  { key: "assigned",    label: "Assigned",    color: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400" },
-  { key: "en_route",   label: "En Route",    color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
-  { key: "arrived",    label: "Arrived",     color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
-  { key: "picked_up",  label: "Picked Up",   color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
-  { key: "delivered",  label: "Delivered",   color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  { key: "received",  label: "Pickup Needed", color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  { key: "ready",     label: "For Delivery",  color: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400" },
+  { key: "delivered", label: "Delivered",     color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
 ];
 
 const MODULES = [
@@ -83,17 +81,19 @@ export default function DriverDashboard() {
   );
 }
 
+const DRIVER_RELEVANT = ["received", "ready", "delivered"];
+
 function DriverContent({ user }: { user: any }) {
   const [jobs, setJobs]       = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
 
   useEffect(() => {
-    // Fetch only this driver's assigned delivery jobs
-    api.get("/api/delivery-jobs/my")
+    // Driver "jobs" are tickets in a pickup/delivery-relevant status
+    api.get("/api/tickets")
       .then((res) => {
-        const data = res.data?.data;
-        setJobs(Array.isArray(data) ? data : [data].filter(Boolean));
+        const all: any[] = res.data?.data ?? [];
+        setJobs(all.filter((t) => DRIVER_RELEVANT.includes(t.status)));
       })
       .catch((err) => setError(err.response?.data?.message || "Could not load jobs."))
       .finally(() => setLoading(false));
@@ -187,25 +187,25 @@ function DriverContent({ user }: { user: any }) {
               >
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0
-                    ${job.jobType === "pickup" ? "bg-purple-100 dark:bg-purple-900/30" : "bg-emerald-100 dark:bg-emerald-900/30"}`}>
-                    {job.jobType === "pickup"
+                    ${job.status === "received" ? "bg-purple-100 dark:bg-purple-900/30" : "bg-emerald-100 dark:bg-emerald-900/30"}`}>
+                    {job.status === "received"
                       ? <Package size={16} className="text-purple-600 dark:text-purple-400" />
                       : <Truck size={16} className="text-emerald-600 dark:text-emerald-400" />}
                   </div>
                   <div>
-                    <p className="font-bold text-foreground text-sm capitalize">
-                      {job.jobType ?? "delivery"} — {job.customerName ?? "Customer"}
+                    <p className="font-bold text-foreground text-sm">
+                      {job.ticketNumber} — {job.customerId?.name ?? "Customer"}
                     </p>
                     <div className="flex items-center gap-1 mt-0.5">
                       <MapPin size={11} className="text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">{job.address?.street ?? "Address not set"}</p>
+                      <p className="text-xs text-muted-foreground">{job.customerId?.address ?? "Address not set"}</p>
                     </div>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <StatusBadge status={job.status ?? "assigned"} />
+                  <StatusBadge status={job.status ?? "received"} />
                   <a
-                    href={`/dashboard/driver/jobs/${job._id ?? job.id}`}
+                    href="/dashboard/driver/jobs"
                     className="text-xs font-bold text-orange-500 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 flex items-center gap-1"
                   >
                     Open <ChevronRight size={12} />

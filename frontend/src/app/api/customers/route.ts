@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
       ];
     }
 
-    const customers = await Customer.find(query).sort({ createdAt: -1 }).lean();
+    const customers = await (Customer as any).find(query).sort({ createdAt: -1 }).lean();
 
     // Attach ticket counts
     const ticketAgg = await Ticket.aggregate([

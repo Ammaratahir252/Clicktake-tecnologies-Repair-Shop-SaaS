@@ -5,12 +5,15 @@ import Link from "next/link";
 import { Wrench, Menu, X, ChevronDown } from "lucide-react";
 import { NAV_LINKS } from "../data";
 import { THEME } from "../../components/theme";
+import { useBranding } from "@/lib/useBranding";
 
 const { BG, BORDER, ACCENT, ACCENT2, TEXT, MUTED } = THEME;
 
 export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled]   = useState(false);
+  const branding = useBranding();
+  const companyName = branding.companyName || "Dibnow";
 
   useEffect(() => {
     const h = () => setScrolled(window.scrollY > 24);
@@ -41,19 +44,22 @@ export default function Header() {
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
           <div style={{
             width: 46, height: 46,
-            background: `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
+            background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
+            border: branding.logoUrl ? `1px solid ${BORDER}` : "none",
             borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center",
-            boxShadow: `0 6px 20px rgba(29,78,216,0.28)`, transform: "rotate(-4deg)",
-            flexShrink: 0,
+            boxShadow: `0 6px 20px rgba(29,78,216,0.28)`, transform: branding.logoUrl ? "none" : "rotate(-4deg)",
+            flexShrink: 0, overflow: "hidden",
           }}>
-            <Wrench size={20} color="#fff" />
+            {branding.logoUrl
+              ? <img src={branding.logoUrl} alt={companyName} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              : <Wrench size={20} color="#fff" />}
           </div>
           <div>
             <span style={{
               fontFamily: "'DM Serif Display',Georgia,serif",
               color: TEXT, fontWeight: 700, fontSize: 22, letterSpacing: "-0.5px",
               display: "block", lineHeight: 1.1,
-            }}>Dibnow</span>
+            }}>{companyName}</span>
             <span style={{
               color: ACCENT, fontSize: 9, fontWeight: 700,
               letterSpacing: "0.24em", textTransform: "uppercase",
@@ -65,16 +71,27 @@ export default function Header() {
         {/* ── Desktop Nav ── */}
         <nav className="desktop-only" style={{ display: "flex", alignItems: "center", gap: 2 }}>
           {NAV_LINKS.map(l => (
-            <button key={l.label} onClick={() => scrollTo(l.href)}
-              className="nav-btn"
-              style={{
-                background: "none", border: "none", cursor: "pointer",
-                color: MUTED, fontWeight: 600, fontSize: 14,
-                padding: "8px 14px", borderRadius: 9,
-                transition: "color 0.2s", fontFamily: "'DM Sans',sans-serif",
-              }}>
-              {l.label}
-            </button>
+            l.type === "link" ? (
+              <Link key={l.label} href={l.href} className="nav-btn"
+                style={{
+                  color: MUTED, fontWeight: 600, fontSize: 14,
+                  padding: "8px 14px", borderRadius: 9, textDecoration: "none",
+                  transition: "color 0.2s", fontFamily: "'DM Sans',sans-serif",
+                }}>
+                {l.label}
+              </Link>
+            ) : (
+              <button key={l.label} onClick={() => scrollTo(l.href)}
+                className="nav-btn"
+                style={{
+                  background: "none", border: "none", cursor: "pointer",
+                  color: MUTED, fontWeight: 600, fontSize: 14,
+                  padding: "8px 14px", borderRadius: 9,
+                  transition: "color 0.2s", fontFamily: "'DM Sans',sans-serif",
+                }}>
+                {l.label}
+              </button>
+            )
           ))}
         </nav>
 
@@ -119,16 +136,28 @@ export default function Header() {
           boxShadow: "0 16px 48px rgba(120,83,56,0.10)",
         }}>
           {NAV_LINKS.map(l => (
-            <button key={l.label} onClick={() => scrollTo(l.href)}
-              style={{
-                display: "block", width: "100%", background: "none", border: "none",
-                cursor: "pointer", color: MUTED, fontWeight: 600, fontSize: 16,
-                padding: "12px 0", textAlign: "left",
-                borderBottom: `1px solid ${BORDER}`,
-                fontFamily: "'DM Sans',sans-serif",
-              }}>
-              {l.label}
-            </button>
+            l.type === "link" ? (
+              <Link key={l.label} href={l.href} onClick={() => setMenuOpen(false)}
+                style={{
+                  display: "block", width: "100%", color: MUTED, fontWeight: 600, fontSize: 16,
+                  padding: "12px 0", textAlign: "left", textDecoration: "none",
+                  borderBottom: `1px solid ${BORDER}`,
+                  fontFamily: "'DM Sans',sans-serif",
+                }}>
+                {l.label}
+              </Link>
+            ) : (
+              <button key={l.label} onClick={() => scrollTo(l.href)}
+                style={{
+                  display: "block", width: "100%", background: "none", border: "none",
+                  cursor: "pointer", color: MUTED, fontWeight: 600, fontSize: 16,
+                  padding: "12px 0", textAlign: "left",
+                  borderBottom: `1px solid ${BORDER}`,
+                  fontFamily: "'DM Sans',sans-serif",
+                }}>
+                {l.label}
+              </button>
+            )
           ))}
           <div style={{ display: "flex", gap: 12, marginTop: 18 }}>
             <Link href="/login" style={{

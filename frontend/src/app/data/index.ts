@@ -1,13 +1,15 @@
 // ─── NAVIGATION ───────────────────────────────────────────────────────────────
+// `type: "anchor"` scrolls to a section id on the homepage; `type: "link"` navigates
+// to a real page route.
 export const NAV_LINKS = [
-  { label: "Features",   href: "features"   },
-  { label: "How It Works", href: "howitworks" },
-  { label: "Roles",      href: "roles"      },
-  { label: "Pricing",    href: "pricing"    },
-  { label: "About",      href: "about"      },
-  { label: "Blog",       href: "blog"       },
-  { label: "FAQ",        href: "faq"        },
-  { label: "Contact",    href: "contact"    },
+  { label: "Features",   href: "features",   type: "anchor" as const },
+  { label: "How It Works", href: "howitworks", type: "anchor" as const },
+  { label: "Roles",      href: "roles",      type: "anchor" as const },
+  { label: "Shops",      href: "/shops",     type: "link"   as const },
+  { label: "Pricing",    href: "pricing",    type: "anchor" as const },
+  { label: "About",      href: "about",      type: "anchor" as const },
+  { label: "FAQ",        href: "faq",        type: "anchor" as const },
+  { label: "Contact",    href: "contact",    type: "anchor" as const },
 ];
 
 // ─── STATS ────────────────────────────────────────────────────────────────────

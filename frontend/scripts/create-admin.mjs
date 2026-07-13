@@ -1,5 +1,6 @@
 /**
- * One-shot: creates (or resets) the platform super_admin account.
+ * One-shot: creates (or resets) the platform super_admin account, and retires
+ * any previous super_admin account left over from an old credential set.
  * Run from the `frontend/` directory:
  *   node scripts/create-admin.mjs
  */
@@ -28,10 +29,19 @@ if (!MONGODB_URI) {
   process.exit(1);
 }
 
-// Set these via env or edit locally — never commit real passwords
-const ADMIN_EMAIL    = process.env.ADMIN_EMAIL    ?? "dibnowrepair@gmail.com";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "admin12";
-const ADMIN_NAME     = process.env.ADMIN_NAME     ?? "Dibnow Admin";
+// Set these via env — never hardcode real passwords in source.
+const ADMIN_EMAIL    = process.env.ADMIN_EMAIL ?? "nowdib@gmail.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_NAME     = process.env.ADMIN_NAME  ?? "Dibnow Admin";
+
+if (!ADMIN_PASSWORD) {
+  console.error("❌  ADMIN_PASSWORD env var is required — refusing to fall back to a hardcoded default.");
+  console.error("    Run: ADMIN_PASSWORD='...' node scripts/create-admin.mjs");
+  process.exit(1);
+}
+
+// Any super_admin account under this old address is deactivated once the new one is in place.
+const RETIRED_ADMIN_EMAILS = ["dibnowrepair@gmail.com"];
 
 const userSchema = new mongoose.Schema(
   {
@@ -80,8 +90,19 @@ async function main() {
     console.log(`🆕  Admin user created.`);
   }
 
+  for (const oldEmail of RETIRED_ADMIN_EMAILS) {
+    if (oldEmail === ADMIN_EMAIL) continue;
+    const old = await User.findOne({ email: oldEmail, role: "super_admin" });
+    if (old) {
+      old.isActive     = false;
+      old.tokenVersion = (old.tokenVersion ?? 0) + 1;
+      await old.save();
+      console.log(`🔒  Retired previous super admin account: ${oldEmail}`);
+    }
+  }
+
   console.log(`\n  Email    : ${ADMIN_EMAIL}`);
-  console.log(`  Password : ${ADMIN_PASSWORD}`);
+  console.log(`  Password : (set — check ADMIN_PASSWORD env or script default, not logged for security)`);
   console.log(`  Role     : super_admin`);
   console.log(`\n✅  Done. Visit /admin to log in.\n`);
 

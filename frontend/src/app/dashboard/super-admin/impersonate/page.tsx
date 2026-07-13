@@ -18,7 +18,7 @@ import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import {
   UserCheck, Search, Loader2, ShieldAlert,
-  AlertTriangle, LogIn, LogOut, Store,
+  AlertTriangle, LogIn, Store,
   Globe, CheckCircle2, XCircle, RefreshCw,
 } from "lucide-react";
 
@@ -35,7 +35,7 @@ interface Tenant {
 
 export default function ImpersonatePage() {
   return (
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {(user) => <ImpersonateContent superAdmin={user} />}
     </DashboardShell>
   );
@@ -47,7 +47,6 @@ function ImpersonateContent({ superAdmin }: { superAdmin: any }) {
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState("");
   const [search, setSearch]             = useState("");
-  const [impersonating, setImpersonating] = useState<Tenant | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [successMsg, setSuccessMsg]     = useState("");
 
@@ -86,27 +85,14 @@ function ImpersonateContent({ superAdmin }: { superAdmin: any }) {
   const startImpersonation = async (tenant: Tenant) => {
     setActionLoading(tenant._id);
     setSuccessMsg("");
+    setError("");
     try {
       await api.post("/api/admin/impersonate", { tenantId: tenant._id });
-      setImpersonating(tenant);
-      setSuccessMsg(`Now impersonating: ${tenant.name ?? tenant.shopName ?? tenant.subdomain}. This action has been logged.`);
+      // Cookie is set by the server. Redirect to owner dashboard — DashboardShell
+      // will detect the cookie and show the impersonation banner.
+      window.location.href = "/dashboard/owner";
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to start impersonation session.");
-    } finally {
-      setActionLoading(null);
-    }
-  };
-
-  const endImpersonation = async () => {
-    if (!impersonating) return;
-    setActionLoading("exit");
-    try {
-      await api.post("/api/admin/impersonate/end");
-      setImpersonating(null);
-      setSuccessMsg("Impersonation session ended.");
-    } catch (err: any) {
-      setError(err.response?.data?.message || "Failed to end impersonation.");
-    } finally {
       setActionLoading(null);
     }
   };
@@ -151,35 +137,6 @@ function ImpersonateContent({ superAdmin }: { superAdmin: any }) {
           </p>
         </div>
       </div>
-
-      {/* ── Active Impersonation Banner ────────────────────────────── */}
-      {impersonating && (
-        <div className="bg-amber-50 border-2 border-amber-400 rounded-2xl px-5 py-4 flex items-center justify-between gap-4 flex-wrap shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-amber-400 rounded-xl flex items-center justify-center">
-              <UserCheck className="text-white w-4 h-4" />
-            </div>
-            <div>
-              <p className="text-sm font-black text-amber-900">
-                Active Session: {displayName(impersonating)}
-              </p>
-              <p className="text-xs text-amber-700 font-medium mt-0.5">
-                {impersonating.subdomain && `${impersonating.subdomain}.dibnow.com`}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={endImpersonation}
-            disabled={actionLoading === "exit"}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-amber-700 transition-all shadow"
-          >
-            {actionLoading === "exit"
-              ? <Loader2 size={13} className="animate-spin" />
-              : <LogOut size={13} />}
-            End Session
-          </button>
-        </div>
-      )}
 
       {/* ── Alerts ─────────────────────────────────────────────────── */}
       {error && (
@@ -248,14 +205,11 @@ function ImpersonateContent({ superAdmin }: { superAdmin: any }) {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filtered.map((tenant) => {
-                  const isCurrentImpersonation = impersonating?._id === tenant._id;
                   const isLoading = actionLoading === tenant._id;
                   return (
                     <tr
                       key={tenant._id}
-                      className={`transition-colors ${
-                        isCurrentImpersonation ? "bg-amber-50/60" : "hover:bg-slate-50/50"
-                      }`}
+                      className="transition-colors hover:bg-slate-50/50"
                     >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -295,23 +249,16 @@ function ImpersonateContent({ superAdmin }: { superAdmin: any }) {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        {isCurrentImpersonation ? (
-                          <span className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600">
-                            <UserCheck size={13} />
-                            Current Session
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => startImpersonation(tenant)}
-                            disabled={!!impersonating || !!actionLoading || tenant.isActive === false}
-                            className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
-                          >
-                            {isLoading
-                              ? <Loader2 size={11} className="animate-spin" />
-                              : <LogIn size={11} />}
-                            Impersonate
-                          </button>
-                        )}
+                        <button
+                          onClick={() => startImpersonation(tenant)}
+                          disabled={!!actionLoading || tenant.isActive === false}
+                          className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600 text-white text-xs font-bold uppercase tracking-wider hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-sm"
+                        >
+                          {isLoading
+                            ? <Loader2 size={11} className="animate-spin" />
+                            : <LogIn size={11} />}
+                          Impersonate
+                        </button>
                       </td>
                     </tr>
                   );

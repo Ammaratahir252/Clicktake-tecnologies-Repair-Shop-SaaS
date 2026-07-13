@@ -1,374 +1,456 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import DashboardShell from '@/components/DashboardShell'
+import PortalFeatureGuard from '@/components/PortalFeatureGuard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import {
   MapPin, Phone, Clock, Truck, CheckCircle, User,
-  Star, Map, ArrowRight, Info, Package, Bike, Rocket,
-  MessageCircle, FileText
+  ArrowRight, Info, Package, Wrench, FileCheck, ThumbsUp,
+  MessageCircle, FileText, Loader2, Navigation, PackageSearch,
 } from 'lucide-react'
+import api from '@/lib/api'
 
-// ------- Types -------
-type DeliveryStatus = 'preparing' | 'picked_up' | 'on_the_way' | 'delivered'
+// ------- Real ticket status vocabulary (from src/lib/enums.ts TicketStatus) -------
+type RealStatus =
+  | 'received' | 'diagnosed' | 'estimate_sent' | 'approved'
+  | 'in_repair' | 'ready' | 'delivered' | 'cancelled'
 
-interface DeliveryJob {
-  id: string
-  ticketId: string
-  deviceName: string
-  driverName: string
-  driverPhone: string
-  driverAvatar: string
-  driverRating: number
-  vehicleType: string
-  vehiclePlate: string
-  eta: string
-  etaMinutes: number
-  status: DeliveryStatus
-  distanceLeft: string
-  deliveryAddress: string
-  updatedAt: string
-}
-
-// ------- Mock data -------
-const mockDelivery: DeliveryJob = {
-  id: 'DLV-2026-00291',
-  ticketId: 'REP-2026-00451',
-  deviceName: 'iPhone 15 Pro — Space Black',
-  driverName: 'Ahmed Raza',
-  driverPhone: '+92 312 3456789',
-  driverAvatar: 'AR',
-  driverRating: 4.8,
-  vehicleType: 'Bike',
-  vehiclePlate: 'LHR-5521',
-  eta: '3:45 PM',
-  etaMinutes: 12,
-  status: 'on_the_way',
-  distanceLeft: '2.3 km',
-  deliveryAddress: 'House #12, Street 4, DHA Phase 6, Lahore',
-  updatedAt: 'Just now',
-}
-
-// ------- Timeline steps -------
-const timelineSteps: { key: DeliveryStatus; label: string; icon: React.ReactNode; desc: string }[] = [
-  { key: 'preparing',  label: 'Preparing',   icon: <Package className="w-5 h-5" />, desc: 'Repair verified & packed' },
-  { key: 'picked_up', label: 'Picked Up',    icon: <Bike className="w-5 h-5" />, desc: 'Driver collected device' },
-  { key: 'on_the_way',label: 'On The Way',   icon: <Rocket className="w-5 h-5" />, desc: 'En route to your address' },
-  { key: 'delivered', label: 'Delivered',    icon: <CheckCircle className="w-5 h-5" />, desc: 'Delivered successfully' },
+const timelineSteps: { key: RealStatus; label: string; icon: React.ReactNode; desc: string }[] = [
+  { key: 'received',      label: 'Received',      icon: <Package className="w-5 h-5" />,     desc: 'Device checked in at the shop' },
+  { key: 'diagnosed',     label: 'Diagnosed',      icon: <PackageSearch className="w-5 h-5" />, desc: 'Technician identified the issue' },
+  { key: 'estimate_sent', label: 'Estimate Sent',  icon: <FileCheck className="w-5 h-5" />,    desc: 'Cost estimate sent for approval' },
+  { key: 'approved',      label: 'Approved',       icon: <ThumbsUp className="w-5 h-5" />,     desc: 'Repair approved and queued' },
+  { key: 'in_repair',     label: 'In Repair',      icon: <Wrench className="w-5 h-5" />,       desc: 'Technician is working on your device' },
+  { key: 'ready',         label: 'Ready',          icon: <CheckCircle className="w-5 h-5" />,  desc: 'Ready for pickup / delivery' },
+  { key: 'delivered',     label: 'Delivered',      icon: <Truck className="w-5 h-5" />,        desc: 'Delivered / collected' },
 ]
 
-const statusOrder: DeliveryStatus[] = ['preparing', 'picked_up', 'on_the_way', 'delivered']
+const statusOrder: RealStatus[] = ['received', 'diagnosed', 'estimate_sent', 'approved', 'in_repair', 'ready', 'delivered']
 
-const statusColorMap: Record<DeliveryStatus, string> = {
-  preparing:   'bg-yellow-500',
-  picked_up:   'bg-blue-500',
-  on_the_way:  'bg-primary',
-  delivered:   'bg-green-500',
+// Badge component only ships color variants for a subset of keys
+// (received/diagnosed/repair/qc/ready/delivered/cancelled) — map the full
+// TicketStatus set onto those so every status still renders with a color.
+function badgeVariant(status: RealStatus): 'received' | 'diagnosed' | 'repair' | 'qc' | 'ready' | 'delivered' | 'cancelled' {
+  const map: Record<RealStatus, 'received' | 'diagnosed' | 'repair' | 'qc' | 'ready' | 'delivered' | 'cancelled'> = {
+    received: 'received',
+    diagnosed: 'diagnosed',
+    estimate_sent: 'qc',
+    approved: 'repair',
+    in_repair: 'repair',
+    ready: 'ready',
+    delivered: 'delivered',
+    cancelled: 'cancelled',
+  }
+  return map[status] ?? 'received'
 }
 
-const statusLabelMap: Record<DeliveryStatus, string> = {
-  preparing:   'Preparing',
-  picked_up:   'Picked Up',
-  on_the_way:  'On The Way',
-  delivered:   'Delivered',
+function pickDeliveryTicket(tickets: any[]): any | null {
+  if (!tickets.length) return null
+
+  // Prefer tickets that actually have a driver assigned or a location fix,
+  // and are at/near the delivery stage.
+  const withDriver = tickets.filter(
+    (t) => (t.driverId || t.driverLocation) && ['ready', 'delivered'].includes(t.status)
+  )
+  if (withDriver.length > 0) {
+    return withDriver.sort(
+      (a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime()
+    )[0]
+  }
+
+  // Otherwise fall back to the most recently updated non-terminal ticket.
+  const active = tickets.filter((t) => !['delivered', 'cancelled'].includes(t.status))
+  if (active.length > 0) {
+    return active.sort(
+      (a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime()
+    )[0]
+  }
+
+  // Last resort: most recently updated ticket of any kind.
+  return [...tickets].sort(
+    (a, b) => new Date(b.updatedAt ?? b.createdAt).getTime() - new Date(a.updatedAt ?? a.createdAt).getTime()
+  )[0]
+}
+
+function timeAgo(iso?: string): string {
+  if (!iso) return '—'
+  const diffMs = Date.now() - new Date(iso).getTime()
+  const mins = Math.floor(diffMs / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins} min${mins === 1 ? '' : 's'} ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs} hour${hrs === 1 ? '' : 's'} ago`
+  const days = Math.floor(hrs / 24)
+  return `${days} day${days === 1 ? '' : 's'} ago`
 }
 
 // ======= Main Component =======
 export default function DeliveryTrackingPage() {
-  const delivery = mockDelivery
-  const currentIdx = statusOrder.indexOf(delivery.status)
-  const progressPct = Math.round(((currentIdx + 1) / statusOrder.length) * 100)
-  const [etaLeft, setEtaLeft] = useState(delivery.etaMinutes)
-
-  // Countdown timer
-  useEffect(() => {
-    if (delivery.status === 'delivered') return
-    const interval = setInterval(() => {
-      setEtaLeft(prev => (prev > 0 ? prev - 1 : 0))
-    }, 60_000)
-    return () => clearInterval(interval)
-  }, [delivery.status])
-
   return (
     <DashboardShell requiredRole="customer">
       {() => (
-      <div className="max-w-6xl mx-auto space-y-6">
-        {/* ── Page header ── */}
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground mb-1">
-              Live Delivery Tracking
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Ticket <strong className="text-primary">{delivery.ticketId}</strong> · {delivery.deviceName}
-            </p>
-          </div>
-          <Badge className="px-4 py-2 text-sm">
-            {statusLabelMap[delivery.status]}
-          </Badge>
-        </div>
-
-        {/* ── ETA Banner ── */}
-        {delivery.status !== 'delivered' && (
-          <div className="bg-gradient-to-r from-primary to-blue-600 text-white rounded-lg p-6 flex items-center gap-4">
-            <Bike className="w-12 h-12" />
-            <div className="flex-1">
-              <div className="text-sm opacity-90">Estimated Arrival</div>
-              <div className="text-2xl font-bold">
-                {delivery.eta} <span className="text-base font-normal opacity-90">(~{etaLeft} min{etaLeft !== 1 ? 's' : ''} away)</span>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-xs opacity-90">Distance Left</div>
-              <div className="text-xl font-bold">{delivery.distanceLeft}</div>
-            </div>
-          </div>
-        )}
-
-        {delivery.status === 'delivered' && (
-          <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6 flex items-center gap-4">
-            <CheckCircle className="w-12 h-12" />
-            <div>
-              <div className="text-sm opacity-90">Status</div>
-              <div className="text-xl font-bold">Device Delivered Successfully!</div>
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* ── Left Column ── */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Progress */}
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-semibold">Delivery Progress</h3>
-                  <span className="text-sm font-semibold text-primary">{progressPct}%</span>
-                </div>
-                <Progress value={progressPct} className="mb-6 h-2" />
-
-                {/* Timeline */}
-                <div className="space-y-0">
-                  {timelineSteps.map((step, idx) => {
-                    const isDone = idx <= currentIdx
-                    const isCurrent = idx === currentIdx
-                    const isLast = idx === timelineSteps.length - 1
-
-                    return (
-                      <div key={step.key} className="flex gap-4">
-                        {/* Left: icon + connector */}
-                        <div className="flex flex-col items-center" style={{ width: 40 }}>
-                          <div
-                            className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
-                              isDone ? statusColorMap[delivery.status] + ' text-white' : 'bg-muted text-muted-foreground'
-                            } ${isCurrent ? 'ring-4 ring-primary/20' : ''}`}
-                          >
-                            {step.icon}
-                          </div>
-                          {!isLast && (
-                            <div
-                              className={`w-0.5 flex-1 min-h-7 transition-colors ${
-                                idx < currentIdx ? statusColorMap[delivery.status] : 'bg-border'
-                              }`}
-                            />
-                          )}
-                        </div>
-
-                        {/* Right: text */}
-                        <div className="pb-6 pt-2">
-                          <div className={`font-semibold text-sm ${isDone ? 'text-foreground' : 'text-muted-foreground'}`}>
-                            {step.label}
-                            {isCurrent && (
-                              <Badge variant="secondary" className="ml-2 text-xs">Current</Badge>
-                            )}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-1">{step.desc}</div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Map placeholder */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Map className="w-4 h-4" />
-                    <CardTitle className="text-base">Live Map</CardTitle>
-                  </div>
-                  <Badge variant="default" className="text-xs flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                    Live
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="h-60 bg-muted relative overflow-hidden">
-                  {/* Map grid lines */}
-                  <svg width="100%" height="100%" className="absolute inset-0 opacity-10">
-                    {Array.from({ length: 10 }).map((_, i) => (
-                      <React.Fragment key={i}>
-                        <line x1={`${i * 10}%`} y1="0" x2={`${i * 10}%`} y2="100%" stroke="currentColor" strokeWidth="1" />
-                        <line x1="0" y1={`${i * 10}%`} x2="100%" y2={`${i * 10}%`} stroke="currentColor" strokeWidth="1" />
-                      </React.Fragment>
-                    ))}
-                  </svg>
-
-                  {/* Road lines */}
-                  <svg width="100%" height="100%" className="absolute inset-0 opacity-20">
-                    <path d="M 0 120 Q 200 80 350 130 Q 500 180 700 110" fill="none" stroke="hsl(var(--primary))" strokeWidth="6" strokeLinecap="round" />
-                    <path d="M 100 0 Q 150 100 200 130 Q 250 160 280 240" fill="none" stroke="hsl(var(--primary))" strokeWidth="4" strokeLinecap="round" />
-                  </svg>
-
-                  {/* Pulsing driver marker */}
-                  <div className="absolute left-[48%] top-[45%] -translate-x-1/2 -translate-y-1/2">
-                    <div className="relative w-12 h-12">
-                      <div className="absolute inset-0 rounded-full bg-primary opacity-15 animate-ping" />
-                      <div className="absolute inset-1.5 rounded-full bg-primary opacity-25 animate-ping animation-delay-500" />
-                      <div className="absolute inset-3 rounded-full bg-primary flex items-center justify-center">
-                        <Bike className="w-4 h-4 text-white" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Destination pin */}
-                  <div className="absolute right-[18%] top-[30%]">
-                    <MapPin className="w-6 h-6 text-red-500 fill-red-500" />
-                  </div>
-
-                  {/* Map label */}
-                  <div className="absolute bottom-0 right-0 bg-card/90 backdrop-blur-sm px-2 py-1 text-xs text-muted-foreground border-t border-l border-border rounded-tl">
-                    <Info className="w-3 h-3 inline mr-1" />
-                    Mapbox GL JS — Live GPS updates every 30s
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* ── Right Column ── */}
-          <div className="space-y-6">
-            {/* Driver Card */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  <CardTitle className="text-base">Your Driver</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-13 h-13 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg font-bold">
-                    {delivery.driverAvatar}
-                  </div>
-                  <div>
-                    <div className="font-bold">{delivery.driverName}</div>
-                    <div className="flex items-center gap-1 text-sm">
-                      <span className="text-yellow-500">★</span>
-                      <span className="font-semibold">{delivery.driverRating}</span>
-                      <span className="text-muted-foreground">/ 5.0</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-muted-foreground">
-                  <div className="flex items-center gap-2">
-                    <Truck className="w-4 h-4" />
-                    <span>{delivery.vehicleType} · {delivery.vehiclePlate}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4" />
-                    <span>{delivery.driverPhone}</span>
-                  </div>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="flex-1" asChild>
-                    <a href={`tel:${delivery.driverPhone}`}>
-                      <Phone className="w-4 h-4 mr-1" />
-                      Call
-                    </a>
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1 flex items-center gap-2">
-                    <MessageCircle className="w-4 h-4" />
-                    WhatsApp
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Delivery Details */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center gap-2">
-                  <MapPin className="w-4 h-4" />
-                  <CardTitle className="text-base">Delivery Details</CardTitle>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div>
-                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
-                    Delivery Address
-                  </div>
-                  <div className="text-sm font-medium">{delivery.deliveryAddress}</div>
-                </div>
-                <hr className="border-border" />
-                <div className="flex justify-between">
-                  <div>
-                    <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Device</div>
-                    <div className="text-sm font-medium">{delivery.deviceName}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Job ID</div>
-                    <div className="text-sm font-medium text-primary">{delivery.id}</div>
-                  </div>
-                </div>
-                <hr className="border-border" />
-                <div className="flex items-center gap-2 text-sm">
-                  <Clock className="w-4 h-4 text-muted-foreground" />
-                  <span className="text-muted-foreground">Updated:</span>
-                  <span className="font-medium">{delivery.updatedAt}</span>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Actions */}
-            <Card>
-              <CardContent className="pt-6 space-y-2">
-                <Button className="w-full" size="sm">
-                  <ArrowRight className="w-4 h-4 mr-2" />
-                  View Repair Ticket Details
-                </Button>
-                <Button variant="outline" className="w-full flex items-center gap-2" size="sm">
-                  <FileText className="w-4 h-4" />
-                  Leave a Review
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
-        {/* Pulse animation */}
-        <style jsx>{`
-          @keyframes ping {
-            75%, 100% { transform: scale(2); opacity: 0; }
-          }
-          .animate-ping {
-            animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
-          }
-          .animation-delay-500 {
-            animation-delay: 0.5s;
-          }
-        `}</style>
-      </div>
+        <PortalFeatureGuard feature="showDelivery">
+          <DeliveryContent />
+        </PortalFeatureGuard>
       )}
     </DashboardShell>
+  )
+}
+
+function DeliveryContent() {
+  const [tickets, setTickets] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState('')
+
+  useEffect(() => {
+    api.get('/api/tickets')
+      .then((res) => {
+        const data = res.data?.data
+        setTickets(Array.isArray(data) ? data : [data].filter(Boolean))
+      })
+      .catch((err) => setError(err.response?.data?.message || 'Could not load your repairs.'))
+      .finally(() => setLoading(false))
+  }, [])
+
+  const ticket = useMemo(() => pickDeliveryTicket(tickets), [tickets])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="animate-spin w-6 h-6 mr-3" />
+        <span className="font-medium">Loading delivery status…</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="bg-destructive/10 border border-destructive/20 rounded-xl px-4 py-3 text-sm text-destructive font-medium max-w-3xl mx-auto">
+        {error}
+      </div>
+    )
+  }
+
+  if (!ticket) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-muted-foreground gap-3 max-w-3xl mx-auto text-center">
+        <Truck size={40} className="opacity-40" />
+        <p className="font-medium">No repairs to track yet.</p>
+        <Button variant="outline" size="sm" asChild>
+          <a href="/dashboard/customer/shops">Find a shop &amp; book a repair</a>
+        </Button>
+      </div>
+    )
+  }
+
+  const status: RealStatus = (ticket.status as RealStatus) ?? 'received'
+  const isCancelled = status === 'cancelled'
+  const currentIdx = statusOrder.indexOf(status)
+  const progressPct = isCancelled ? 100 : Math.round(((currentIdx + 1) / statusOrder.length) * 100)
+
+  const statusHistory: any[] = ticket.statusHistory ?? []
+  const stepTimestamp = (key: RealStatus) => {
+    const entry = [...statusHistory].reverse().find((h) => h.toStatus === key)
+    return entry?.createdAt as string | undefined
+  }
+
+  const driver = ticket.driverId && typeof ticket.driverId === 'object' ? ticket.driverId : null
+  const driverLocation = ticket.driverLocation as { lat: number; lng: number; updatedAt: string } | undefined
+  const mapsLink = driverLocation ? `https://maps.google.com/?q=${driverLocation.lat},${driverLocation.lng}` : null
+  const mapsEmbed = driverLocation
+    ? `https://www.google.com/maps?q=${driverLocation.lat},${driverLocation.lng}&z=15&output=embed`
+    : null
+
+  const deviceName = `${ticket.deviceBrand ?? ''} ${ticket.deviceModel ?? ''}`.trim() || 'Your device'
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* ── Page header ── */}
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground mb-1">
+            Delivery &amp; Repair Tracking
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Ticket <strong className="text-primary">{ticket.ticketNumber}</strong> · {deviceName}
+          </p>
+        </div>
+        <Badge variant={badgeVariant(status)} className="px-4 py-2 text-sm">
+          {timelineSteps.find((s) => s.key === status)?.label ?? status}
+        </Badge>
+      </div>
+
+      {/* ── Status banner ── */}
+      {!isCancelled && status !== 'delivered' && (
+        <div className="bg-gradient-to-r from-primary to-blue-600 text-white rounded-lg p-6 flex items-center gap-4 flex-wrap">
+          <Truck className="w-12 h-12 shrink-0" />
+          <div className="flex-1 min-w-[180px]">
+            <div className="text-sm opacity-90">Current Stage</div>
+            <div className="text-2xl font-bold">
+              {timelineSteps.find((s) => s.key === status)?.label ?? status}
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-xs opacity-90">Last Updated</div>
+            <div className="text-xl font-bold">{timeAgo(ticket.updatedAt)}</div>
+          </div>
+        </div>
+      )}
+
+      {status === 'delivered' && (
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg p-6 flex items-center gap-4">
+          <CheckCircle className="w-12 h-12" />
+          <div>
+            <div className="text-sm opacity-90">Status</div>
+            <div className="text-xl font-bold">Device Delivered Successfully!</div>
+          </div>
+        </div>
+      )}
+
+      {isCancelled && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6 flex items-center gap-4">
+          <Info className="w-10 h-10 text-destructive" />
+          <div>
+            <div className="text-sm text-destructive/80">Status</div>
+            <div className="text-xl font-bold text-destructive">This repair was cancelled.</div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* ── Left Column ── */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Progress */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex justify-between items-center mb-2">
+                <h3 className="font-semibold">Repair Progress</h3>
+                <span className="text-sm font-semibold text-primary">{progressPct}%</span>
+              </div>
+              <Progress value={progressPct} className="mb-6 h-2" />
+
+              {/* Timeline — driven by the ticket's real statusHistory */}
+              <div className="space-y-0">
+                {timelineSteps.map((step, idx) => {
+                  const isDone = !isCancelled && idx <= currentIdx
+                  const isCurrent = !isCancelled && idx === currentIdx
+                  const isLast = idx === timelineSteps.length - 1
+                  const ts = stepTimestamp(step.key)
+
+                  return (
+                    <div key={step.key} className="flex gap-4">
+                      <div className="flex flex-col items-center" style={{ width: 40 }}>
+                        <div
+                          className={`w-10 h-10 rounded-full flex items-center justify-center text-lg transition-all ${
+                            isDone ? 'bg-primary text-white' : 'bg-muted text-muted-foreground'
+                          } ${isCurrent ? 'ring-4 ring-primary/20' : ''}`}
+                        >
+                          {step.icon}
+                        </div>
+                        {!isLast && (
+                          <div
+                            className={`w-0.5 flex-1 min-h-7 transition-colors ${
+                              idx < currentIdx && !isCancelled ? 'bg-primary' : 'bg-border'
+                            }`}
+                          />
+                        )}
+                      </div>
+
+                      <div className="pb-6 pt-2">
+                        <div className={`font-semibold text-sm ${isDone ? 'text-foreground' : 'text-muted-foreground'}`}>
+                          {step.label}
+                          {isCurrent && (
+                            <Badge variant="secondary" className="ml-2 text-xs">Current</Badge>
+                          )}
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1">{step.desc}</div>
+                        {ts && (
+                          <div className="text-[11px] text-muted-foreground/70 mt-0.5">
+                            {new Date(ts).toLocaleString('en-PK')}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Honest location panel — real driverLocation or an honest empty state */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <MapPin className="w-4 h-4" />
+                  <CardTitle className="text-base">Driver Location</CardTitle>
+                </div>
+                {driverLocation && (
+                  <Badge variant="secondary" className="text-xs flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-green-500" />
+                    Last known
+                  </Badge>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              {driverLocation ? (
+                <div>
+                  <div className="h-60 bg-muted relative overflow-hidden">
+                    <iframe
+                      title="Driver last known location"
+                      src={mapsEmbed!}
+                      className="w-full h-full border-0"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="flex items-center justify-between px-4 py-3 border-t border-border text-xs text-muted-foreground">
+                    <span>Updated {timeAgo(driverLocation.updatedAt)}</span>
+                    <a
+                      href={mapsLink!}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+                    >
+                      <Navigation className="w-3 h-3" /> Open in Google Maps
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 px-6 text-center text-muted-foreground">
+                  <MapPin className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm font-medium">
+                    {driver ? 'Driver has not shared a location yet.' : 'No driver assigned yet.'}
+                  </p>
+                  <p className="text-xs mt-1 text-muted-foreground/70">
+                    Live location appears here once your driver shares it from the field.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Right Column ── */}
+        <div className="space-y-6">
+          {/* Driver Card — real driver info if assigned, honest empty state otherwise */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4" />
+                <CardTitle className="text-base">Your Driver</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {driver ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-lg font-bold">
+                      {(driver.name ?? '?').slice(0, 2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="font-bold">{driver.name ?? 'Driver'}</div>
+                      <div className="text-xs text-muted-foreground">{driver.email}</div>
+                    </div>
+                  </div>
+
+                  {driver.phone && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="w-4 h-4" />
+                      <span>{driver.phone}</span>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="flex-1" disabled={!driver.phone} asChild={!!driver.phone}>
+                      {driver.phone ? (
+                        <a href={`tel:${driver.phone}`}>
+                          <Phone className="w-4 h-4 mr-1" />
+                          Call
+                        </a>
+                      ) : (
+                        <span>
+                          <Phone className="w-4 h-4 mr-1" />
+                          No phone on file
+                        </span>
+                      )}
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-4 text-muted-foreground">
+                  <User className="w-8 h-8 mx-auto mb-2 opacity-40" />
+                  <p className="text-sm">No driver assigned to this ticket yet.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Repair Details */}
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4" />
+                <CardTitle className="text-base">Repair Details</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div>
+                <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Issue</div>
+                <div className="text-sm font-medium">{ticket.issue}</div>
+              </div>
+              <hr className="border-border" />
+              <div className="flex justify-between">
+                <div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Device</div>
+                  <div className="text-sm font-medium">{deviceName}</div>
+                </div>
+                <div className="text-right">
+                  <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Ticket</div>
+                  <div className="text-sm font-medium text-primary">{ticket.ticketNumber}</div>
+                </div>
+              </div>
+              <hr className="border-border" />
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <span className="text-muted-foreground">Updated:</span>
+                <span className="font-medium">{timeAgo(ticket.updatedAt)}</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Actions */}
+          <Card>
+            <CardContent className="pt-6 space-y-2">
+              <Button className="w-full" size="sm" asChild>
+                <a href={`/dashboard/customer/track?ticket=${ticket._id}`}>
+                  <ArrowRight className="w-4 h-4 mr-2" />
+                  View Repair Ticket Details
+                </a>
+              </Button>
+              {status === 'delivered' && (
+                <Button variant="outline" className="w-full flex items-center gap-2" size="sm" asChild>
+                  <a href="/dashboard/customer/review">
+                    <FileText className="w-4 h-4" />
+                    Leave a Review
+                  </a>
+                </Button>
+              )}
+              <Button variant="outline" className="w-full flex items-center gap-2" size="sm" asChild>
+                <a href="/dashboard/customer/chat">
+                  <MessageCircle className="w-4 h-4" />
+                  Chat with Us
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
   )
 }
 

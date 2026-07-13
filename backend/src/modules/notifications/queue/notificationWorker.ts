@@ -3,9 +3,12 @@ import { Notification } from '../schema/notification.schema';
 import { TenantNotificationConfig } from '../schema/tenantNotificationConfig.schema';
 import { decrypt } from '../../../utils/encryption';
 import { ResendEmailAdapter } from '../providers/email/resend.adapter';
+import { MailerSendAdapter } from '../providers/email/mailersend.adapter';
+import { MailtrapAdapter } from '../providers/email/mailtrap.adapter';
 import { TwilioSmsAdapter } from '../providers/sms/twilio.adapter';
 import { InAppProvider } from '../providers/inApp.provider';
 import type { NotificationJobData } from './notificationQueue';
+import type { INotificationProvider } from '../providers/provider.interface';
 import { logger } from '../../../utils/logger';
 
 const connection = {
@@ -16,8 +19,56 @@ const connection = {
 };
 
 const inAppProvider   = new InAppProvider();
-const resendAdapter   = new ResendEmailAdapter();
 const twilioAdapter   = new TwilioSmsAdapter();
+
+// Email fallback chain: tries each provider in order until one succeeds.
+// Order is configurable via EMAIL_PROVIDER_ORDER (comma-separated), default resend → mailersend → mailtrap.
+const emailAdapters: Record<string, INotificationProvider> = {
+  resend:     new ResendEmailAdapter(),
+  mailersend: new MailerSendAdapter(),
+  mailtrap:   new MailtrapAdapter(),
+};
+
+const EMAIL_PROVIDER_KEY_ENV: Record<string, string> = {
+  resend:     'RESEND_API_KEY',
+  mailersend: 'MAILERSEND_API_KEY',
+  mailtrap:   'MAILTRAP_API_KEY',
+};
+
+function getEmailProviderOrder(): string[] {
+  const configured = (process.env.EMAIL_PROVIDER_ORDER || 'resend,mailersend,mailtrap')
+    .split(',')
+    .map((p) => p.trim().toLowerCase())
+    .filter((p) => p in emailAdapters);
+  return configured.length > 0 ? configured : ['resend', 'mailersend', 'mailtrap'];
+}
+
+async function sendEmailWithFallback(
+  payload: Omit<Parameters<INotificationProvider['send']>[0], 'apiKey'>,
+  config: { providerKeys?: Record<string, string> } | null
+): Promise<{ success: boolean; providerReference?: string; error?: string; providerId?: string }> {
+  const order = getEmailProviderOrder();
+  let lastError = 'No email provider configured';
+
+  for (const providerId of order) {
+    const adapter = emailAdapters[providerId];
+
+    let apiKey = process.env[EMAIL_PROVIDER_KEY_ENV[providerId]] || '';
+    if (config?.providerKeys?.[providerId]) {
+      try { apiKey = decrypt(config.providerKeys[providerId]); } catch { /* use platform key */ }
+    }
+    if (!apiKey) continue; // skip providers with no key configured at all
+
+    const result = await adapter.send({ ...payload, apiKey });
+    if (result.success) {
+      return { ...result, providerId };
+    }
+    lastError = `${providerId}: ${result.error}`;
+    logger.warn('Email provider failed, trying next in fallback chain', { providerId, error: result.error });
+  }
+
+  return { success: false, error: lastError };
+}
 
 async function processJob(job: Job<NotificationJobData>): Promise<void> {
   const { notificationId, tenantId, channel, to, subject, body, title, recipientUserId, recipientCustomerId } = job.data;
@@ -39,12 +90,10 @@ async function processJob(job: Job<NotificationJobData>): Promise<void> {
         recipientCustomerId,
       });
     } else if (channel === 'email') {
-      // Resolve API key: tenant-specific → platform default
-      let apiKey = process.env.RESEND_API_KEY || '';
-      if (config?.providerKeys?.resend) {
-        try { apiKey = decrypt(config.providerKeys.resend); } catch { /* use platform key */ }
-      }
-      providerResult = await resendAdapter.send({ to, subject, body, title, tenantId, notificationId, apiKey });
+      providerResult = await sendEmailWithFallback(
+        { to, subject, body, title, tenantId, notificationId },
+        config
+      );
     } else if (channel === 'sms') {
       let accountSid = process.env.TWILIO_ACCOUNT_SID || '';
       let authToken  = process.env.TWILIO_AUTH_TOKEN  || '';

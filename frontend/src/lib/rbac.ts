@@ -14,6 +14,7 @@
 // ─── Role → Dashboard Route mapping ──────────────────────────────────────────
 export const ROLE_HOME: Record<string, string> = {
   super_admin: '/dashboard/super-admin',
+  admin:       '/dashboard/super-admin',
   owner:       '/dashboard/owner',
   manager:     '/dashboard/manager',
   frontdesk:   '/dashboard/frontdesk',
@@ -103,6 +104,13 @@ export const ROLE_META: Record<string, {
     bgColor: 'bg-red-50 border-red-200',
     accent: 'bg-red-600',
     description: 'Full platform access across all tenants.',
+  },
+  admin: {
+    label: 'Admin',
+    color: 'text-rose-700',
+    bgColor: 'bg-rose-50 border-rose-200',
+    accent: 'bg-rose-600',
+    description: 'Scoped platform admin — access limited to sections granted by a super admin.',
   },
   owner: {
     label: 'Shop Owner',

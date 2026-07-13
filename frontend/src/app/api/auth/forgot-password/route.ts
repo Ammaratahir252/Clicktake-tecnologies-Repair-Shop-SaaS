@@ -5,6 +5,7 @@ import connectDB from '../../../../lib/db';
 import { sendResponse } from '../../../../utils/apiResponse';
 import { createAuditLog } from '../../../../services/auditLog.service';
 import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
+import { sendEmail, emailPasswordReset } from '../../../../lib/notifications';
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,31 +14,39 @@ export async function POST(req: NextRequest) {
 
     const user = await User.findOne({ email });
     if (!user) {
-      return sendResponse(false, "User not found", null, 404);
+      // Return success regardless to avoid email enumeration
+      return sendResponse(true, "If that email exists, a reset link has been sent.", null, 200);
     }
 
-    // 1. Create a random reset token
     const resetToken = crypto.randomBytes(32).toString('hex');
-
-    // 2. Hash the token before saving to DB (Security Best Practice)
     const hashedToken = crypto.createHash('sha256').update(resetToken).digest('hex');
 
     user.resetPasswordToken = hashedToken;
-    user.resetPasswordExpiry = Date.now() + 3600000; // 1 hour expiry
+    user.resetPasswordExpiry = Date.now() + 3600000; // 1 hour
     await user.save();
 
-    // 3. Log the request
     createAuditLog({
-      tenantId: user.tenantId ? user.tenantId.toString() : 'unknown',
+      tenantId: user.tenantId ? user.tenantId.toString() : undefined,
       userId: user._id.toString(),
       action: AUDIT_ACTIONS.AUTH_PASSWORD_RESET_REQUEST,
       entity: 'user',
       entityId: user._id.toString()
     });
 
-    // In a real app, send the raw 'resetToken' via email. 
-    // For now, returning in response for testing.
-    return sendResponse(true, "Reset link generated", { resetToken });
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const resetLink = `${appUrl}/reset-password?token=${resetToken}`;
+
+    // Send reset email (fire-and-forget — never block the response)
+    sendEmail(
+      email,
+      'Reset your password',
+      emailPasswordReset(user.name, resetLink)
+    );
+
+    // Also return the token directly — this app has no verified email domain in most
+    // environments, so the forgot-password page is designed to show the reset link
+    // itself rather than depend solely on mail delivery (see the "Testing Mode" UI there).
+    return sendResponse(true, "If that email exists, a reset link has been sent.", { resetToken }, 200);
 
   } catch (error: any) {
     return sendResponse(false, error.message, null, 500);

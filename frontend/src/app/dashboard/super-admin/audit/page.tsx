@@ -16,17 +16,19 @@
 
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import {
   FileText, Search, Loader2, ShieldAlert,
   AlertTriangle, XCircle, RefreshCw,
-  ChevronDown, Globe, Filter,
+  ChevronDown, Globe, Filter, User as UserIcon,
 } from "lucide-react";
 
 interface AuditLog {
   _id: string;
   action: string;
   userId: string;
+  userName?: string;
   tenantId?: string;
   tenantName?: string;
   entity: string;
@@ -42,6 +44,7 @@ const ACTION_FILTERS = [
   "AUTH_LOGOUT",
   "AUTH_REGISTER",
   "AUTH_PASSWORD_RESET_REQUEST",
+  "PAGE_VIEW",
   "IMPERSONATE_START",
   "IMPERSONATE_END",
   "TICKET_CREATE",
@@ -70,13 +73,17 @@ const getActionColor = (action: string) => {
 
 export default function SuperAdminAuditPage() {
   return (
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {(user) => <AuditContent superAdmin={user} />}
     </DashboardShell>
   );
 }
 
 function AuditContent({ superAdmin }: { superAdmin: any }) {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const userIdFilter = searchParams.get("userId") || "";
+
   const [logs, setLogs]           = useState<AuditLog[]>([]);
   const [loading, setLoading]     = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -101,6 +108,7 @@ function AuditContent({ superAdmin }: { superAdmin: any }) {
       let url = `/api/admin/audit-logs?limit=${LIMIT}&page=${currentPage}`;
       if (actionFilter !== "All") url += `&action=${actionFilter}`;
       if (search.trim()) url += `&search=${encodeURIComponent(search.trim())}`;
+      if (userIdFilter) url += `&userId=${userIdFilter}`;
 
       const res = await api.get(url);
       const data: AuditLog[] = res.data?.data?.logs || res.data?.data || [];
@@ -118,13 +126,13 @@ function AuditContent({ superAdmin }: { superAdmin: any }) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [actionFilter, search, page]);
+  }, [actionFilter, search, page, userIdFilter]);
 
   // Refetch on filter change
   useEffect(() => {
     fetchLogs(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actionFilter]);
+  }, [actionFilter, userIdFilter]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -156,6 +164,21 @@ function AuditContent({ superAdmin }: { superAdmin: any }) {
           Refresh
         </button>
       </div>
+
+      {userIdFilter && (
+        <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl px-4 py-2.5 text-sm">
+          <UserIcon size={13} className="text-primary" />
+          <span className="font-semibold text-primary">
+            Showing activity for user {logs[0]?.userName ? logs[0].userName : userIdFilter}
+          </span>
+          <button
+            onClick={() => router.push("/dashboard/super-admin/audit")}
+            className="ml-auto text-primary/70 hover:text-primary font-bold text-xs"
+          >
+            Clear filter
+          </button>
+        </div>
+      )}
 
       {/* ── Error ──────────────────────────────────────────────────── */}
       {error && (
@@ -235,7 +258,7 @@ function AuditContent({ superAdmin }: { superAdmin: any }) {
                   <tr className="bg-slate-50 border-b border-slate-100 text-left text-xs font-bold text-slate-400 uppercase tracking-widest">
                     <th className="px-6 py-4">Action</th>
                     <th className="px-6 py-4">Tenant</th>
-                    <th className="px-6 py-4">User ID</th>
+                    <th className="px-6 py-4">User</th>
                     <th className="px-6 py-4">Entity</th>
                     <th className="px-6 py-4">IP Address</th>
                     <th className="px-6 py-4">Date & Time</th>
@@ -261,7 +284,15 @@ function AuditContent({ superAdmin }: { superAdmin: any }) {
                           <span className="text-xs text-slate-300 font-medium">Platform</span>
                         )}
                       </td>
-                      <td className="px-6 py-3.5 font-mono text-xs text-slate-500">{log.userId}</td>
+                      <td className="px-6 py-3.5">
+                        {log.userName ? (
+                          <span className="text-slate-700 font-semibold">
+                            {log.userName} <span className="font-mono text-[10px] text-slate-400">({log.userId.slice(-8)})</span>
+                          </span>
+                        ) : (
+                          <span className="font-mono text-xs text-slate-500">{log.userId}</span>
+                        )}
+                      </td>
                       <td className="px-6 py-3.5 text-slate-600">{log.entity}</td>
                       <td className="px-6 py-3.5 font-mono text-xs text-slate-500">{log.ipAddress || "N/A"}</td>
                       <td className="px-6 py-3.5 text-slate-400 text-xs whitespace-nowrap">

@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-dotenv.config();
+dotenv.config({ path: ['.env.local', '.env'] });
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
 import { connectMongoDB, disconnectMongoDB } from './config/mongodb';

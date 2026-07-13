@@ -10,6 +10,7 @@ import {
   Phone, Check, X, AlertCircle, Star, Zap, TrendingUp
 } from "lucide-react";
 import Link from "next/link";
+import { useBranding } from "@/lib/useBranding";
 
 const BG     = "#fdf6ee";
 const BG2    = "#fef9f3";
@@ -43,6 +44,8 @@ const ROLE_BGLIGHT: Record<string, string> = {
 
 export default function RegisterPage() {
   const router = useRouter();
+  const branding = useBranding();
+  const companyName = branding.companyName || "Dibnow";
   const [step,            setStep]            = useState(1);
   const [selectedRole,    setSelectedRole]    = useState<string>("");
   const [isSuccess,       setIsSuccess]       = useState(false);
@@ -220,11 +223,13 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div style={{ position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:14 }}>
-          <div style={{ width:52,height:52,background:"rgba(255,255,255,0.14)",borderRadius:16,border:"1px solid rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform:"rotate(-4deg)" }}>
-            <Wrench color="#fff" size={22}/>
+          <div style={{ width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.14)",borderRadius:16,border:"1px solid rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
+            {branding.logoUrl
+              ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+              : <Wrench color="#fff" size={22}/>}
           </div>
           <div>
-            <p style={{ color:"#fff",fontWeight:700,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>Dibnow</p>
+            <p style={{ color:"#fff",fontWeight:700,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>{companyName}</p>
             <p style={{ color:"rgba(255,255,255,0.4)",fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase" }}>RepairSaaS</p>
           </div>
         </div>
@@ -303,7 +308,7 @@ export default function RegisterPage() {
 
         {/* Footer */}
         <div style={{ position:"relative",zIndex:1 }}>
-          <p style={{ color:"rgba(255,255,255,0.18)",fontSize:12 }}>© 2026 DibnowRepairSaaS</p>
+          <p style={{ color:"rgba(255,255,255,0.18)",fontSize:12 }}>{branding.footerText || "© 2026 DibnowRepairSaaS"}</p>
         </div>
       </div>
 
@@ -313,10 +318,12 @@ export default function RegisterPage() {
 
           {/* Mobile logo */}
           <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:36 }} className="lg:hidden">
-            <div style={{ width:40,height:40,background:`linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center" }}>
-              <Wrench color="#fff" size={18}/>
+            <div style={{ width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
+              {branding.logoUrl
+                ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+                : <Wrench color="#fff" size={18}/>}
             </div>
-            <p style={{ color:TEXT,fontWeight:700,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>DibnowRepairSaaS</p>
+            <p style={{ color:TEXT,fontWeight:700,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>{branding.companyName || "DibnowRepairSaaS"}</p>
           </div>
 
           <div style={{ width:"100%",maxWidth:500 }}>
@@ -428,9 +435,9 @@ export default function RegisterPage() {
                         <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Shop Name</label>
                         <div style={{ position:"relative" }}>
                           <Store size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
-                          <input name="shopName" value={formData.shopName} onChange={handleChange} onBlur={handleBlur} placeholder="e.g. Abid Repair Shop" style={inputSt("shopName")}
+                          <input name="shopName" value={formData.shopName} onChange={handleChange} placeholder="e.g. Abid Repair Shop" style={inputSt("shopName")}
                             onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                            onBlur2={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}/>
+                            onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}/>
                         </div>
                         {errors.shopName && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.shopName}</p>}
                       </div>
@@ -468,9 +475,9 @@ export default function RegisterPage() {
                       <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Full Name</label>
                       <div style={{ position:"relative" }}>
                         <User size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
-                        <input name="name" value={formData.name} onChange={handleChange} onBlur={handleBlur} placeholder="Your full name" style={inputSt("name")}
+                        <input name="name" value={formData.name} onChange={handleChange} placeholder="Your full name" style={inputSt("name")}
                           onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                          onBlur={e=>{ e.target.style.borderColor=errors["name"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                          onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["name"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
                       </div>
                       {errors.name && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.name}</p>}
                     </div>
@@ -480,9 +487,9 @@ export default function RegisterPage() {
                     <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Email Address</label>
                     <div style={{ position:"relative" }}>
                       <Mail size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
-                      <input name="email" type="email" value={formData.email} onChange={handleChange} onBlur={handleBlur} placeholder="your@email.com" style={inputSt("email")}
+                      <input name="email" type="email" value={formData.email} onChange={handleChange} placeholder="your@email.com" style={inputSt("email")}
                         onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                        onBlur={e=>{ e.target.style.borderColor=errors["email"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                        onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["email"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
                     </div>
                     {errors.email && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.email}</p>}
                   </div>
@@ -491,9 +498,9 @@ export default function RegisterPage() {
                     <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Password</label>
                     <div style={{ position:"relative" }}>
                       <Lock size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
-                      <input name="password" type={showPassword?"text":"password"} value={formData.password} onChange={handleChange} onBlur={handleBlur} placeholder="Min 8 chars" style={{ ...inputSt("password"),paddingRight:46 }}
+                      <input name="password" type={showPassword?"text":"password"} value={formData.password} onChange={handleChange} placeholder="Min 8 chars" style={{ ...inputSt("password"),paddingRight:46 }}
                         onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                        onBlur={e=>{ e.target.style.borderColor=errors["password"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                        onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["password"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
                       <button type="button" onClick={() => setShowPassword(v=>!v)} style={{ position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:MUTED }}>
                         {showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}
                       </button>
@@ -519,9 +526,9 @@ export default function RegisterPage() {
                       <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Shop ID</label>
                       <div style={{ position:"relative" }}>
                         <Store size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
-                        <input name="tenantId" value={formData.tenantId} onChange={handleChange} onBlur={handleBlur} placeholder="Paste your Shop ID" style={{ ...inputSt("tenantId"),fontFamily:"monospace",fontSize:12 }}
+                        <input name="tenantId" value={formData.tenantId} onChange={handleChange} placeholder="Paste your Shop ID" style={{ ...inputSt("tenantId"),fontFamily:"monospace",fontSize:12 }}
                           onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                          onBlur={e=>{ e.target.style.borderColor=errors["tenantId"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                          onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["tenantId"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
                       </div>
                       {errors.tenantId ? <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.tenantId}</p>
                         : <p style={{ fontSize:11,color:MUTED,marginTop:5,marginLeft:4 }}>Ask your shop owner for the Shop ID</p>}
@@ -533,9 +540,9 @@ export default function RegisterPage() {
                       <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>Phone Number</label>
                       <div style={{ position:"relative" }}>
                         <Phone size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
-                        <input name="phone" value={formData.phone} onChange={handleChange} onBlur={handleBlur} placeholder="+92 300 0000000" style={inputSt("phone")}
+                        <input name="phone" value={formData.phone} onChange={handleChange} placeholder="+92 300 0000000" style={inputSt("phone")}
                           onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                          onBlur={e=>{ e.target.style.borderColor=errors["phone"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                          onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["phone"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
                       </div>
                       {errors.phone && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.phone}</p>}
                     </div>

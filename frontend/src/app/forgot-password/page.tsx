@@ -4,19 +4,21 @@ import { useState } from "react";
 import axios from "axios";
 import Link from "next/link";
 import {
-  Mail, ArrowLeft, Loader2, KeyRound, Copy, CheckCheck,
-  ArrowRight, Sparkles, ShieldAlert, Wrench, Clock, CheckCircle, ShieldCheck
+  Mail, ArrowLeft, Loader2, KeyRound,
+  ArrowRight, Sparkles, ShieldAlert, Wrench, Clock, CheckCircle
 } from "lucide-react";
+import { useBranding } from "@/lib/useBranding";
 
 type Stage = "form" | "success";
 
 export default function ForgotPasswordPage() {
+  const branding = useBranding();
+  const companyName = branding.companyName || "Dibnow";
   const [email,      setEmail]      = useState("");
   const [isLoading,  setIsLoading]  = useState(false);
   const [error,      setError]      = useState("");
   const [stage,      setStage]      = useState<Stage>("form");
   const [resetToken, setResetToken] = useState("");
-  const [copied,     setCopied]     = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,18 +36,8 @@ export default function ForgotPasswordPage() {
     }
   };
 
-  const copyToken = async () => {
-    try {
-      await navigator.clipboard.writeText(resetToken);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
-    } catch {}
-  };
-
   /* ── Palette (exact match to login page) ── */
   const BG     = "#fdf6ee";
-  const BG2    = "#fef9f3";
-  const BG3    = "#f5ede0";
   const ACCENT = "#1d4ed8";
   const ACCENT2= "#1e3a8a";
   const TEXT   = "#1c1917";
@@ -53,8 +45,8 @@ export default function ForgotPasswordPage() {
   const BORDER = "#e7d9c8";
 
   const features = [
-    { icon: Clock,        text: "Token expires in 1 hour",        color: "#93c5fd", bg: "rgba(147,197,253,0.12)" },
-    { icon: ShieldAlert,  text: "One token per email request",     color: "#fcd34d", bg: "rgba(252,211,77,0.12)"  },
+    { icon: Clock,        text: "Reset link expires in 1 hour",   color: "#93c5fd", bg: "rgba(147,197,253,0.12)" },
+    { icon: ShieldAlert,  text: "One reset link per request",      color: "#fcd34d", bg: "rgba(252,211,77,0.12)"  },
     { icon: CheckCircle,  text: "Safe & encrypted reset process",  color: "#86efac", bg: "rgba(134,239,172,0.12)" },
   ];
 
@@ -103,17 +95,19 @@ export default function ForgotPasswordPage() {
           <rect width="100%" height="100%" fill="url(#hatch)"/>
         </svg>
 
-        {/* Logo — exact copy from login */}
+        {/* Logo */}
         <div style={{ position:"relative",zIndex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ width:52,height:52,background:"rgba(255,255,255,0.15)",borderRadius:16,
+            <div style={{ width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.15)",borderRadius:16,
               border:"1px solid rgba(255,255,255,0.2)",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform:"rotate(-4deg)" }}>
-              <Wrench color="#fff" size={22}/>
+              display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",
+              boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
+              {branding.logoUrl
+                ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+                : <Wrench color="#fff" size={22}/>}
             </div>
             <div>
-              <p style={{ color:"#fff",fontWeight:800,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>Dibnow</p>
+              <p style={{ color:"#fff",fontWeight:800,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>{companyName}</p>
               <p style={{ color:"rgba(255,255,255,0.5)",fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase" }}>RepairSaaS</p>
             </div>
           </div>
@@ -128,16 +122,16 @@ export default function ForgotPasswordPage() {
                 password?
               </em></>
             ) : (
-              <>Token sent<br/>
+              <>Reset link<br/>
               <em style={{ fontStyle:"italic",background:"linear-gradient(90deg,#86efac,#93c5fd)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent" }}>
-                successfully.
+                is ready.
               </em></>
             )}
           </h1>
           <p style={{ color:"rgba(255,255,255,0.55)",fontSize:16,lineHeight:1.8,maxWidth:340,marginBottom:44 }}>
             {stage === "form"
-              ? "No worries — enter your email and we'll generate a secure reset token for you right away."
-              : "Your reset token is ready. Copy it and use it on the next screen to set a new password."}
+              ? "No worries — enter your email and we'll send you a secure reset link right away."
+              : "Check your inbox, or continue right now using the button on this screen."}
           </p>
 
           {/* Feature pills — same style as login */}
@@ -157,7 +151,7 @@ export default function ForgotPasswordPage() {
 
         {/* Footer */}
         <div style={{ position:"relative",zIndex:1 }}>
-          <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>© 2026 DibnowRepairSaaS · All rights reserved</p>
+          <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>{branding.footerText || "© 2026 DibnowRepairSaaS · All rights reserved"}</p>
         </div>
       </div>
 
@@ -166,10 +160,12 @@ export default function ForgotPasswordPage() {
 
         {/* Mobile logo */}
         <div style={{ display:"none",alignItems:"center",gap:12,marginBottom:32 }} className="lg:hidden mobile-logo">
-          <div style={{ width:40,height:40,background:`linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <Wrench color="#fff" size={18}/>
+          <div style={{ width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
+            {branding.logoUrl
+              ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+              : <Wrench color="#fff" size={18}/>}
           </div>
-          <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>DibnowRepairSaaS</p>
+          <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>{branding.companyName || "DibnowRepairSaaS"}</p>
         </div>
 
         <div style={{ width:"100%",maxWidth:440 }}>
@@ -190,16 +186,16 @@ export default function ForgotPasswordPage() {
               borderRadius:999,padding:"7px 16px",marginBottom:18 }}>
               <KeyRound size={13} color={stage==="success"?"#065f46":"#d97706"}/>
               <span style={{ color:stage==="success"?"#065f46":"#d97706",fontSize:11,fontWeight:800,letterSpacing:"0.08em" }}>
-                {stage==="success" ? "TOKEN READY" : "PASSWORD RESET"}
+                {stage==="success" ? "LINK READY" : "PASSWORD RESET"}
               </span>
             </div>
             <h2 style={{ color:TEXT,fontWeight:700,fontSize:"clamp(30px,4vw,44px)",lineHeight:1.1,letterSpacing:"-1.2px",marginBottom:10,fontFamily:"'DM Serif Display',Georgia,serif" }}>
-              {stage==="form" ? "Forgot password?" : "Check your token"}
+              {stage==="form" ? "Forgot password?" : "Check your inbox"}
             </h2>
             <p style={{ color:MUTED,fontSize:15,fontWeight:500,lineHeight:1.6 }}>
               {stage==="form"
-                ? "Enter your email address and we'll send you a reset token."
-                : "Copy this token and use it to reset your password."}
+                ? "Enter your email address and we'll send you a reset link."
+                : "We've emailed you a reset link — or continue right now below."}
             </p>
           </div>
 
@@ -251,8 +247,8 @@ export default function ForgotPasswordPage() {
                     onMouseLeave={e=>{ (e.currentTarget as HTMLButtonElement).style.transform="translateY(0)"; (e.currentTarget as HTMLButtonElement).style.boxShadow=isLoading?"none":`0 10px 32px rgba(29,78,216,0.28)` }}
                   >
                     {isLoading
-                      ? <><Loader2 size={18} style={{ animation:"spin 1s linear infinite" }}/><span>Generating Token…</span></>
-                      : <><KeyRound size={17}/><span>Send Reset Token</span><ArrowRight size={15} style={{ opacity:0.7 }}/></>
+                      ? <><Loader2 size={18} style={{ animation:"spin 1s linear infinite" }}/><span>Sending Link…</span></>
+                      : <><KeyRound size={17}/><span>Send Reset Link</span><ArrowRight size={15} style={{ opacity:0.7 }}/></>
                     }
                   </button>
                 </div>
@@ -279,32 +275,21 @@ export default function ForgotPasswordPage() {
           {stage === "success" && (
             <div className="fade-up" style={{ animationDelay:"0.1s",display:"flex",flexDirection:"column",gap:16 }}>
 
-              {/* Token box */}
-              <div style={{ background:"#fff",border:`1.5px solid ${BORDER}`,borderRadius:18,padding:20,boxShadow:"0 4px 20px rgba(28,25,23,0.06)" }}>
-                <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:14 }}>
-                  <div style={{ width:30,height:30,borderRadius:8,background:"#fef3c7",display:"flex",alignItems:"center",justifyContent:"center" }}>
-                    <ShieldAlert size={14} color="#d97706"/>
-                  </div>
-                  <p style={{ fontSize:11,fontWeight:800,color:"#d97706",textTransform:"uppercase",letterSpacing:"0.08em" }}>Your Reset Token</p>
-                  <span style={{ marginLeft:"auto",fontSize:11,fontWeight:600,color:MUTED,background:BG3,padding:"3px 9px",borderRadius:99,border:`1px solid ${BORDER}` }}>Testing Mode</span>
+              {/* Confirmation */}
+              <div style={{ background:"#fff",border:`1.5px solid ${BORDER}`,borderRadius:18,padding:28,textAlign:"center",boxShadow:"0 4px 20px rgba(28,25,23,0.06)" }}>
+                <div style={{ width:56,height:56,borderRadius:"50%",background:"#d1fae5",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px" }}>
+                  <Mail size={24} color="#065f46"/>
                 </div>
-                <div style={{ display:"flex",alignItems:"center",gap:10,background:BG2,borderRadius:12,padding:"12px 14px",border:`1px solid ${BORDER}` }}>
-                  <code style={{ flex:1,fontSize:11,fontFamily:"'DM Mono',Courier,monospace",color:TEXT,wordBreak:"break-all",lineHeight:1.6,userSelect:"all" }}>
-                    {resetToken}
-                  </code>
-                  <button onClick={copyToken}
-                    style={{ flexShrink:0,padding:"8px 10px",borderRadius:9,background:copied?"#d1fae5":"#dbeafe",border:copied?"1px solid rgba(6,95,70,0.2)":"1px solid rgba(29,78,216,0.2)",cursor:"pointer",transition:"all 0.2s" }}>
-                    {copied ? <CheckCheck size={16} color="#065f46"/> : <Copy size={16} color={ACCENT}/>}
-                  </button>
-                </div>
+                <p style={{ fontWeight:800,color:TEXT,fontSize:16,marginBottom:8,fontFamily:"'DM Serif Display',Georgia,serif" }}>Check your email</p>
+                <p style={{ fontSize:13,color:MUTED,lineHeight:1.6 }}>If an account exists for that address, a reset link is on its way. You can also continue right now below.</p>
               </div>
 
               {/* Notice */}
               <div style={{ background:"#fef3c7",border:"1px solid rgba(245,158,11,0.25)",borderRadius:14,padding:"14px 16px",display:"flex",gap:10,alignItems:"flex-start" }}>
                 <Sparkles size={14} color="#d97706" style={{ flexShrink:0,marginTop:1 }}/>
                 <div>
-                  <p style={{ fontSize:12,fontWeight:800,color:"#92400e",marginBottom:4 }}>⏰ Token expires in 1 hour</p>
-                  <p style={{ fontSize:12,color:"#a16207",lineHeight:1.55 }}>Email delivery will replace this once a mail provider is configured.</p>
+                  <p style={{ fontSize:12,fontWeight:800,color:"#92400e",marginBottom:4 }}>⏰ Link expires in 1 hour</p>
+                  <p style={{ fontSize:12,color:"#a16207",lineHeight:1.55 }}>Didn't get the email? Use the button below to continue immediately.</p>
                 </div>
               </div>
 

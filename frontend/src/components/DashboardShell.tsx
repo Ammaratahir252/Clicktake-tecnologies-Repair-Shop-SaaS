@@ -6,12 +6,14 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { getRoleHome, ROLE_META, can } from "@/lib/rbac";
 import api from "@/lib/api";
+import { useBranding } from "@/lib/useBranding";
 import {
   Wrench, LogOut, Loader2, ChevronDown, ChevronRight,
   LayoutDashboard, Ticket, Users, Package, BarChart3,
   Settings, FileText, MapPin, Truck, Bot, Clock,
   Camera, ShieldCheck, Globe, Menu, X, Bell, Moon, Sun, Monitor,
-  Home, Search, User, Store, AlertTriangle, Check
+  Home, Search, User, Store, AlertTriangle, Check,
+  CreditCard, UserCheck,
 } from "lucide-react";
 
 export interface DashboardUser {
@@ -21,6 +23,7 @@ export interface DashboardUser {
   email: string;
   role: string;
   tenantId: string;
+  permissions?: string[];
 }
 
 interface NavItem {
@@ -29,6 +32,10 @@ interface NavItem {
   icon: React.ElementType;
   badge?: string;
   children?: NavItem[];
+  /** Matches an ADMIN_SECTIONS key — used to filter the nav for a scoped `admin` role. Omit for items every admin-tier user always sees (e.g. Overview). */
+  section?: string;
+  /** Matches a platform Feature Flag key — hides this item for tenant-side roles when the flag is off. */
+  flagKey?: string;
 }
 
 interface DashboardShellProps {
@@ -40,61 +47,67 @@ interface DashboardShellProps {
 function getNavItems(role: string): NavItem[] {
   const base = "/dashboard";
 
+  const superAdminNav: NavItem[] = [
+      { label: "Overview",      href: `${base}/super-admin`,                icon: LayoutDashboard },
+      { label: "Tenants",       href: `${base}/super-admin/tenants`,        icon: Store,       section: "tenants" },
+      { label: "All Tickets",   href: `${base}/super-admin/tickets`,        icon: Ticket,      section: "tickets" },
+      { label: "All Users",     href: `${base}/super-admin/users`,          icon: Users,       section: "users" },
+      { label: "Customers",     href: `${base}/super-admin/customers`,      icon: User,        section: "customers" },
+      { label: "Subscriptions", href: `${base}/super-admin/subscriptions`,  icon: CreditCard,  section: "subscriptions" },
+      { label: "Leads",         href: `${base}/super-admin/leads`,          icon: MapPin, badge: "Live", section: "leads" },
+      { label: "Analytics",     href: `${base}/super-admin/analytics`,      icon: BarChart3,   section: "analytics" },
+      { label: "Notifications", href: `${base}/super-admin/notifications`,  icon: Bell,       section: "notifications" },
+      { label: "Audit Logs",    href: `${base}/super-admin/audit`,          icon: FileText,    section: "audit" },
+      { label: "Impersonate",   href: `${base}/super-admin/impersonate`,    icon: UserCheck,   section: "impersonate" },
+      { label: "Settings",      href: `${base}/super-admin/settings`,       icon: Settings,    section: "settings" },
+  ];
+
   const maps: Record<string, NavItem[]> = {
-    super_admin: [
-      { label: "Overview",    href: `${base}/super-admin`,            icon: LayoutDashboard },
-      { label: "Tenants",     href: `${base}/super-admin/tenants`,    icon: Store },
-      { label: "All Tickets", href: `${base}/super-admin/tickets`,    icon: Ticket },
-      { label: "All Users",   href: `${base}/super-admin/users`,      icon: Users },
-      { label: "Leads",       href: `${base}/super-admin/leads`,      icon: MapPin, badge: "Live" },
-      { label: "Analytics",   href: `${base}/super-admin/analytics`,  icon: BarChart3 },
-      { label: "Audit Logs",  href: `${base}/super-admin/audit`,      icon: FileText },
-      { label: "Impersonate", href: `${base}/super-admin/impersonate`,icon: ShieldCheck },
-      { label: "Settings",    href: `${base}/super-admin/settings`,   icon: Settings },
-    ],
+    super_admin: superAdminNav,
+    admin: superAdminNav,
     owner: [
       { label: "Overview",    href: `${base}/owner`,                  icon: LayoutDashboard },
-      { label: "Tickets",     href: `${base}/owner/tickets`,          icon: Ticket },
+      { label: "Tickets",     href: `${base}/owner/tickets`,          icon: Ticket,     flagKey: "enableTickets" },
       { label: "Team",        href: `${base}/owner/users`,            icon: Users },
-      { label: "Inventory",   href: `${base}/owner/inventory`,        icon: Package },
+      { label: "Inventory",   href: `${base}/owner/inventory`,        icon: Package,    flagKey: "enableInventory" },
       { label: "Leads",       href: `${base}/owner/leads`,            icon: MapPin, badge: "Live" },
-      { label: "Reports",     href: `${base}/owner/reports`,          icon: BarChart3 },
+      { label: "Reports",     href: `${base}/owner/reports`,          icon: BarChart3,  flagKey: "enableReports" },
       { label: "Audit Logs",  href: `${base}/owner/audit`,            icon: FileText },
       { label: "Settings",    href: `${base}/owner/settings`,         icon: Settings },
     ],
     manager: [
       { label: "Overview",    href: `${base}/manager`,                icon: LayoutDashboard },
-      { label: "Tickets",     href: `${base}/manager/tickets`,        icon: Ticket },
+      { label: "Tickets",     href: `${base}/manager/tickets`,        icon: Ticket,     flagKey: "enableTickets" },
       { label: "Team",        href: `${base}/manager/team`,           icon: Users },
-      { label: "Inventory",   href: `${base}/manager/inventory`,      icon: Package },
+      { label: "Inventory",   href: `${base}/manager/inventory`,      icon: Package,    flagKey: "enableInventory" },
       { label: "Leads",       href: `${base}/manager/leads`,          icon: MapPin, badge: "Live" },
-      { label: "Reports",     href: `${base}/manager/reports`,        icon: BarChart3 },
+      { label: "Reports",     href: `${base}/manager/reports`,        icon: BarChart3,  flagKey: "enableReports" },
     ],
     frontdesk: [
       { label: "Overview",    href: `${base}/frontdesk`,              icon: LayoutDashboard },
-      { label: "Tickets",     href: `${base}/frontdesk/tickets`,      icon: Ticket },
+      { label: "Tickets",     href: `${base}/frontdesk/tickets`,      icon: Ticket,     flagKey: "enableTickets" },
       { label: "Customers",   href: `${base}/frontdesk/customers`,    icon: Users },
-      { label: "Inventory",   href: `${base}/frontdesk/inventory`,    icon: Package },
+      { label: "Inventory",   href: `${base}/frontdesk/inventory`,    icon: Package,    flagKey: "enableInventory" },
       { label: "Payments",    href: `${base}/frontdesk/payments`,     icon: BarChart3 },
       { label: "Delivery",    href: `${base}/frontdesk/delivery`,     icon: Truck },
       { label: "Print",       href: `${base}/frontdesk/print`,        icon: FileText },
     ],
     technician: [
       { label: "Overview",      href: `${base}/technician`,           icon: LayoutDashboard },
-      { label: "My Tickets",    href: `${base}/technician/tickets`,   icon: Ticket },
-      { label: "AI Diagnostic", href: `${base}/technician/ai`,        icon: Bot, badge: "AI" },
-      { label: "Inventory",     href: `${base}/technician/inventory`, icon: Package },
+      { label: "My Tickets",    href: `${base}/technician/tickets`,   icon: Ticket,     flagKey: "enableTickets" },
+      { label: "AI Diagnostic", href: `${base}/technician/ai`,        icon: Bot, badge: "AI", flagKey: "enableAI" },
+      { label: "Inventory",     href: `${base}/technician/inventory`, icon: Package,    flagKey: "enableInventory" },
       { label: "Time Logs",     href: `${base}/technician/time`,      icon: Clock },
       { label: "Photos",        href: `${base}/technician/photos`,    icon: Camera },
     ],
     customer: [
-      { label: "My Portal",    href: `${base}/customer`,              icon: Home },
-      { label: "Track Repair", href: `${base}/customer/track`,        icon: Wrench },
-      { label: "Estimates",    href: `${base}/customer/estimates`,    icon: FileText },
-      { label: "Invoices",     href: `${base}/customer/invoices`,     icon: BarChart3 },
-      { label: "Delivery",     href: `${base}/customer/delivery`,     icon: Truck },
-      { label: "History",      href: `${base}/customer/history`,      icon: Clock },
-      { label: "Review",       href: `${base}/customer/review`,       icon: ShieldCheck },
+      { label: "My Portal",    href: `${base}/customer`,              icon: Home,       flagKey: "enableCustomerPortal" },
+      { label: "Track Repair", href: `${base}/customer/track`,        icon: Wrench,     flagKey: "enableCustomerPortal" },
+      { label: "Estimates",    href: `${base}/customer/estimates`,    icon: FileText,   flagKey: "enableCustomerPortal" },
+      { label: "Invoices",     href: `${base}/customer/invoices`,     icon: BarChart3,  flagKey: "enableCustomerPortal" },
+      { label: "Delivery",     href: `${base}/customer/delivery`,     icon: Truck,      flagKey: "enableCustomerPortal" },
+      { label: "History",      href: `${base}/customer/history`,      icon: Clock,      flagKey: "enableCustomerPortal" },
+      { label: "Review",       href: `${base}/customer/review`,       icon: ShieldCheck, flagKey: "enableCustomerPortal" },
     ],
     driver: [
       { label: "Overview",  href: `${base}/driver`,          icon: LayoutDashboard },
@@ -111,6 +124,7 @@ function getNavItems(role: string): NavItem[] {
 // ── Role accent colors ─────────────────────────────────────────────────────────
 const ROLE_ACCENT: Record<string, string> = {
   super_admin: "#ef4444",
+  admin:       "#e11d48",
   owner:       "#3b82f6",
   manager:     "#8b5cf6",
   frontdesk:   "#10b981",
@@ -126,6 +140,21 @@ const THEME_OPTIONS = [
   { value: "system",label: "Auto",   icon: Monitor },
 ] as const;
 
+// ── Impersonation cookie helper (client-side) ─────────────────────────────────
+interface ImpersonationCtx {
+  tenantId:        string;
+  tenantName:      string;
+  tenantSubdomain: string;
+  superAdminId:    string;
+}
+
+function getImpersonationCtx(): ImpersonationCtx | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)imper=([^;]*)/);
+  if (!match) return null;
+  try { return JSON.parse(decodeURIComponent(match[1])); } catch { return null; }
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 interface NotifItem {
   _id: string;
@@ -137,6 +166,7 @@ interface NotifItem {
 }
 
 export default function DashboardShell({ requiredRole, children }: DashboardShellProps) {
+  const branding = useBranding();
   const router   = useRouter();
   const pathname = usePathname();
   const { theme, setTheme, resolvedTheme } = useTheme();
@@ -149,12 +179,25 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
   const [mounted, setMounted]         = useState(false);
   const [notifications, setNotifications] = useState<NotifItem[]>([]);
   const [unreadCount, setUnreadCount]     = useState(0);
+  const [impersonation, setImpersonation] = useState<ImpersonationCtx | null>(null);
+  // Customer portal tab visibility — owner-controlled (shop-customization)
+  const [customerPortalPrefs, setCustomerPortalPrefs] = useState({
+    showReviews: true,
+    showDelivery: true,
+    showEstimates: true,
+  });
+  // Platform-wide feature flags — hide nav items for disabled modules on tenant-side roles
+  const [featureFlags, setFeatureFlags] = useState<Record<string, boolean> | null>(null);
   const notifRef = useRef<HTMLDivElement>(null);
   const themeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setMounted(true); }, []);
 
-  // Auth guard
+  useEffect(() => {
+    fetch("/api/public/feature-flags").then((r) => r.json()).then((res) => setFeatureFlags(res?.data ?? null)).catch(() => {});
+  }, []);
+
+  // Auth guard + impersonation detection
   useEffect(() => {
     const raw = localStorage.getItem("user");
     if (!raw) { router.replace("/login"); return; }
@@ -162,7 +205,13 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
       const parsed: DashboardUser = JSON.parse(raw);
       const allowed = Array.isArray(requiredRole) ? requiredRole : [requiredRole];
       const role = (parsed.role ?? "").trim().toLowerCase();
-      if (!allowed.map(r => r.toLowerCase()).includes(role)) {
+
+      // Read impersonation cookie — super_admin can access any page while impersonating
+      const imperCtx = getImpersonationCtx();
+      setImpersonation(imperCtx);
+
+      const isImpersonating = role === 'super_admin' && !!imperCtx;
+      if (!allowed.map(r => r.toLowerCase()).includes(role) && !isImpersonating) {
         router.replace(getRoleHome(role));
         return;
       }
@@ -189,6 +238,29 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     const interval = setInterval(fetchNotifs, 30_000);
     return () => clearInterval(interval);
   }, [user]);
+
+  // Fire-and-forget page view tracking for the per-user activity timeline
+  useEffect(() => {
+    if (!user || !pathname) return;
+    api.post("/api/activity/pageview", { path: pathname }).catch(() => {});
+  }, [user, pathname]);
+
+  // Fetch owner-controlled customer portal tab visibility — customer role only
+  useEffect(() => {
+    if (!user || user.role !== "customer") return;
+    api.get("/api/tenant/branding")
+      .then((res) => {
+        const prefs = res.data?.data?.branding?.customerPortal;
+        if (prefs) {
+          setCustomerPortalPrefs({
+            showReviews: prefs.showReviews ?? true,
+            showDelivery: prefs.showDelivery ?? true,
+            showEstimates: prefs.showEstimates ?? true,
+          });
+        }
+      })
+      .catch(() => { /* non-critical — fall back to showing all tabs */ });
+  }, [user?.role]);
 
   const markAllRead = async () => {
     try {
@@ -224,15 +296,24 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     localStorage.clear();
     sessionStorage.clear();
     document.cookie = "token=; Max-Age=0; path=/;";
+    document.cookie = "imper=; Max-Age=0; path=/;";
     window.location.replace("/login");
+  };
+
+  const exitImpersonation = async () => {
+    try { await api.post("/api/admin/impersonate/end"); } catch {}
+    document.cookie = "imper=; Max-Age=0; path=/;";
+    window.location.href = "/dashboard/super-admin";
   };
 
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#1D222B" }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center">
-            <Wrench className="text-white w-5 h-5" />
+          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center overflow-hidden">
+            {branding.logoUrl
+              ? <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="w-full h-full object-contain" />
+              : <Wrench className="text-white w-5 h-5" />}
           </div>
           <Loader2 className="animate-spin text-slate-400 w-6 h-6" />
         </div>
@@ -244,8 +325,10 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center">
-            <Wrench className="text-primary-foreground w-5 h-5" />
+          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center overflow-hidden">
+            {branding.logoUrl
+              ? <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="w-full h-full object-contain" />
+              : <Wrench className="text-primary-foreground w-5 h-5" />}
           </div>
           <Loader2 className="animate-spin text-muted-foreground w-6 h-6" />
         </div>
@@ -253,10 +336,33 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     );
   }
 
+  // When impersonating, show the owner's nav so the admin sees what the owner sees
+  const effectiveRole = (impersonation && user.role === 'super_admin') ? 'owner' : user.role;
   const meta      = ROLE_META[user.role] ?? ROLE_META["technician"];
-  const navItems  = getNavItems(user.role);
   const accent    = ROLE_ACCENT[user.role] ?? "#3b82f6";
   const isDark    = resolvedTheme === "dark";
+
+  // Scoped admin nav: only show sections this admin was granted by a super_admin
+  let navItems = getNavItems(effectiveRole);
+  if (effectiveRole === "admin") {
+    const granted = user.permissions ?? [];
+    navItems = navItems.filter((item) => !item.section || granted.includes(item.section));
+  }
+  // Customer nav: filter out tabs the owner has disabled (shop-customization)
+  if (effectiveRole === "customer") {
+    navItems = navItems.filter((item) => {
+      if (item.label === "Review")    return customerPortalPrefs.showReviews;
+      if (item.label === "Delivery")  return customerPortalPrefs.showDelivery;
+      if (item.label === "Estimates") return customerPortalPrefs.showEstimates;
+      return true;
+    });
+  }
+  // Feature flags: hide nav items for platform modules a super_admin has switched off.
+  // Only applied to tenant-side roles — super_admin/admin keep full visibility since
+  // they're the ones who set the flags.
+  if (featureFlags && !["super_admin", "admin"].includes(effectiveRole)) {
+    navItems = navItems.filter((item) => !item.flagKey || featureFlags[item.flagKey] !== false);
+  }
 
   // Active theme icon for the toggle button
   const ActiveThemeIcon = THEME_OPTIONS.find(t => t.value === theme)?.icon ?? Monitor;
@@ -297,13 +403,15 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
           {sidebarOpen && (
             <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg"
-                style={{ backgroundColor: accent }}
+                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg overflow-hidden"
+                style={{ backgroundColor: branding.logoUrl ? "#fff" : accent }}
               >
-                <Wrench className="text-white w-4 h-4" />
+                {branding.logoUrl
+                  ? <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="w-full h-full object-contain" />
+                  : <Wrench className="text-white w-4 h-4" />}
               </div>
               <div className="min-w-0">
-                <p className="text-white font-black text-sm tracking-tight leading-none">Dibnow</p>
+                <p className="text-white font-black text-sm tracking-tight leading-none">{branding.companyName || "Dibnow"}</p>
                 <p style={{ color: "rgba(255,255,255,0.4)", fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}>
                   RepairSaaS
                 </p>
@@ -640,6 +748,31 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
             </>
           )}
         </div>
+
+        {/* ── Impersonation Banner ────────────────────────────────────────── */}
+        {impersonation && (
+          <div className="bg-amber-400 text-amber-950 px-5 py-2.5 flex items-center justify-between gap-4 flex-wrap text-sm font-bold shadow-md">
+            <div className="flex items-center gap-2">
+              <UserCheck size={15} className="shrink-0" />
+              <span>
+                Impersonating: <span className="underline">{impersonation.tenantName}</span>
+                {impersonation.tenantSubdomain && (
+                  <span className="ml-1 font-normal opacity-70">({impersonation.tenantSubdomain}.dibnow.com)</span>
+                )}
+              </span>
+              <span className="text-[10px] font-black bg-amber-600/20 px-2 py-0.5 rounded-full uppercase tracking-widest">
+                All actions are logged
+              </span>
+            </div>
+            <button
+              onClick={exitImpersonation}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-900/20 hover:bg-amber-900/30 transition-colors text-xs font-black uppercase tracking-wider border border-amber-800/30"
+            >
+              <LogOut size={12} />
+              Exit Impersonation
+            </button>
+          </div>
+        )}
 
         {/* ── Page Content ────────────────────────────────────────────────── */}
         <main className="flex-1 p-6 overflow-auto">

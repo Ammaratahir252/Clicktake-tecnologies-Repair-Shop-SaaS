@@ -4,9 +4,9 @@ import DashboardShell from "@/components/DashboardShell";
 import { useState, useRef, useEffect, useCallback } from "react";
 import api from "@/lib/api";
 import {
-  Camera, Upload, Trash2, Loader2, CheckCircle, ImageIcon, Search,
+  Camera, Upload, Loader2, CheckCircle, ImageIcon, Search,
   ChevronDown, X, ZoomIn, Download, ScanLine, Wrench, ShieldCheck,
-  AlertTriangle, Cpu, Filter, Images, Zap,
+  AlertTriangle, Cpu, Filter, Images, Zap, AlertCircle,
 } from "lucide-react";
 
 const PHOTO_TYPES = [
@@ -18,6 +18,18 @@ const PHOTO_TYPES = [
 ];
 
 type Photo = { id: string; url: string; type: string; label: string; timestamp: string; notes?: string };
+
+function toPhoto(raw: any): Photo {
+  const typeInfo = PHOTO_TYPES.find((p) => p.key === raw.type);
+  return {
+    id: raw._id,
+    url: raw.url,
+    type: raw.type,
+    label: typeInfo?.label ?? raw.type,
+    timestamp: new Date(raw.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+    notes: raw.note,
+  };
+}
 
 export default function TechnicianPhotosPage() {
   return (
@@ -32,23 +44,29 @@ function PhotosContent() {
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [photoType, setPhotoType]       = useState("before");
-  const [photos, setPhotos]             = useState<Photo[]>([]);
   const [open, setOpen]                 = useState(false);
   const [uploading, setUploading]       = useState(false);
   const [success, setSuccess]           = useState(false);
+  const [error, setError]               = useState<string | null>(null);
   const [searchQuery, setSearchQuery]   = useState("");
   const [filterType, setFilterType]     = useState<string>("all");
   const [viewPhoto, setViewPhoto]       = useState<Photo | null>(null);
   const [photoNotes, setPhotoNotes]     = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const fetchTickets = useCallback(async () => {
+  const photos: Photo[] = (selectedTicket?.photos ?? []).map(toPhoto).reverse();
+
+  const fetchTickets = useCallback(async (keepSelectedId?: string) => {
     try {
       const res = await api.get("/api/tickets");
       const all: any[] = res.data?.data ?? [];
       const active = all.filter((t) => !["delivered", "cancelled"].includes(t.status));
       setTickets(active);
-      if (active.length > 0) setSelectedTicket(active[0]);
+      if (keepSelectedId) {
+        setSelectedTicket(active.find((t) => t._id === keepSelectedId) ?? active[0] ?? null);
+      } else if (active.length > 0) {
+        setSelectedTicket(active[0]);
+      }
     } catch {
       setTickets([]);
     } finally {
@@ -58,31 +76,29 @@ function PhotosContent() {
 
   useEffect(() => { fetchTickets(); }, [fetchTickets]);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
+    if (!selectedTicket) return;
     setUploading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setTimeout(() => {
-        const newPhoto: Photo = {
-          id:        Date.now().toString(),
-          url:       e.target?.result as string,
-          type:      photoType,
-          label:     PHOTO_TYPES.find((p) => p.key === photoType)?.label ?? photoType,
-          timestamp: new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
-          notes:     photoNotes || undefined,
-        };
-        setPhotos((prev) => [newPhoto, ...prev]);
-        setUploading(false);
-        setSuccess(true);
-        setPhotoNotes("");
-        setTimeout(() => setSuccess(false), 3000);
-      }, 400);
-    };
-    reader.readAsDataURL(file);
-  };
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("type", photoType);
+      if (photoNotes) form.append("note", photoNotes);
 
-  const removePhoto = (id: string) => {
-    if (confirm("Delete this photo?")) setPhotos((prev) => prev.filter((p) => p.id !== id));
+      await api.post(`/api/tickets/${selectedTicket._id}/photos`, form, {
+        headers: { "Content-Type": undefined },
+      });
+
+      await fetchTickets(selectedTicket._id);
+      setSuccess(true);
+      setPhotoNotes("");
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Upload failed — please try again.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const downloadPhoto = (photo: Photo) => {
@@ -144,6 +160,15 @@ function PhotosContent() {
                 <CheckCircle size={18} className="text-white" />
               </div>
               <p className="text-emerald-900 dark:text-emerald-100 font-bold text-sm">Photo uploaded successfully</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-2xl p-4 shadow-sm">
+              <div className="w-9 h-9 bg-red-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <AlertCircle size={18} className="text-white" />
+              </div>
+              <p className="text-red-900 dark:text-red-100 font-bold text-sm">{error}</p>
             </div>
           )}
 
@@ -342,12 +367,6 @@ function PhotosContent() {
                                 >
                                   <Download size={12} />
                                 </button>
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); removePhoto(photo.id); }}
-                                  className="w-8 h-8 flex items-center justify-center bg-red-500 hover:bg-red-600 text-white rounded-lg"
-                                >
-                                  <Trash2 size={12} />
-                                </button>
                               </div>
                             </div>
                           </div>
@@ -404,9 +423,6 @@ function PhotosContent() {
                       <button onClick={() => downloadPhoto(viewPhoto)} className="px-4 py-2 bg-primary text-primary-foreground font-bold text-sm rounded-xl hover:opacity-90 transition-all flex items-center gap-2">
                         <Download size={15} />Download
                       </button>
-                      <button onClick={() => { removePhoto(viewPhoto.id); setViewPhoto(null); }} className="px-4 py-2 bg-red-500 text-white font-bold text-sm rounded-xl hover:bg-red-600 transition-all flex items-center gap-2">
-                        <Trash2 size={15} />Delete
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -414,6 +430,5 @@ function PhotosContent() {
             </div>
           )}
         </div>
-    </div>
   );
 }

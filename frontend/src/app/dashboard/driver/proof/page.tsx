@@ -5,7 +5,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import api from "@/lib/api";
 import {
   Camera, Upload, CheckCircle, Loader2, X, Image as ImageIcon,
-  ChevronDown, ZoomIn, Download, Share2,
+  ChevronDown, ZoomIn, Download, Share2, AlertCircle,
 } from "lucide-react";
 
 const DRIVER_RELEVANT = ["received", "ready", "delivered"];
@@ -23,11 +23,13 @@ function ProofContent() {
   const [selectedJob, setSelectedJob] = useState<any>(null);
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<string | null>(null);
+  const [proofFile, setProofFile] = useState<File | null>(null);
   const [fullscreenPreview, setFullscreenPreview] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
   const [success, setSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [lastCustomerName, setLastCustomerName] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -48,6 +50,7 @@ function ProofContent() {
   useEffect(() => { fetchJobs(); }, [fetchJobs]);
 
   const handleFile = (file: File) => {
+    setProofFile(file);
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target?.result as string);
     reader.readAsDataURL(file);
@@ -59,9 +62,18 @@ function ProofContent() {
   };
 
   const handleSubmit = async () => {
-    if (!preview || !selectedJob) return;
+    if (!preview || !proofFile || !selectedJob) return;
     setLoading(true);
+    setError(null);
     try {
+      const form = new FormData();
+      form.append("file", proofFile);
+      form.append("type", "proof");
+      if (notes) form.append("note", notes);
+      await api.post(`/api/tickets/${selectedJob._id}/photos`, form, {
+        headers: { "Content-Type": undefined },
+      });
+
       if (selectedJob.status === "ready") {
         await api.patch(`/api/tickets/${selectedJob._id}/status`, {
           status: "delivered",
@@ -76,10 +88,11 @@ function ProofContent() {
       }
       setSuccess(true);
       setPreview(null);
+      setProofFile(null);
       setNotes("");
       setTimeout(() => setSuccess(false), 4000);
-    } catch {
-      // keep loading state cleared
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Could not submit proof — please try again.");
     } finally {
       setLoading(false);
     }
@@ -163,6 +176,13 @@ function ProofContent() {
                 </p>
               )}
             </div>
+          </div>
+        )}
+
+        {error && (
+          <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-2xl p-4 shadow-sm">
+            <AlertCircle size={20} className="text-red-500 flex-shrink-0" />
+            <p className="text-red-700 dark:text-red-400 font-bold text-sm">{error}</p>
           </div>
         )}
 

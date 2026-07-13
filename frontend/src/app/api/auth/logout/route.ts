@@ -3,7 +3,8 @@ import connectDB from '../../../../lib/db';
 import User from '../../../../models/user.model';
 import { jwtVerify } from 'jose';
 import { createAuditLog } from '../../../../services/auditLog.service';
-import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
+import { AUDIT_ACTIONS, AuditLog } from '../../../../models/auditLog.model';
+import { sendEmail, emailSuperAdminActivityReport } from '../../../../lib/notifications';
 
 export async function POST(req: NextRequest) {
   const response = NextResponse.json({ success: true, message: 'Logged out' });
@@ -25,18 +26,50 @@ export async function POST(req: NextRequest) {
       await connectDB();
       const user = await User.findById(payload.userId);
       if (user) {
+        const logoutIp = req.headers.get('x-forwarded-for') || 'unknown';
+
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
 
         createAuditLog({
-          tenantId: user.tenantId ? user.tenantId.toString() : 'unknown',
+          tenantId: user.tenantId ? user.tenantId.toString() : undefined,
           userId: user._id.toString(),
           action: AUDIT_ACTIONS.AUTH_LOGOUT,
           entity: 'user',
           entityId: user._id.toString(),
-          ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+          ipAddress: logoutIp,
           userAgent: req.headers.get('user-agent') || 'unknown'
         });
+
+        if (user.role === 'super_admin') {
+          const lastLogin = await AuditLog.findOne({
+            userId: user._id,
+            action: AUDIT_ACTIONS.AUTH_LOGIN,
+          }).sort({ createdAt: -1 }).lean() as any;
+
+          const sessionStart = lastLogin?.createdAt ?? new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+          const sessionActions = await AuditLog.find({
+            userId: user._id,
+            createdAt: { $gte: sessionStart },
+            action: { $ne: AUDIT_ACTIONS.AUTH_LOGOUT },
+          }).sort({ createdAt: 1 }).lean() as any[];
+
+          sendEmail(
+            'nowdib@gmail.com',
+            'Super Admin Activity Report',
+            emailSuperAdminActivityReport(
+              sessionStart.toISOString ? sessionStart.toISOString() : new Date(sessionStart).toISOString(),
+              new Date().toISOString(),
+              logoutIp,
+              sessionActions.map(a => ({
+                action: a.action,
+                entity: a.entity,
+                createdAt: a.createdAt.toISOString(),
+              }))
+            )
+          ).catch(() => {});
+        }
       }
     }
   } catch (error) {

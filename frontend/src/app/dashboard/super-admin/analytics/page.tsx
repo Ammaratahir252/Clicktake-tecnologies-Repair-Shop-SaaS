@@ -3,9 +3,10 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
+import { useCallback } from "react";
 import {
   TrendingUp, TrendingDown, Building2, Users, Ticket, DollarSign,
-  BarChart2, Activity, Loader2, AlertTriangle, RefreshCw,
+  BarChart2, Activity, Loader2, AlertTriangle, RefreshCw, Sparkles, X,
 } from "lucide-react";
 
 const PERIODS = [
@@ -27,7 +28,7 @@ interface TenantStat {
 
 export default function SuperAdminAnalyticsPage() {
   return (
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {() => <AnalyticsContent />}
     </DashboardShell>
   );
@@ -38,21 +39,58 @@ function AnalyticsContent() {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState("");
   const [period,  setPeriod]  = useState("month");
+  const [drillTenant, setDrillTenant]   = useState<TenantStat | null>(null);
+  const [shopStats,   setShopStats]     = useState<any>(null);
+  const [shopLoading, setShopLoading]   = useState(false);
+  const [aiReport,    setAiReport]      = useState("");
+  const [aiLoading,   setAiLoading]     = useState(false);
+  const [aiError,     setAiError]       = useState("");
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await api.get("/api/admin/analytics");
+      const res = await api.get(`/api/admin/analytics?period=${period}`);
       setStats(res.data?.data ?? []);
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to load analytics.");
     } finally {
       setLoading(false);
     }
+  }, [period]);
+
+  useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  const openDrilldown = async (tenant: TenantStat) => {
+    setDrillTenant(tenant);
+    setShopStats(null);
+    setAiReport("");
+    setAiError("");
+    setShopLoading(true);
+    try {
+      const res = await api.get(`/api/analytics?tenantId=${tenant._id}`);
+      setShopStats(res.data?.data ?? null);
+    } catch {
+      setShopStats(null);
+    } finally {
+      setShopLoading(false);
+    }
   };
 
-  useEffect(() => { fetchStats(); }, []);
+  const generateAiReport = async () => {
+    if (!drillTenant) return;
+    setAiLoading(true);
+    setAiError("");
+    setAiReport("");
+    try {
+      const res = await api.post("/api/admin/analytics/ai-report", { tenantId: drillTenant._id });
+      setAiReport(res.data?.data?.report ?? "");
+    } catch (err: any) {
+      setAiError(err.response?.data?.message || "Failed to generate AI report.");
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const totalRevenue  = stats.reduce((s, t) => s + t.revenue, 0);
   const totalTickets  = stats.reduce((s, t) => s + t.tickets, 0);
@@ -214,7 +252,11 @@ function AnalyticsContent() {
                 </thead>
                 <tbody>
                   {[...stats].sort((a, b) => b.tickets - a.tickets).map((t) => (
-                    <tr key={t._id} className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors">
+                    <tr
+                      key={t._id}
+                      onClick={() => openDrilldown(t)}
+                      className="border-b border-border last:border-0 hover:bg-muted/50 transition-colors cursor-pointer"
+                    >
                       <td className="px-5 py-3.5 font-bold text-foreground">
                         <div>
                           <p>{t.name}</p>
@@ -251,6 +293,76 @@ function AnalyticsContent() {
             </div>
           </div>
         </>
+      )}
+
+      {drillTenant && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDrillTenant(null)}>
+          <div
+            className="bg-card border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] overflow-y-auto p-6 space-y-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-black text-foreground">{drillTenant.name}</h2>
+                <p className="text-xs text-muted-foreground">{drillTenant.subdomain}.dibnow.com</p>
+              </div>
+              <button onClick={() => setDrillTenant(null)} className="p-2 rounded-xl hover:bg-muted text-muted-foreground">
+                <X size={16} />
+              </button>
+            </div>
+
+            {shopLoading ? (
+              <div className="flex items-center justify-center py-16 text-muted-foreground">
+                <Loader2 className="animate-spin w-6 h-6 mr-3" /> Loading shop analytics…
+              </div>
+            ) : shopStats ? (
+              <>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { label: "Tickets", value: shopStats.totalTickets },
+                    { label: "Revenue", value: `Rs. ${(shopStats.totalRevenue / 1000).toFixed(1)}K` },
+                    { label: "Staff", value: shopStats.staffCount },
+                    { label: "Customers", value: shopStats.customerCount },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-muted/50 rounded-xl p-3 text-center">
+                      <p className="text-lg font-black text-foreground">{value}</p>
+                      <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wide">{label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Status Breakdown</p>
+                  {Object.entries(shopStats.statusCounts || {}).map(([status, count]) => (
+                    <div key={status} className="flex justify-between text-sm">
+                      <span className="capitalize text-foreground">{status.replace(/_/g, " ")}</span>
+                      <span className="font-bold text-foreground">{count as number}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-border pt-4 space-y-3">
+                  <button
+                    onClick={generateAiReport}
+                    disabled={aiLoading}
+                    className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl text-sm hover:opacity-90 transition-all disabled:opacity-60"
+                  >
+                    {aiLoading ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+                    Generate AI Report
+                  </button>
+                  {aiError && <p className="text-sm text-destructive font-medium">{aiError}</p>}
+                  {aiReport && (
+                    <div className="bg-primary/5 border border-primary/20 rounded-xl p-4 text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                      {aiReport}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-muted-foreground">Failed to load this shop&apos;s analytics.</p>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

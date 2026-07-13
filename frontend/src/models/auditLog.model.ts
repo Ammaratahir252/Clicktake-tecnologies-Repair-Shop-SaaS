@@ -4,7 +4,7 @@ import mongoose, { Schema, Document } from 'mongoose';
  * Audit Log Interface for TypeScript
  */
 export interface IAuditLog extends Document {
-  tenantId: mongoose.Types.ObjectId;
+  tenantId?: mongoose.Types.ObjectId; // absent for platform-level actions with no tenant (super_admin login/logout, etc.)
   userId: mongoose.Types.ObjectId;
   action: string;
   entity: string;
@@ -20,15 +20,26 @@ export interface IAuditLog extends Document {
  */
 export const AUDIT_ACTIONS = {
   AUTH_LOGIN: 'AUTH_LOGIN',
+  AUTH_LOGIN_FAILED: 'AUTH_LOGIN_FAILED',
   AUTH_LOGOUT: 'AUTH_LOGOUT',
+  AUTH_OTP_SENT: 'AUTH_OTP_SENT',
+  AUTH_OTP_VERIFIED: 'AUTH_OTP_VERIFIED',
+  AUTH_OTP_FAILED: 'AUTH_OTP_FAILED',
   AUTH_REGISTER: 'AUTH_REGISTER',
   AUTH_PASSWORD_RESET_REQUEST: 'AUTH_PASSWORD_RESET_REQUEST',
   AUTH_PASSWORD_RESET_COMPLETE: 'AUTH_PASSWORD_RESET_COMPLETE',
+  AUTH_PASSWORD_CHANGE: 'AUTH_PASSWORD_CHANGE',
   USER_INVITED: 'USER_INVITED',
   USER_ROLE_UPDATED: 'USER_ROLE_UPDATED',
   USER_DEACTIVATED: 'USER_DEACTIVATED',
   USER_PROFILE_UPDATED: 'USER_PROFILE_UPDATED',
   USER_VIEWED: 'USER_VIEWED',
+  USER_DELETED: 'USER_DELETED',
+  TENANT_DELETED: 'TENANT_DELETED',
+  CUSTOMER_DELETED: 'CUSTOMER_DELETED',
+  NOTICE_SENT: 'NOTICE_SENT',
+  SUBSCRIPTION_CHANGED: 'SUBSCRIPTION_CHANGED',
+  PAGE_VIEW: 'PAGE_VIEW',
   TICKET_CREATED: 'TICKET_CREATED',
   TICKET_ASSIGNED: 'TICKET_ASSIGNED',
   TICKET_STATUS_UPDATED: 'TICKET_STATUS_UPDATED',
@@ -55,8 +66,8 @@ export const AUDIT_ACTIONS = {
 
 const AuditLogSchema: Schema = new Schema(
   {
-    tenantId: { type: Schema.Types.ObjectId, ref: 'tenants', required: true }, // Mandatory for multi-tenancy 
-    userId: { type: Schema.Types.ObjectId, ref: 'users', required: true },
+    tenantId: { type: Schema.Types.ObjectId, ref: 'Tenant' }, // optional — absent for tenant-less platform actions
+    userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     action: { type: String, required: true },
     entity: { type: String, required: true }, // e.g., 'user', 'ticket'
     entityId: { type: Schema.Types.ObjectId },

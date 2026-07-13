@@ -6,7 +6,8 @@ import { sendResponse } from '@/utils/apiResponse';
 // --- NEW IMPORTS FOR RBAC & AUDIT ---
 import { permissionMiddleware } from '@/middleware/permissionMiddleware';
 import { ACTION_STRINGS } from '@/lib/permissions';
-import { createAuditLog, AUDIT_ACTIONS } from '@/services/auditLog.service';
+import { createAuditLog } from '@/services/auditLog.service';
+import { AUDIT_ACTIONS } from '@/models/auditLog.model';
 
 /**
  * PATCH: Update user status or details
@@ -48,7 +49,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { userId: st
       userId: req.headers.get('x-user-id') || 'system',
       action: AUDIT_ACTIONS.USER_PROFILE_UPDATED,
       entity: 'user',
-      entityId: updatedUser._id,
+      entityId: updatedUser._id.toString(),
       details: { updatedFields: Object.keys(body), isActive: isActive }
     });
 
@@ -85,7 +86,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { userId: s
       userId: req.headers.get('x-user-id') || 'system',
       action: AUDIT_ACTIONS.USER_DEACTIVATED,
       entity: 'user',
-      entityId: deletedUser._id,
+      entityId: deletedUser._id.toString(),
       details: { deletedEmail: deletedUser.email }
     });
 

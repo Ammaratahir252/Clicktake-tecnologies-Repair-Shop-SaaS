@@ -3,8 +3,9 @@ import connectDB from '@/lib/db';
 import Ticket from '@/models/ticket.model';
 import { sendResponse } from '@/utils/apiResponse';
 
+import { canAccess } from '@/lib/adminAccess';
 function isSuperAdmin(req: NextRequest) {
-  return req.headers.get('x-role') === 'super_admin';
+  return canAccess(req, 'tickets');
 }
 
 export async function GET(req: NextRequest) {
@@ -22,17 +23,16 @@ export async function GET(req: NextRequest) {
     if (tenantId && tenantId !== 'all') query.tenantId = tenantId;
     if (search.trim()) {
       query.$or = [
-        { ticketNumber:  { $regex: search, $options: 'i' } },
-        { customerName:  { $regex: search, $options: 'i' } },
-        { customerPhone: { $regex: search, $options: 'i' } },
-        { deviceBrand:   { $regex: search, $options: 'i' } },
-        { deviceModel:   { $regex: search, $options: 'i' } },
+        { ticketNumber: { $regex: search, $options: 'i' } },
+        { deviceBrand:  { $regex: search, $options: 'i' } },
+        { deviceModel:  { $regex: search, $options: 'i' } },
       ];
     }
 
     const tickets = await Ticket.find(query)
       .populate('tenantId', 'name subdomain')
       .populate('technicianId', 'name')
+      .populate('customerId', 'name phone')
       .sort({ createdAt: -1 })
       .limit(limit)
       .lean();

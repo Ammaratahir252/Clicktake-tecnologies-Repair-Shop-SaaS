@@ -6,12 +6,14 @@
 
 // ─── M1: User Roles ───────────────────────────────────────────────────────────
 export enum Role {
-  owner      = 'owner',
-  manager    = 'manager',
-  technician = 'technician',
-  frontdesk  = 'frontdesk',
-  customer   = 'customer',
-  driver     = 'driver',
+  super_admin = 'super_admin',
+  admin       = 'admin',
+  owner       = 'owner',
+  manager     = 'manager',
+  technician  = 'technician',
+  frontdesk   = 'frontdesk',
+  customer    = 'customer',
+  driver      = 'driver',
 }
 
 // ─── M2: Ticket Status ────────────────────────────────────────────────────────

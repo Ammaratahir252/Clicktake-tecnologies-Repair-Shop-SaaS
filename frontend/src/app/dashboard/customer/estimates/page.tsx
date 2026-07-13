@@ -2,13 +2,14 @@
 
 import React, { useEffect, useState, useMemo } from 'react'
 import DashboardShell from '@/components/DashboardShell'
+import PortalFeatureGuard from '@/components/PortalFeatureGuard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import {
   FileText, Search, Filter, CheckCircle, XCircle, Clock, AlertTriangle,
-  Download, Smartphone, Info, Loader2,
+  Download, Smartphone, Info, Loader2, Wallet,
 } from 'lucide-react'
 import api from '@/lib/api'
 
@@ -24,6 +25,15 @@ interface Estimate {
   technician:  string
   amount:      number
   notes:       string
+}
+
+type GatewayKey = 'easypaisa' | 'jazzcash' | 'stripe' | 'paypal'
+
+const GATEWAY_LABELS: Record<GatewayKey, string> = {
+  easypaisa: 'EasyPaisa',
+  jazzcash: 'JazzCash',
+  stripe: 'Stripe',
+  paypal: 'PayPal',
 }
 
 const STATUS_CONFIG: Record<EstimateStatus, { color: string; icon: React.ElementType; label: string }> = {
@@ -58,7 +68,11 @@ function ticketToEstimate(t: any): Estimate {
 export default function EstimatesPage() {
   return (
     <DashboardShell requiredRole="customer">
-      {() => <EstimatesContent />}
+      {() => (
+        <PortalFeatureGuard feature="showEstimates">
+          <EstimatesContent />
+        </PortalFeatureGuard>
+      )}
     </DashboardShell>
   )
 }
@@ -69,6 +83,29 @@ function EstimatesContent() {
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [selected, setSelected]   = useState<Estimate | null>(null)
+  const [paying, setPaying]       = useState<GatewayKey | null>(null)
+  const [payError, setPayError]   = useState('')
+  const [payInfo, setPayInfo]     = useState('')
+  const [enabledGateways, setEnabledGateways] = useState<GatewayKey[]>([])
+
+  const payVia = async (gateway: GatewayKey, ticketId: string) => {
+    setPaying(gateway)
+    setPayError('')
+    setPayInfo('')
+    try {
+      const res = await api.post(`/api/payments/${gateway}/initiate`, { ticketId })
+      const data = res.data?.data
+      if (data?.redirectUrl) {
+        window.location.href = data.redirectUrl
+      } else {
+        setPayInfo(data?.responseDesc || `Payment initiated — follow the instructions in your ${GATEWAY_LABELS[gateway]} app to complete it.`)
+      }
+    } catch (err: any) {
+      setPayError(err.response?.data?.message || 'Could not start payment. Please try again.')
+    } finally {
+      setPaying(null)
+    }
+  }
 
   useEffect(() => {
     api.get('/api/tickets')
@@ -79,6 +116,14 @@ function EstimatesContent() {
       })
       .catch(() => setEstimates([]))
       .finally(() => setLoading(false))
+
+    api.get('/api/tenant/payment-config')
+      .then((res) => {
+        const data = res.data?.data ?? {}
+        const enabled = (Object.keys(data) as GatewayKey[]).filter((gw) => data[gw]?.enabled)
+        setEnabledGateways(enabled)
+      })
+      .catch(() => setEnabledGateways([]))
   }, [])
 
   const filtered = useMemo(() => {
@@ -211,7 +256,7 @@ function EstimatesContent() {
                       <p className="text-2xl font-bold text-primary">
                         Rs. {est.amount.toLocaleString()}
                       </p>
-                      <Button size="sm" onClick={() => setSelected(est)} className="mt-2">
+                      <Button size="sm" onClick={() => { setSelected(est); setPayError(''); setPayInfo('') }} className="mt-2">
                         <Info className="w-4 h-4 mr-1" />
                         View Details
                       </Button>
@@ -270,8 +315,36 @@ function EstimatesContent() {
                 </div>
               )}
 
-              <div className="flex gap-2 pt-4 border-t border-border">
-                <Button variant="outline" onClick={() => setSelected(null)} className="flex-1">
+              {payError && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-red-500">{payError}</p>
+                </div>
+              )}
+              {payInfo && (
+                <div className="bg-primary/10 border border-primary/20 rounded-lg p-3 flex items-start gap-2">
+                  <Info className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                  <p className="text-sm text-foreground">{payInfo}</p>
+                </div>
+              )}
+
+              <div className="flex flex-col gap-2 pt-4 border-t border-border">
+                {selected.status === 'approved' && selected.amount > 0 && enabledGateways.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {enabledGateways.map((gw) => (
+                      <Button
+                        key={gw}
+                        onClick={() => payVia(gw, selected.ticketId)}
+                        disabled={paying !== null}
+                        className="flex-1 min-w-[140px]"
+                      >
+                        {paying === gw ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Wallet className="w-4 h-4 mr-1" />}
+                        {paying === gw ? 'Starting…' : `Pay via ${GATEWAY_LABELS[gw]}`}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+                <Button variant="outline" onClick={() => setSelected(null)}>
                   Close
                 </Button>
               </div>

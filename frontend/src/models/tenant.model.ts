@@ -14,6 +14,7 @@ export interface ITenant extends Document {
   isActive: boolean;
   // Shop profile fields
   logo?: string;
+  bannerUrl?: string;
   tagline?: string;
   description?: string;
   phone?: string;
@@ -27,10 +28,41 @@ export interface ITenant extends Document {
     facebook?: string;
     instagram?: string;
     twitter?: string;
+    youtube?: string;
     website?: string;
   };
+  // Public shop directory / profile page
+  isPubliclyVisible: boolean;
+  showReviewsPublicly: boolean;
+  team: {
+    name: string;
+    title: string;
+    photoUrl?: string;
+    bio?: string;
+  }[];
   createdAt: Date;
   updatedAt: Date;
+  // Shop customization: bio + dashboard/portal toggles (owner-controlled)
+  branding?: {
+    bio?: string;
+    homeWidgets?: {
+      shopIdCard?: boolean;      // Show/hide shop ID card (owner dashboard only)
+      moduleShortcuts?: boolean; // Show/hide module grid
+      teamTable?: boolean;       // Show/hide team members table
+      lowStockBadge?: boolean;   // Show/hide low stock indicator
+    };
+    customerPortal?: {
+      showReviews?: boolean;   // "Review" tab in customer nav
+      showDelivery?: boolean;  // "Delivery" tab in customer nav
+      showEstimates?: boolean; // "Estimates" tab in customer nav
+    };
+    notificationPrefs?: {
+      emailOnNewTicket?: boolean;    // Email the owner when a new ticket is created
+      emailOnPayment?: boolean;      // Email the owner when a payment is recorded
+      smsOnReadyForPickup?: boolean; // SMS the owner when a ticket is marked Ready
+      smsOnOverdue?: boolean;        // Daily SMS digest of overdue tickets
+    };
+  };
 }
 
 const tenantSchema = new Schema<ITenant>(
@@ -65,6 +97,7 @@ const tenantSchema = new Schema<ITenant>(
     },
     isActive: { type: Boolean, default: true },
     logo:          { type: String },
+    bannerUrl:     { type: String },
     tagline:       { type: String },
     description:   { type: String },
     phone:         { type: String },
@@ -78,7 +111,39 @@ const tenantSchema = new Schema<ITenant>(
       facebook:  { type: String },
       instagram: { type: String },
       twitter:   { type: String },
+      youtube:   { type: String },
       website:   { type: String },
+    },
+    isPubliclyVisible:   { type: Boolean, default: false },
+    showReviewsPublicly: { type: Boolean, default: true },
+    team: {
+      type: [{
+        name:     { type: String, required: true },
+        title:    { type: String, default: '' },
+        photoUrl: { type: String, default: '' },
+        bio:      { type: String, default: '' },
+      }],
+      default: [],
+    },
+    branding: {
+      bio: { type: String, default: '' },
+      homeWidgets: {
+        shopIdCard:      { type: Boolean, default: true },
+        moduleShortcuts: { type: Boolean, default: true },
+        teamTable:       { type: Boolean, default: true },
+        lowStockBadge:   { type: Boolean, default: true },
+      },
+      customerPortal: {
+        showReviews:   { type: Boolean, default: true },
+        showDelivery:  { type: Boolean, default: true },
+        showEstimates: { type: Boolean, default: true },
+      },
+      notificationPrefs: {
+        emailOnNewTicket:    { type: Boolean, default: true },
+        emailOnPayment:      { type: Boolean, default: true },
+        smsOnReadyForPickup: { type: Boolean, default: false },
+        smsOnOverdue:        { type: Boolean, default: false },
+      },
     },
   },
   { 

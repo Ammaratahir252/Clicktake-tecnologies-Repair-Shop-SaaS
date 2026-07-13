@@ -42,7 +42,7 @@ const getStatusStyle = (status?: string) => {
 
 export default function SuperAdminLeadsPage() {
   return (
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {(user) => <LeadsContent user={user} />}
     </DashboardShell>
   );

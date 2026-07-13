@@ -10,7 +10,7 @@ import { query, getClient } from '../config/postgres';
 import { logger } from '../utils/logger';
 import dotenv from 'dotenv';
 
-dotenv.config();
+dotenv.config({ path: ['.env.local', '.env'] });
 
 const MIGRATIONS_DIR = path.join(__dirname, 'migrations');
 

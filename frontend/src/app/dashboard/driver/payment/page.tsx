@@ -33,6 +33,7 @@ function PaymentContent() {
   const [success, setSuccess]       = useState(false);
   const [open, setOpen]             = useState(false);
   const [shake, setShake]           = useState(false);
+  const [error, setError]           = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -66,7 +67,12 @@ function PaymentContent() {
     }
 
     setSubmitting(true);
+    setError(null);
     try {
+      await api.post(`/api/tickets/${selectedJob._id}/payment`, {
+        method,
+        amountReceived: parseFloat(amountReceived),
+      });
       await api.patch(`/api/tickets/${selectedJob._id}/status`, {
         status: "delivered",
         note: `Payment collected via ${method}`,
@@ -81,8 +87,8 @@ function PaymentContent() {
           return remaining[0] ?? null;
         });
       }, 3000);
-    } catch {
-      // silently fail
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Could not record payment — please try again.");
     } finally {
       setSubmitting(false);
     }
@@ -128,6 +134,13 @@ function PaymentContent() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-2xl p-4">
+          <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+          <p className="text-red-700 dark:text-red-400 font-bold text-sm">{error}</p>
         </div>
       )}
 

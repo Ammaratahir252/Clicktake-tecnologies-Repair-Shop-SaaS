@@ -108,7 +108,7 @@ interface PlatformStats {
 export default function SuperAdminDashboard() {
   return (
     // Super Admin has NO tenant scope — they operate platform-wide
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {(user) => <SuperAdminContent user={user} />}
     </DashboardShell>
   );

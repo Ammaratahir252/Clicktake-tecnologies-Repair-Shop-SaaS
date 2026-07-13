@@ -3,13 +3,16 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
+import Link from "next/link";
 import {
-  Search, Plus, User, Building2, Shield, Mail, Phone,
-  Lock, Loader2, AlertTriangle, RefreshCw, XCircle, CheckCircle,
+  Search, User, Building2, Mail, Phone,
+  Loader2, AlertTriangle, RefreshCw, XCircle, CheckCircle,
+  Trash2, History,
 } from "lucide-react";
 
 const ROLE_COLORS: Record<string, string> = {
   super_admin: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  admin:       "bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400",
   owner:       "bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400",
   manager:     "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
   frontdesk:   "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
@@ -20,6 +23,7 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ROLE_LABELS: Record<string, string> = {
   super_admin: "Super Admin",
+  admin:       "Admin",
   owner:       "Owner",
   manager:     "Manager",
   frontdesk:   "Front Desk",
@@ -45,11 +49,12 @@ interface UserRecord {
   isActive:  boolean;
   tenantId?: { _id: string; name: string; subdomain: string } | string;
   createdAt: string;
+  permissions?: string[];
 }
 
 export default function SuperAdminUsersPage() {
   return (
-    <DashboardShell requiredRole="super_admin">
+    <DashboardShell requiredRole={["super_admin", "admin"]}>
       {() => <UsersContent />}
     </DashboardShell>
   );
@@ -64,6 +69,10 @@ function UsersContent() {
   const [roleFilter, setRoleFilter] = useState("all");
   const [selected, setSelected] = useState<UserRecord | null>(null);
   const [acting,   setActing]   = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [noticeMsg,  setNoticeMsg]  = useState("");
+  const [sendingNotice, setSendingNotice] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setLoading(true);
@@ -107,6 +116,47 @@ function UsersContent() {
     }
   };
 
+  const deleteUser = async (u: UserRecord) => {
+    if (!window.confirm(`Permanently delete "${u.name}" (${u.email})? This cannot be undone.`)) return;
+    setDeleting(true);
+    setError("");
+    setSuccess("");
+    try {
+      await api.delete(`/api/admin/users/${u._id}`);
+      setUsers((prev) => prev.filter((x) => x._id !== u._id));
+      if (selected?._id === u._id) setSelected(null);
+      setSuccess(`${u.name} permanently deleted.`);
+      setTimeout(() => setSuccess(""), 4000);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to delete user.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const sendNotice = async () => {
+    if (!selected || !noticeMsg.trim()) return;
+    setSendingNotice(true);
+    setError("");
+    try {
+      await api.post("/api/admin/notices", {
+        userId: selected._id,
+        tenantId: typeof selected.tenantId === "object" ? selected.tenantId._id : selected.tenantId,
+        email: selected.email,
+        name: selected.name,
+        message: noticeMsg.trim(),
+      });
+      setSuccess(`Notice sent to ${selected.name}.`);
+      setTimeout(() => setSuccess(""), 3000);
+      setNoticeMsg("");
+      setNoticeOpen(false);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to send notice.");
+    } finally {
+      setSendingNotice(false);
+    }
+  };
+
   const roleCounts = Object.keys(ROLE_LABELS).reduce<Record<string, number>>((acc, r) => {
     acc[r] = users.filter((u) => u.role === r).length;
     return acc;
@@ -135,10 +185,6 @@ function UsersContent() {
             className="p-2.5 rounded-xl border border-border text-muted-foreground hover:bg-muted transition-all"
           >
             <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          </button>
-          <button className="flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground font-bold rounded-xl hover:opacity-90 transition-all text-sm">
-            <Plus size={16} />
-            Add User
           </button>
         </div>
       </div>
@@ -300,6 +346,15 @@ function UsersContent() {
                 </div>
               </div>
 
+              {selected.role === "admin" && (
+                <div className="bg-muted/40 border border-border rounded-xl px-3 py-2.5">
+                  <p className="text-xs text-muted-foreground">
+                    This is a sub admin account — manage which tools it can use from{" "}
+                    <Link href="/dashboard/super-admin/settings" className="text-primary font-semibold hover:underline">Settings → Sub Admins</Link>.
+                  </p>
+                </div>
+              )}
+
               {/* Role picker */}
               <div className="space-y-1.5">
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Change Role</p>
@@ -333,6 +388,52 @@ function UsersContent() {
                 {acting && <Loader2 size={13} className="animate-spin" />}
                 {selected.isActive ? "Deactivate User" : "Activate User"}
               </button>
+
+              <Link
+                href={`/dashboard/super-admin/audit?userId=${selected._id}`}
+                className="w-full py-2.5 bg-primary/10 text-primary font-bold rounded-xl text-sm hover:bg-primary/20 transition-all flex items-center justify-center gap-2"
+              >
+                <History size={14} />
+                View Activity
+              </Link>
+
+              <button
+                onClick={() => setNoticeOpen((v) => !v)}
+                className="w-full py-2.5 bg-muted text-foreground font-bold rounded-xl text-sm hover:bg-muted/70 transition-all flex items-center justify-center gap-2"
+              >
+                <Mail size={14} />
+                Send Notice
+              </button>
+              {noticeOpen && (
+                <div className="space-y-2">
+                  <textarea
+                    value={noticeMsg}
+                    onChange={(e) => setNoticeMsg(e.target.value)}
+                    placeholder={`Message to send to ${selected.name}…`}
+                    rows={3}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                  <button
+                    onClick={sendNotice}
+                    disabled={sendingNotice || !noticeMsg.trim()}
+                    className="w-full py-2 bg-primary text-primary-foreground font-bold rounded-xl text-sm hover:opacity-90 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                  >
+                    {sendingNotice && <Loader2 size={13} className="animate-spin" />}
+                    Send
+                  </button>
+                </div>
+              )}
+
+              {selected.role !== "super_admin" && (
+                <button
+                  onClick={() => deleteUser(selected)}
+                  disabled={deleting}
+                  className="w-full py-2.5 bg-red-600 text-white font-bold rounded-xl text-sm hover:bg-red-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  {deleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={14} />}
+                  Delete Permanently
+                </button>
+              )}
             </div>
           ) : (
             <div className="bg-card border border-border rounded-2xl p-8 text-center">

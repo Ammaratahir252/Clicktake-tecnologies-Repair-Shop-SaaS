@@ -18,9 +18,18 @@ interface CreateTicketInput {
   issue: string;
   deviceColor?: string;
   deviceIMEI?: string;
-  photos?: string[];
   createdByUserId: string;
   createdByName: string;
+}
+
+interface AddPhotoInput {
+  ticketId: string;
+  tenantId: string;
+  url: string;
+  type: string;
+  note?: string;
+  uploadedBy: string;
+  uploadedByName: string;
 }
 
 interface UpdateStatusInput {
@@ -38,6 +47,22 @@ interface AssignTechnicianInput {
   technicianId: string;
   assignedByUserId: string;
   assignedByName: string;
+}
+
+interface AssignDriverInput {
+  ticketId: string;
+  tenantId: string;
+  driverId: string;
+  assignedByUserId: string;
+  assignedByName: string;
+}
+
+interface UpdateDriverLocationInput {
+  ticketId: string;
+  tenantId: string;
+  driverId: string;
+  lat: number;
+  lng: number;
 }
 
 interface AddNoteInput {
@@ -130,7 +155,7 @@ export const TicketService = {
   createTicket: async (data: CreateTicketInput) => {
     const {
       tenantId, customerName, customerPhone, estimateAmount, deviceBrand, deviceModel,
-      issue, deviceColor, deviceIMEI, photos,
+      issue, deviceColor, deviceIMEI,
       createdByUserId, createdByName,
     } = data;
 
@@ -167,7 +192,7 @@ export const TicketService = {
       estimateAmount: estimateAmount ?? null,
       deviceColor: deviceColor ?? undefined,
       deviceIMEI: deviceIMEI ?? undefined,
-      photos: photos ?? [],
+      photos: [],
       status: TicketStatus.received,
       statusHistory: [{
         changedBy: new mongoose.Types.ObjectId(createdByUserId),
@@ -215,6 +240,7 @@ export const TicketService = {
     return Ticket.find(query)
       .populate('customerId', 'name phone email address')
       .populate('technicianId', 'name email')
+      .populate('driverId', 'name phone email')
       .sort({ createdAt: -1 });
   },
 
@@ -228,7 +254,8 @@ export const TicketService = {
       tenantId: new mongoose.Types.ObjectId(tenantId),
     })
       .populate('customerId', 'name phone email address')
-      .populate('technicianId', 'name email role');
+      .populate('technicianId', 'name email role')
+      .populate('driverId', 'name phone email');
 
     if (!ticket) throw new Error('Ticket not found');
     return ticket;
@@ -316,6 +343,100 @@ export const TicketService = {
     });
 
     await ticket.save();
+    return ticket;
+  },
+
+  /**
+   * ASSIGN DRIVER
+   * Only valid once a ticket is ready for pickup/delivery.
+   */
+  assignDriver: async (data: AssignDriverInput) => {
+    const { ticketId, tenantId, driverId, assignedByUserId, assignedByName } = data;
+
+    const ticket = await Ticket.findOne({
+      _id: new mongoose.Types.ObjectId(ticketId),
+      tenantId: new mongoose.Types.ObjectId(tenantId),
+    });
+
+    if (!ticket) throw new Error('Ticket not found');
+
+    if (
+      ticket.status === TicketStatus.delivered ||
+      ticket.status === TicketStatus.cancelled
+    ) {
+      throw new Error(`Cannot assign driver to a '${ticket.status}' ticket`);
+    }
+
+    ticket.driverId = new mongoose.Types.ObjectId(driverId);
+    ticket.statusHistory.push({
+      changedBy: new mongoose.Types.ObjectId(assignedByUserId),
+      changedByName: assignedByName,
+      fromStatus: ticket.status,
+      toStatus: ticket.status,
+      note: `Driver assigned (id: ${driverId})`,
+      createdAt: new Date(),
+    });
+
+    await ticket.save();
+    return ticket;
+  },
+
+  /**
+   * UPDATE DRIVER LOCATION
+   * Driver's own live GPS ping — only the assigned driver may update it.
+   */
+  updateDriverLocation: async (data: UpdateDriverLocationInput) => {
+    const { ticketId, tenantId, driverId, lat, lng } = data;
+
+    const ticket = await Ticket.findOne({
+      _id: new mongoose.Types.ObjectId(ticketId),
+      tenantId: new mongoose.Types.ObjectId(tenantId),
+    });
+
+    if (!ticket) throw new Error('Ticket not found');
+    if (ticket.driverId && String(ticket.driverId) !== driverId) {
+      throw new Error('You are not the assigned driver for this ticket');
+    }
+    // No driver claimed this job yet — sharing a location self-assigns it,
+    // consistent with the rest of the driver flow (any driver in the tenant
+    // can pick up and advance an unassigned pickup/delivery job).
+    if (!ticket.driverId) {
+      ticket.driverId = new mongoose.Types.ObjectId(driverId);
+    }
+
+    ticket.driverLocation = { lat, lng, updatedAt: new Date() };
+    await ticket.save();
+    return ticket;
+  },
+
+  /**
+   * ADD PHOTO
+   * Appends a repair photo (before/during/after/damage/parts). Never overwrites.
+   */
+  addPhoto: async (data: AddPhotoInput) => {
+    const { ticketId, tenantId, url, type, note, uploadedBy, uploadedByName } = data;
+
+    const ticket = await Ticket.findOneAndUpdate(
+      {
+        _id: new mongoose.Types.ObjectId(ticketId),
+        tenantId: new mongoose.Types.ObjectId(tenantId),
+      },
+      {
+        $push: {
+          photos: {
+            url,
+            type,
+            note,
+            uploadedBy: new mongoose.Types.ObjectId(uploadedBy),
+            uploadedByName,
+            createdAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    );
+
+    if (!ticket) throw new Error('Ticket not found');
     return ticket;
   },
 

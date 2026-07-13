@@ -16,6 +16,17 @@ export interface IUser extends Document {
   failedLoginAttempts: number;
   lockoutUntil?: Date;
   tokenVersion: number;
+  twoFactorOtpHash?: string;
+  twoFactorOtpExpiry?: number;
+  /** Only meaningful for role === 'admin' — which platform sections this scoped admin can access. */
+  permissions?: string[];
+  lastLoginAt?: Date;
+  emailVerified: boolean;
+  emailVerifyTokenHash?: string;
+  emailVerifyExpiry?: number;
+  passwordChangedAt?: Date;
+  passwordHistory: string[];
+  forcePasswordReset: boolean;
 }
 
 const userSchema = new Schema<IUser>(
@@ -24,7 +35,7 @@ const userSchema = new Schema<IUser>(
       type: Schema.Types.ObjectId,
       ref: 'Tenant',
       required: function (this: IUser) {
-        return this.role !== Role.customer;
+        return this.role !== Role.customer && this.role !== Role.super_admin;
       },
     },
     name: { type: String, required: true, trim: true },
@@ -62,10 +73,24 @@ const userSchema = new Schema<IUser>(
       type: Date, 
       default: null 
     },
-    tokenVersion: { 
-      type: Number, 
-      default: 0 
-    }
+    tokenVersion: {
+      type: Number,
+      default: 0
+    },
+    twoFactorOtpHash: {
+      type: String
+    },
+    twoFactorOtpExpiry: {
+      type: Number
+    },
+    permissions: { type: [String], default: undefined },
+    lastLoginAt: { type: Date },
+    emailVerified: { type: Boolean, default: true }, // existing accounts predate verification — default true so nobody is retroactively locked out
+    emailVerifyTokenHash: { type: String },
+    emailVerifyExpiry: { type: Number },
+    passwordChangedAt: { type: Date, default: Date.now },
+    passwordHistory: { type: [String], default: [] },
+    forcePasswordReset: { type: Boolean, default: false },
   },
   { 
     timestamps: true 

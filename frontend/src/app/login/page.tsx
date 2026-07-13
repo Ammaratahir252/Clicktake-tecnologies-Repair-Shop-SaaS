@@ -4,6 +4,7 @@ import { useState } from "react";
 import axios from "axios";
 import { setToken } from "@/lib/auth.helper";
 import { getRoleHome } from "@/lib/rbac";
+import { useBranding, hexToRgbTriple } from "@/lib/useBranding";
 import {
   Eye, EyeOff, Lock, Mail, LogIn, Loader2,
   ShieldCheck, Wrench, ArrowRight, ArrowLeft, Zap, Clock, Star
@@ -18,6 +19,21 @@ export default function LoginPage() {
   const [showPw,    setShowPw]    = useState(false);
   const [isLocked,  setIsLocked]  = useState(false);
 
+  // 2FA — set once the password step succeeds and the platform requires a code
+  const [otpUserId, setOtpUserId] = useState("");
+  const [otpCode,   setOtpCode]   = useState("");
+
+  // Platform branding — falls back to the hardcoded Dibnow look when unset/unreachable.
+  const branding = useBranding();
+
+  const applySession = (res: any) => {
+    const token = res.data.data?.token || res.data.token;
+    const user  = res.data.data?.user  || res.data.user;
+    if (!token || !user) { setErrorMsg("Authentication failed: Invalid server response."); return; }
+    setToken(token, user);
+    window.location.replace(getRoleHome(user.role));
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -25,14 +41,12 @@ export default function LoginPage() {
     setIsLocked(false);
 
     try {
-      const res   = await axios.post("/api/auth/login", { email, password });
-      const token = res.data.data?.token || res.data.token;
-      const user  = res.data.data?.user  || res.data.user;
-
-      if (!token || !user) { setErrorMsg("Authentication failed: Invalid server response."); return; }
-
-      setToken(token, user);
-      window.location.replace(getRoleHome(user.role));
+      const res = await axios.post("/api/auth/login", { email, password });
+      if (res.data.data?.requiresOtp) {
+        setOtpUserId(res.data.data.userId);
+        return;
+      }
+      applySession(res);
     } catch (err: any) {
       const status  = err.response?.status;
       const message = err.response?.data?.message;
@@ -44,20 +58,42 @@ export default function LoginPage() {
     }
   };
 
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setErrorMsg("");
+    setIsLocked(false);
+
+    try {
+      const res = await axios.post("/api/auth/verify-otp", { userId: otpUserId, code: otpCode });
+      applySession(res);
+    } catch (err: any) {
+      const status  = err.response?.status;
+      const message = err.response?.data?.message;
+      if (status === 423) { setIsLocked(true); setErrorMsg(message || "Account locked. Try again later."); }
+      else setErrorMsg(message || "Incorrect verification code.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const features = [
     { icon: Zap,   text: "Real-time repair tracking" },
     { icon: Clock, text: "Live job & delivery updates" },
     { icon: Star,  text: "Multi-role team management" },
   ];
 
-  /* ── Palette (matches landing page) ── */
+  /* ── Palette (matches landing page, overridable via Settings → Appearance) ── */
   const BG     = "#fdf6ee";
   const BG3    = "#f5ede0";
-  const ACCENT = "#1d4ed8";
-  const ACCENT2= "#1e3a8a";
+  const ACCENT = branding.primaryColor || "#1d4ed8";
+  const ACCENT2= branding.secondaryColor || "#1e3a8a";
   const TEXT   = "#1c1917";
   const MUTED  = "#78716c";
   const BORDER = "#e7d9c8";
+  const companyName = branding.companyName || "Dibnow";
+  const footerText = branding.footerText || "© 2026 DibnowRepairSaaS · All rights reserved";
+  const ACCENT_RGB = hexToRgbTriple(ACCENT);
 
   return (
     <div style={{ minHeight:"100vh", display:"flex", background: BG, fontFamily:"'DM Sans',system-ui,sans-serif" }}>
@@ -88,7 +124,10 @@ export default function LoginPage() {
         style={{
           width:"50%", flexDirection:"column", justifyContent:"space-between",
           padding:56, position:"relative", overflow:"hidden",
-          background:`linear-gradient(160deg,${ACCENT} 0%,${ACCENT2} 55%,#0f172a 100%)`,
+          background: branding.loginBackgroundUrl
+            ? `linear-gradient(160deg,rgba(${ACCENT_RGB},0.88) 0%,rgba(${hexToRgbTriple(ACCENT2)},0.92) 55%,rgba(15,23,42,0.94) 100%), url(${branding.loginBackgroundUrl})`
+            : `linear-gradient(160deg,${ACCENT} 0%,${ACCENT2} 55%,#0f172a 100%)`,
+          backgroundSize: "cover", backgroundPosition: "center",
         }}
       >
         {/* Decorative rings */}
@@ -109,14 +148,16 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ position:"relative",zIndex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ width:52,height:52,background:"rgba(255,255,255,0.15)",borderRadius:16,
+            <div style={{ width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.15)",borderRadius:16,
               border:"1px solid rgba(255,255,255,0.2)",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform:"rotate(-4deg)" }}>
-              <Wrench color="#fff" size={22}/>
+              display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",
+              boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
+              {branding.logoUrl
+                ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+                : <Wrench color="#fff" size={22}/>}
             </div>
             <div>
-              <p style={{ color:"#fff",fontWeight:800,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>Dibnow</p>
+              <p style={{ color:"#fff",fontWeight:800,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>{companyName}</p>
               <p style={{ color:"rgba(255,255,255,0.5)",fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase" }}>RepairSaaS</p>
             </div>
           </div>
@@ -153,7 +194,7 @@ export default function LoginPage() {
 
         {/* Footer */}
         <div style={{ position:"relative",zIndex:1 }}>
-          <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>© 2026 DibnowRepairSaaS · All rights reserved</p>
+          <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>{footerText}</p>
         </div>
       </div>
 
@@ -162,10 +203,12 @@ export default function LoginPage() {
 
         {/* Mobile logo */}
         <div style={{ display:"none",alignItems:"center",gap:12,marginBottom:32 }} className="lg:hidden mobile-logo">
-          <div style={{ width:40,height:40,background:`linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <Wrench color="#fff" size={18}/>
+          <div style={{ width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
+            {branding.logoUrl
+              ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+              : <Wrench color="#fff" size={18}/>}
           </div>
-          <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>DibnowRepairSaaS</p>
+          <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>{branding.companyName || "DibnowRepairSaaS"}</p>
         </div>
 
         <div style={{ width:"100%",maxWidth:440 }}>
@@ -181,16 +224,16 @@ export default function LoginPage() {
           {/* Heading */}
           <div className="fade-up" style={{ marginBottom:36,animationDelay:"0.05s" }}>
             <div style={{ display:"inline-flex",alignItems:"center",gap:8,
-              background:"#dbeafe",border:"1px solid rgba(29,78,216,0.2)",
+              background:"#dbeafe",border:`1px solid rgba(${ACCENT_RGB},0.2)`,
               borderRadius:999,padding:"7px 16px",marginBottom:18 }}>
               <ShieldCheck size={13} color={ACCENT}/>
-              <span style={{ color:ACCENT,fontSize:11,fontWeight:800,letterSpacing:"0.08em" }}>SECURE LOGIN</span>
+              <span style={{ color:ACCENT,fontSize:11,fontWeight:800,letterSpacing:"0.08em" }}>{otpUserId ? "VERIFICATION" : "SECURE LOGIN"}</span>
             </div>
             <h2 style={{ color:TEXT,fontWeight:700,fontSize:"clamp(30px,4vw,44px)",lineHeight:1.1,letterSpacing:"-1.2px",marginBottom:10,fontFamily:"'DM Serif Display',Georgia,serif" }}>
-              Welcome back
+              {otpUserId ? "Check your email" : "Welcome back"}
             </h2>
             <p style={{ color:MUTED,fontSize:15,fontWeight:500,lineHeight:1.6 }}>
-              Sign in to your repair shop portal to continue.
+              {otpUserId ? "Enter the 6-digit code we just sent you to finish signing in." : "Sign in to your repair shop portal to continue."}
             </p>
           </div>
 
@@ -207,7 +250,56 @@ export default function LoginPage() {
             </div>
           )}
 
+          {/* OTP Form */}
+          {otpUserId && (
+            <form onSubmit={handleVerifyOtp} style={{ display:"flex",flexDirection:"column",gap:20 }}>
+              <div className="fade-up" style={{ animationDelay:"0.1s" }}>
+                <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>
+                  Verification Code
+                </label>
+                <input
+                  type="text" inputMode="numeric" placeholder="000000" maxLength={6}
+                  value={otpCode} onChange={e => setOtpCode(e.target.value.replace(/\D/g, ""))} required autoFocus
+                  style={{ width:"100%",padding:"16px",borderRadius:14,border:`1.5px solid ${BORDER}`,background:"#fff",
+                    color:TEXT,fontSize:26,fontWeight:800,letterSpacing:"10px",textAlign:"center",outline:"none",
+                    fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}
+                  onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(${ACCENT_RGB},0.12)` }}
+                  onBlur={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}
+                />
+              </div>
+
+              <div className="fade-up" style={{ animationDelay:"0.15s" }}>
+                <button
+                  type="submit"
+                  disabled={isLoading || isLocked || otpCode.length !== 6}
+                  style={{
+                    width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+                    padding:"16px 24px",borderRadius:14,border:"none",cursor: isLoading||isLocked||otpCode.length!==6 ? "not-allowed" : "pointer",
+                    fontWeight:800,fontSize:15,color:"#fff",fontFamily:"'DM Sans',sans-serif",
+                    background: isLoading||isLocked||otpCode.length!==6 ? "#94a3b8" : `linear-gradient(135deg,${ACCENT} 0%,${ACCENT2} 100%)`,
+                    boxShadow: isLoading||isLocked||otpCode.length!==6 ? "none" : `0 10px 32px rgba(${ACCENT_RGB},0.28)`,
+                    transition:"all 0.2s",
+                  }}
+                >
+                  {isLoading
+                    ? <><Loader2 size={18} style={{ animation:"spin 1s linear infinite" }}/><span>Verifying…</span></>
+                    : <><ShieldCheck size={17}/><span>Verify &amp; Sign In</span></>
+                  }
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => { setOtpUserId(""); setOtpCode(""); setErrorMsg(""); }}
+                style={{ background:"none",border:"none",color:MUTED,fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center" }}
+              >
+                <ArrowLeft size={13} style={{ verticalAlign:"-2px",marginRight:6 }}/> Back to login
+              </button>
+            </form>
+          )}
+
           {/* Form */}
+          {!otpUserId && (
           <form onSubmit={handleLogin} style={{ display:"flex",flexDirection:"column",gap:20 }}>
 
             {/* Email */}
@@ -224,7 +316,7 @@ export default function LoginPage() {
                     borderRadius:14,border:`1.5px solid ${BORDER}`,background:"#fff",
                     color:TEXT,fontSize:14,fontWeight:500,outline:"none",
                     fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}
-                  onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(29,78,216,0.12)` }}
+                  onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(${ACCENT_RGB},0.12)` }}
                   onBlur={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}
                 />
               </div>
@@ -250,7 +342,7 @@ export default function LoginPage() {
                     borderRadius:14,border:`1.5px solid ${BORDER}`,background:"#fff",
                     color:TEXT,fontSize:14,fontWeight:500,outline:"none",
                     fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}
-                  onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(29,78,216,0.12)` }}
+                  onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(${ACCENT_RGB},0.12)` }}
                   onBlur={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}
                 />
                 <button type="button" onClick={() => setShowPw(v => !v)}
@@ -270,11 +362,11 @@ export default function LoginPage() {
                   padding:"16px 24px",borderRadius:14,border:"none",cursor: isLoading||isLocked ? "not-allowed" : "pointer",
                   fontWeight:800,fontSize:15,color:"#fff",fontFamily:"'DM Sans',sans-serif",
                   background: isLoading||isLocked ? "#94a3b8" : `linear-gradient(135deg,${ACCENT} 0%,${ACCENT2} 100%)`,
-                  boxShadow: isLoading||isLocked ? "none" : `0 10px 32px rgba(29,78,216,0.28)`,
+                  boxShadow: isLoading||isLocked ? "none" : `0 10px 32px rgba(${ACCENT_RGB},0.28)`,
                   transition:"all 0.2s",opacity: isLoading||isLocked ? 0.6 : 1,
                 }}
-                onMouseEnter={e=>{ if(!isLoading&&!isLocked){ (e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 14px 40px rgba(29,78,216,0.35)` }}}
-                onMouseLeave={e=>{ (e.currentTarget as HTMLButtonElement).style.transform="translateY(0)"; (e.currentTarget as HTMLButtonElement).style.boxShadow=isLoading||isLocked?"none":`0 10px 32px rgba(29,78,216,0.28)` }}
+                onMouseEnter={e=>{ if(!isLoading&&!isLocked){ (e.currentTarget as HTMLButtonElement).style.transform="translateY(-2px)"; (e.currentTarget as HTMLButtonElement).style.boxShadow=`0 14px 40px rgba(${ACCENT_RGB},0.35)` }}}
+                onMouseLeave={e=>{ (e.currentTarget as HTMLButtonElement).style.transform="translateY(0)"; (e.currentTarget as HTMLButtonElement).style.boxShadow=isLoading||isLocked?"none":`0 10px 32px rgba(${ACCENT_RGB},0.28)` }}
               >
                 {isLoading
                   ? <><Loader2 size={18} style={{ animation:"spin 1s linear infinite" }}/><span>Signing in…</span></>
@@ -283,15 +375,19 @@ export default function LoginPage() {
               </button>
             </div>
           </form>
+          )}
 
           {/* Divider */}
+          {!otpUserId && (
           <div className="fade-up" style={{ display:"flex",alignItems:"center",gap:12,margin:"28px 0",animationDelay:"0.25s" }}>
             <div style={{ flex:1,borderTop:`1px solid ${BORDER}` }}/>
             <span style={{ fontSize:11,color:MUTED,fontWeight:700 }}>OR</span>
             <div style={{ flex:1,borderTop:`1px solid ${BORDER}` }}/>
           </div>
+          )}
 
           {/* Register link */}
+          {!otpUserId && (
           <div className="fade-up" style={{ textAlign:"center",animationDelay:"0.3s" }}>
             <span style={{ color:MUTED,fontSize:14 }}>Don&apos;t have an account? </span>
             <Link href="/register" style={{ color:ACCENT,fontWeight:800,fontSize:14,textDecoration:"none" }}
@@ -299,6 +395,7 @@ export default function LoginPage() {
               Create Account →
             </Link>
           </div>
+          )}
 
         </div>
       </div>

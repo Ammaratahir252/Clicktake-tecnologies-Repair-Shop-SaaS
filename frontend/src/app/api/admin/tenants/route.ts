@@ -3,8 +3,9 @@ import connectDB from '@/lib/db';
 import Tenant from '@/models/tenant.model';
 import { sendResponse } from '@/utils/apiResponse';
 
+import { canAccess } from '@/lib/adminAccess';
 function isSuperAdmin(req: NextRequest) {
-  return req.headers.get('x-role') === 'super_admin';
+  return canAccess(req, 'tenants');
 }
 
 export async function GET(req: NextRequest) {

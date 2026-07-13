@@ -10,6 +10,8 @@ import StockMovement, { STOCK_MOVEMENT_TYPES, StockMovementType } from '@/models
 import Ticket from '@/models/ticket.model';
 import { AUDIT_ACTIONS } from '@/models/auditLog.model';
 import { createAuditLog } from '@/services/auditLog.service';
+import { notifyTenantByRole } from '@/lib/notifications';
+import { fireAutomationTrigger } from '@/lib/automation';
 import mongoose from 'mongoose';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -21,6 +23,25 @@ function getCtx(req: NextRequest) {
     userName: req.headers.get('x-user-name') ?? 'Staff',
     role:     req.headers.get('x-role')      ?? '',
   };
+}
+
+// Fires a real in-app alert to owner/manager and evaluates any
+// part_stock_below_limit automation rules — replaces what used to be a
+// console.warn that nobody but the server process ever saw.
+function alertLowStock(tenantId: string, part: { _id: mongoose.Types.ObjectId; name: string; sku: string; lowStockLimit: number }, newStock: number): void {
+  notifyTenantByRole(
+    tenantId, ['owner', 'manager'], 'low_stock',
+    `Low stock: ${part.name}`,
+    `${part.name} (SKU: ${part.sku}) — ${newStock} unit${newStock !== 1 ? 's' : ''} remaining (limit: ${part.lowStockLimit})`,
+    { partId: part._id.toString(), newStock, lowStockLimit: part.lowStockLimit }
+  );
+  void fireAutomationTrigger('part_stock_below_limit', {
+    tenantId,
+    partId: part._id.toString(),
+    partName: part.name,
+    currentStock: newStock,
+    lowStockLimit: part.lowStockLimit,
+  });
 }
 
 const INVENTORY_VIEW_ROLES  = ['super_admin', 'owner', 'manager', 'frontdesk', 'technician'];
@@ -437,9 +458,7 @@ export async function adjustStockHandler(req: NextRequest, partId: string): Prom
 
     // ── 9. Low stock alert ──────────────────────────────────────────────────
     if (newStock <= part.lowStockLimit) {
-      console.warn(
-        `LOW STOCK ALERT: ${part.name} (SKU: ${part.sku}) — ${newStock} unit${newStock !== 1 ? 's' : ''} remaining (limit: ${part.lowStockLimit})`
-      );
+      alertLowStock(tenantId, part, newStock);
     }
 
     // ── 10. Fire-and-forget audit log ───────────────────────────────────────
@@ -632,7 +651,7 @@ export async function usePartOnTicketHandler(req: NextRequest, ticketId: string)
 
     // Low stock alert
     if (newStock <= part.lowStockLimit) {
-      console.warn(`LOW STOCK ALERT: ${part.name} (SKU: ${part.sku}) — ${newStock} units remaining`);
+      alertLowStock(tenantId, part, newStock);
     }
 
     // Add part to ticket's partsUsed array

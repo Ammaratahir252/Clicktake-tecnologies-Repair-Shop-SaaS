@@ -5,17 +5,27 @@ import User from '@/models/user.model';
 import Tenant from '@/models/tenant.model';
 import { sendResponse } from '@/utils/apiResponse';
 
+import { canAccess } from '@/lib/adminAccess';
 function isSuperAdmin(req: NextRequest) {
-  return req.headers.get('x-role') === 'super_admin';
+  return canAccess(req, 'analytics');
 }
 
 export async function GET(req: NextRequest) {
   if (!isSuperAdmin(req)) return sendResponse(false, 'Forbidden', null, 403);
   await connectDB();
   try {
+    const { searchParams } = new URL(req.url);
+    const period = searchParams.get('period') ?? 'month';
+
+    const since = new Date();
+    if (period === 'week')         since.setDate(since.getDate() - 7);
+    else if (period === 'quarter') since.setDate(since.getDate() - 90);
+    else                           since.setDate(since.getDate() - 30);
+
     const [tenants, ticketAgg, userAgg] = await Promise.all([
       Tenant.find().select('name subdomain plan isActive createdAt').lean(),
       Ticket.aggregate([
+        { $match: { createdAt: { $gte: since } } },
         {
           $group: {
             _id: '$tenantId',

@@ -9,6 +9,7 @@ interface AuditLog {
   _id: string;
   action: string;
   userId: string;
+  userName?: string;
   entity: string;
   ipAddress?: string;
   createdAt: string;
@@ -93,7 +94,7 @@ export default function AuditLogsPage() {
                   <thead>
                     <tr className="bg-muted border-b border-border text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">
                       <th className="px-6 py-4">Action</th>
-                      <th className="px-6 py-4">User ID</th>
+                      <th className="px-6 py-4">User</th>
                       <th className="px-6 py-4">Entity</th>
                       <th className="px-6 py-4">IP Address</th>
                       <th className="px-6 py-4">Date & Time</th>
@@ -107,7 +108,15 @@ export default function AuditLogsPage() {
                             {log.action}
                           </span>
                         </td>
-                        <td className="px-6 py-4 font-mono text-xs text-muted-foreground">{log.userId}</td>
+                        <td className="px-6 py-4">
+                          {log.userName ? (
+                            <span className="text-card-foreground font-semibold">
+                              {log.userName} <span className="font-mono text-[10px] text-muted-foreground">({log.userId.slice(-8)})</span>
+                            </span>
+                          ) : (
+                            <span className="font-mono text-xs text-muted-foreground">{log.userId}</span>
+                          )}
+                        </td>
                         <td className="px-6 py-4">{log.entity}</td>
                         <td className="px-6 py-4 font-mono text-xs">{log.ipAddress || "N/A"}</td>
                         <td className="px-6 py-4 text-muted-foreground">{new Date(log.createdAt).toLocaleString()}</td>

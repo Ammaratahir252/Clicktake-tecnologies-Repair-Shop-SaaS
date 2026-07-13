@@ -17,12 +17,18 @@ export async function GET(req: NextRequest) {
   await connectDB();
   try {
     const { tenantId, role } = getCtx(req);
-    if (!tenantId) return sendResponse(false, 'Unauthorized', null, 401);
     if (!['owner', 'manager', 'super_admin'].includes(role)) {
       return sendResponse(false, 'Forbidden', null, 403);
     }
 
-    const tid = new mongoose.Types.ObjectId(tenantId);
+    // Super admin can inspect any shop's analytics via ?tenantId=, without impersonating.
+    const requestedTenantId = role === 'super_admin'
+      ? (new URL(req.url).searchParams.get('tenantId') || tenantId)
+      : tenantId;
+
+    if (!requestedTenantId) return sendResponse(false, 'Unauthorized', null, 401);
+
+    const tid = new mongoose.Types.ObjectId(requestedTenantId);
 
     const [tickets, staffCount, customerCount, topTechs, monthlyRevenue] = await Promise.all([
       Ticket.find({ tenantId: tid }).lean(),
@@ -47,7 +53,7 @@ export async function GET(req: NextRequest) {
             as: 'user',
           },
         },
-        { $unwind: { path: '$user', preserveNullAndEmpty: true } },
+        { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
         {
           $project: {
             name:    '$user.name',

@@ -2,7 +2,7 @@
 
 import { Wrench, Globe, Shield, Zap, ArrowRight, MapPin, Calendar, Users } from "lucide-react";
 import Link from "next/link";
-import { TEAM, ABOUT_VALUES } from "../data";
+import { ABOUT_VALUES } from "../data";
 import { THEME, FadeIn, HatchBg, DotsBg } from "../../components/theme";
 
 const { BG3, BORDER, ACCENT, ACCENT2, TEXT, MUTED } = THEME;
@@ -93,8 +93,8 @@ export default function AboutSection() {
             {ABOUT_VALUES.map((v, i) => {
               const Icon = VALUE_ICON_MAP[v.icon] ?? Wrench;
               return (
-                <FadeIn key={v.title} delay={i * 0.08}>
-                  <div className="card-lift" style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 18, padding: "30px 26px", boxShadow: "0 4px 18px rgba(120,83,56,0.06)" }}>
+                <FadeIn key={v.title} delay={i * 0.08} className="value-card-wrap">
+                  <div className="card-lift" style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 18, padding: "30px 26px", boxShadow: "0 4px 18px rgba(120,83,56,0.06)", height: "100%", display: "flex", flexDirection: "column" }}>
                     <div style={{ width: 50, height: 50, borderRadius: 14, background: v.bg, border: `1px solid ${v.color}22`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 18 }}>
                       <Icon size={22} color={v.color} />
                     </div>
@@ -106,39 +106,13 @@ export default function AboutSection() {
             })}
           </div>
         </FadeIn>
-
-        {/* ── Team ── */}
-        <FadeIn delay={0.2}>
-          <h3 style={{ fontSize: 26, fontWeight: 700, color: TEXT, letterSpacing: "-0.6px", marginBottom: 32, textAlign: "center", fontFamily: "'DM Serif Display',Georgia,serif" }}>
-            Meet the team
-          </h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))", gap: 22 }}>
-            {TEAM.map((member, i) => (
-              <FadeIn key={member.name} delay={i * 0.08}>
-                <div className="card-lift" style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 18, padding: "32px 26px", textAlign: "center", boxShadow: "0 4px 18px rgba(120,83,56,0.06)" }}>
-                  <div style={{
-                    width: 72, height: 72, borderRadius: "50%",
-                    background: `linear-gradient(135deg,${member.color}80,${member.color})`,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    color: "#fff", fontSize: 22, fontWeight: 700,
-                    margin: "0 auto 18px",
-                    boxShadow: `0 8px 22px ${member.color}35`,
-                    fontFamily: "'DM Sans',sans-serif",
-                  }}>{member.initials}</div>
-                  <div style={{ fontWeight: 700, color: TEXT, fontSize: 16, marginBottom: 4, fontFamily: "'DM Serif Display',Georgia,serif" }}>{member.name}</div>
-                  <div style={{ color: member.color, fontSize: 12, fontWeight: 700, marginBottom: 12, letterSpacing: "0.04em", fontFamily: "'DM Sans',sans-serif" }}>{member.role}</div>
-                  <p style={{ color: MUTED, fontSize: 13, lineHeight: 1.8, margin: 0, fontFamily: "'DM Sans',sans-serif" }}>{member.bio}</p>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </FadeIn>
       </div>
 
       <style>{`
         @media(max-width:900px){
           .hero-cols{grid-template-columns:1fr!important;}
         }
+        .value-card-wrap{height:100%;}
       `}</style>
     </section>
   );

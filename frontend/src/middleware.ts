@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 
+// ─── Impersonation helper ──────────────────────────────────────────────────────
+/**
+ * If the super admin has an active impersonation cookie, override x-tenant-id
+ * with the impersonated tenant so all scoped API queries return that tenant's data.
+ */
+function applyImpersonation(headers: Headers, req: NextRequest, role: string): void {
+  if (role !== 'super_admin') return;
+  const imperCookie = req.cookies.get('imper')?.value;
+  if (!imperCookie) return;
+  try {
+    const ctx = JSON.parse(decodeURIComponent(imperCookie));
+    if (ctx?.tenantId) {
+      headers.set('x-tenant-id', String(ctx.tenantId));
+      headers.set('x-impersonating', 'true');
+    }
+  } catch {}
+}
+
 // ─── Route Definitions ────────────────────────────────────────────────────────
 
 /** Routes logged-in users should NOT visit (redirect to dashboard) */
@@ -60,6 +78,11 @@ export async function middleware(req: NextRequest) {
           if (data.tokenVersion !== undefined && data.tokenVersion !== payload.tokenVersion) {
             return null; // Invalidated session
           }
+          if (data.maintenanceMode === true && payload.role !== 'super_admin') {
+            return null; // Platform under maintenance — only super admins may proceed
+          }
+          (payload as any).__readOnly = data.readOnlyMode === true;
+          (payload as any).__lockdown = data.emergencyLockdown === true;
         }
       } catch {
         // Fetch failed or timed out — treat token as valid (signature already verified above)
@@ -76,6 +99,31 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  // ─── 1.5. Read-only mode / emergency lockdown — block writes for everyone but super_admin ──
+  // Centralized here (rather than duplicated in every route block below) so Read Only Mode
+  // and Emergency Lockdown apply uniformly to all tenant-scoped API writes without needing to
+  // touch each block. Admin and auth routes are exempt — admins must still be able to act,
+  // and login/logout must keep working during a lockdown.
+  const isTenantApiWrite =
+    pathname.startsWith('/api/') &&
+    !['GET', 'HEAD', 'OPTIONS'].includes(req.method) &&
+    !pathname.startsWith('/api/admin') &&
+    !pathname.startsWith('/api/auth');
+  if (isTenantApiWrite) {
+    const payload = await verifyToken();
+    if (payload && payload.role !== 'super_admin' && ((payload as any).__lockdown || (payload as any).__readOnly)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: (payload as any).__lockdown
+            ? 'The platform is under an emergency lockdown — write actions are disabled.'
+            : 'The platform is in read-only mode — write actions are temporarily disabled.',
+        },
+        { status: 503 }
+      );
+    }
+  }
+
   // ─── 2. API: /api/parts + /api/stock-movements — requires valid JWT ────────
   if (pathname.startsWith('/api/parts') || pathname.startsWith('/api/stock-movements')) {
     const payload = await verifyToken();
@@ -86,10 +134,12 @@ export async function middleware(req: NextRequest) {
       );
     }
     const requestHeaders = new Headers(req.headers);
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -102,10 +152,12 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -130,10 +182,12 @@ export async function middleware(req: NextRequest) {
       }
     }
 
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -146,10 +200,15 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    if (Array.isArray((payload as any).permissions)) {
+      requestHeaders.set('x-permissions', (payload as any).permissions.join(','));
+    }
+    // Do NOT apply impersonation to /api/admin/* — admin routes must always use real super_admin context
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -162,14 +221,32 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
-
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  // ─── Activity tracking (page views) — requires valid JWT ─────────────────
+  if (pathname.startsWith('/api/activity')) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    const role = String(payload.role ?? '');
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      role);
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // ─── Notifications — requires valid JWT ──────────────────────────────────
   if (pathname.startsWith('/api/notifications')) {
@@ -180,10 +257,12 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -196,10 +275,12 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -212,10 +293,12 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -228,10 +311,12 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -244,10 +329,44 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
-    requestHeaders.set('x-role',      String(payload.role    ?? ''));
+    requestHeaders.set('x-role',      role);
     requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
+  // ─── Tenant self-service + Subscriptions + Payment initiation + Change Password — requires valid JWT ──
+  // Note: every gateway's */callback route is deliberately NOT matched here (or in the
+  // matcher config below) — those are the gateways' own public postback targets, not user requests.
+  const PAYMENT_INITIATE_PATHS = [
+    '/api/payments/easypaisa/initiate',
+    '/api/payments/jazzcash/initiate',
+    '/api/payments/stripe/initiate',
+    '/api/payments/paypal/initiate',
+  ];
+  if (
+    pathname.startsWith('/api/tenant') ||
+    pathname.startsWith('/api/subscriptions') ||
+    PAYMENT_INITIATE_PATHS.includes(pathname) ||
+    pathname === '/api/payments' ||
+    pathname === '/api/auth/change-password'
+  ) {
+    const payload = await verifyToken();
+    if (!payload) {
+      return NextResponse.json(
+        { success: false, message: 'Unauthorized: missing or invalid token' },
+        { status: 401 }
+      );
+    }
+    const role = String(payload.role ?? '');
+    requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+    requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+    requestHeaders.set('x-role',      role);
+    requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+    applyImpersonation(requestHeaders, req, role);
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
@@ -306,5 +425,17 @@ export const config = {
     '/api/customers/:path*',
     '/api/notifications',
     '/api/notifications/:path*',
+    '/api/activity',
+    '/api/activity/:path*',
+    '/api/tenant',
+    '/api/tenant/:path*',
+    '/api/subscriptions',
+    '/api/subscriptions/:path*',
+    '/api/payments/easypaisa/initiate',
+    '/api/payments/jazzcash/initiate',
+    '/api/payments/stripe/initiate',
+    '/api/payments/paypal/initiate',
+    '/api/payments',
+    '/api/auth/change-password',
   ],
 };

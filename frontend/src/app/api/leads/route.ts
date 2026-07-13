@@ -3,6 +3,7 @@ import connectDB from '@/lib/db';
 import { sendResponse } from '@/utils/apiResponse';
 import Lead from '@/models/lead.model';
 import mongoose from 'mongoose';
+import { notifyTenantByRole } from '@/lib/notifications';
 
 function getCtx(req: NextRequest) {
   return {
@@ -36,7 +37,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     }
     if (status && status !== 'all') query.status = status;
 
-    const leads = await Lead.find(query).sort({ createdAt: -1 }).lean();
+    const leadsRaw = await Lead.find(query)
+      .sort({ createdAt: -1 })
+      .populate('tenantId', 'name subdomain')
+      .lean() as any[];
+
+    const leads = leadsRaw.map((lead) => ({
+      ...lead,
+      tenantName: lead.tenantId && typeof lead.tenantId === 'object' ? lead.tenantId.name : undefined,
+      tenantId:   lead.tenantId && typeof lead.tenantId === 'object' ? String(lead.tenantId._id) : lead.tenantId,
+    }));
+
     return sendResponse(true, 'Leads fetched', leads);
   } catch (err: any) {
     return sendResponse(false, err.message ?? 'Server error', null, 500);
@@ -57,13 +68,29 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       return sendResponse(false, 'name, phone, device, issue, source are required', null, 400);
     }
 
+    // The Manager Leads UI (and other callers) send display-cased labels like "Walk-in" /
+    // "WhatsApp", but the schema enum is lowercase ('walk-in', 'whatsapp', ...). Normalize here
+    // so every caller works regardless of casing, instead of failing Mongoose validation.
+    const normalizedSource = String(source).toLowerCase().trim();
+
     const leadNumber = await generateLeadNumber(tenantId);
     const lead = await Lead.create({
       tenantId: new mongoose.Types.ObjectId(tenantId),
       leadNumber,
-      name, phone, email, device, issue, source,
+      name, phone, email, device, issue,
+      source: normalizedSource,
       status: 'new',
     });
+
+    // Notify owner + manager about the new lead (fire-and-forget)
+    notifyTenantByRole(
+      tenantId,
+      ['owner', 'manager'],
+      'new_lead',
+      `New Lead: ${name}`,
+      `${device} — ${issue}`,
+      { leadId: (lead as any)._id?.toString() }
+    );
 
     return sendResponse(true, 'Lead created', lead, 201);
   } catch (err: any) {

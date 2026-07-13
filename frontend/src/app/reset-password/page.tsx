@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import axios from "axios";
 import Link from "next/link";
@@ -8,6 +8,7 @@ import {
   Lock, Eye, EyeOff, KeyRound, Loader2,
   CheckCircle, ArrowLeft, AlertCircle, ShieldCheck, Wrench, ArrowRight, Zap, Star
 } from "lucide-react";
+import { useBranding } from "@/lib/useBranding";
 
 type Stage = "form" | "success" | "error";
 
@@ -33,6 +34,16 @@ function checkStrength(pw: string): { ok: boolean; message: string; score: numbe
 }
 
 export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
+  );
+}
+
+function ResetPasswordForm() {
+  const branding = useBranding();
+  const companyName = branding.companyName || "Dibnow";
   const searchParams = useSearchParams();
   const [token,       setToken]       = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -61,7 +72,7 @@ export default function ResetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!token.trim())              { setError("Reset token is required."); return; }
+    if (!token.trim())              { setError("Invalid or missing reset link. Please request a new one."); return; }
     if (newPassword !== confirmPw)  { setError("Passwords do not match."); return; }
     if (!strength.ok)               { setError(strength.message); return; }
     setIsLoading(true);
@@ -139,17 +150,19 @@ export default function ResetPasswordPage() {
           <rect width="100%" height="100%" fill="url(#hatch)"/>
         </svg>
 
-        {/* Logo — exact copy from login */}
+        {/* Logo */}
         <div style={{ position:"relative",zIndex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ width:52,height:52,background:"rgba(255,255,255,0.15)",borderRadius:16,
+            <div style={{ width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.15)",borderRadius:16,
               border:"1px solid rgba(255,255,255,0.2)",
-              display:"flex",alignItems:"center",justifyContent:"center",
-              boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform:"rotate(-4deg)" }}>
-              <Wrench color="#fff" size={22}/>
+              display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",
+              boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
+              {branding.logoUrl
+                ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+                : <Wrench color="#fff" size={22}/>}
             </div>
             <div>
-              <p style={{ color:"#fff",fontWeight:800,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>Dibnow</p>
+              <p style={{ color:"#fff",fontWeight:800,fontSize:22,letterSpacing:"-0.5px",lineHeight:1,fontFamily:"'DM Serif Display',Georgia,serif" }}>{companyName}</p>
               <p style={{ color:"rgba(255,255,255,0.5)",fontSize:10,fontWeight:700,letterSpacing:"0.2em",textTransform:"uppercase" }}>RepairSaaS</p>
             </div>
           </div>
@@ -202,7 +215,7 @@ export default function ResetPasswordPage() {
 
         {/* Footer */}
         <div style={{ position:"relative",zIndex:1 }}>
-          <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>© 2026 DibnowRepairSaaS · All rights reserved</p>
+          <p style={{ color:"rgba(255,255,255,0.2)",fontSize:12 }}>{branding.footerText || "© 2026 DibnowRepairSaaS · All rights reserved"}</p>
         </div>
       </div>
 
@@ -211,10 +224,12 @@ export default function ResetPasswordPage() {
 
         {/* Mobile logo */}
         <div style={{ display:"none",alignItems:"center",gap:12,marginBottom:32 }} className="lg:hidden mobile-logo">
-          <div style={{ width:40,height:40,background:`linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center" }}>
-            <Wrench color="#fff" size={18}/>
+          <div style={{ width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
+            {branding.logoUrl
+              ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+              : <Wrench color="#fff" size={18}/>}
           </div>
-          <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>DibnowRepairSaaS</p>
+          <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>{branding.companyName || "DibnowRepairSaaS"}</p>
         </div>
 
         <div style={{ width:"100%",maxWidth:440 }}>
@@ -248,7 +263,7 @@ export default function ResetPasswordPage() {
             <p style={{ color:MUTED,fontSize:15,fontWeight:500,lineHeight:1.6 }}>
               {stage==="success" ? `Redirecting to login in ${countdown}s…`
                : stage==="error" ? "Your token has expired. Request a new one."
-               : "Enter your reset token and choose a strong new password."}
+               : "Choose a strong new password below."}
             </p>
           </div>
 
@@ -300,20 +315,6 @@ export default function ResetPasswordPage() {
               )}
 
               <form onSubmit={handleSubmit} style={{ display:"flex",flexDirection:"column",gap:20 }}>
-
-                {/* Token */}
-                <div>
-                  <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>
-                    Reset Token
-                  </label>
-                  <textarea rows={2} placeholder="Paste your reset token here…"
-                    value={token} onChange={e => setToken(e.target.value.trim())} required
-                    style={{ width:"100%",padding:"13px 14px",borderRadius:14,border:`1.5px solid ${BORDER}`,background:"#fff",color:TEXT,fontSize:12,fontFamily:"'DM Mono',Courier,monospace",outline:"none",resize:"none",transition:"all 0.2s",lineHeight:1.6 }}
-                    onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(29,78,216,0.12)` }}
-                    onBlur={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}
-                  />
-                  <p style={{ fontSize:11,color:MUTED,marginTop:5,marginLeft:2,fontWeight:600 }}>Auto-filled from the reset link. Expires in 1 hour.</p>
-                </div>
 
                 {/* New Password — same field style as login */}
                 <div>

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Loader2, ArrowLeft, Clock, Save, UserPlus, MessageSquare } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, Save, UserPlus, MessageSquare, Images, DollarSign } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { TICKET_STATUS_TRANSITIONS, TicketStatus } from "@/lib/enums";
 
@@ -33,7 +33,12 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
   const [noteContent, setNoteContent] = useState("");
   const [noteLoading, setNoteLoading] = useState(false);
 
+  // Estimate
+  const [estimateInput, setEstimateInput] = useState("");
+  const [estimateLoading, setEstimateLoading] = useState(false);
+
   const canAssign = userRole === "owner" || userRole === "manager";
+  const canSetEstimate = userRole === "owner" || userRole === "manager" || userRole === "technician";
 
   useEffect(() => {
     fetchTicket();
@@ -90,6 +95,22 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
     }
   };
 
+  const handleSetEstimate = async () => {
+    const amount = Number(estimateInput);
+    if (!estimateInput || Number.isNaN(amount) || amount < 0) return;
+    setEstimateLoading(true);
+    try {
+      await api.patch(`/api/tickets/${ticketId}/estimate`, { estimateAmount: amount });
+      setEstimateInput("");
+      await fetchTicket();
+      alert("Estimate set — customer has been notified");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to set estimate");
+    } finally {
+      setEstimateLoading(false);
+    }
+  };
+
   const handleAddNote = async () => {
     if (!noteContent.trim()) return;
     setNoteLoading(true);
@@ -128,7 +149,7 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
   let allowedStatusesForRole = allValidNextStatuses;
 
   if (userRole === "technician") {
-    allowedStatusesForRole = allValidNextStatuses.filter(s => s === "in_repair" || s === "ready");
+    allowedStatusesForRole = allValidNextStatuses.filter(s => s === "diagnosed" || s === "in_repair" || s === "ready");
   } else if (userRole === "frontdesk") {
     allowedStatusesForRole = allValidNextStatuses.filter(s => s === "received" || s === "ready" || s === "delivered");
   }
@@ -185,6 +206,31 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
             </div>
           </div>
 
+          {/* SECTION 4.5: Repair Photos */}
+          {ticket.photos?.length > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+              <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Images size={16} /> Repair Photos ({ticket.photos.length})
+              </h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {[...ticket.photos].reverse().map((photo: any) => (
+                  <a
+                    key={photo._id}
+                    href={photo.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block relative rounded-xl overflow-hidden border border-slate-100 group"
+                  >
+                    <img src={photo.url} alt={photo.type} className="w-full h-28 object-cover group-hover:scale-105 transition-transform" />
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
+                      <p className="text-white text-[10px] font-bold capitalize">{photo.type} · {photo.uploadedByName}</p>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* SECTION 5: Notes */}
           <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
             <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -229,6 +275,32 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
 
         {/* Right Column */}
         <div className="space-y-6">
+
+          {/* SECTION 2.5: Set Estimate */}
+          {canSetEstimate && ticket.status === "diagnosed" && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+              <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <DollarSign size={16} /> Set Estimate
+              </h2>
+              <div className="flex flex-col gap-3">
+                <input
+                  type="number"
+                  min="0"
+                  value={estimateInput}
+                  onChange={e => setEstimateInput(e.target.value)}
+                  placeholder="Estimate amount (PKR)"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-semibold text-slate-700"
+                />
+                <button
+                  onClick={handleSetEstimate}
+                  disabled={!estimateInput || estimateLoading}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm"
+                >
+                  {estimateLoading ? "Sending..." : "Send Estimate to Customer"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* SECTION 3: Status Update */}
           {allowedStatusesForRole.length > 0 && (

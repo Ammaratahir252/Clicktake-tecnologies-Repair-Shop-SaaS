@@ -34,10 +34,16 @@ export async function GET(req: NextRequest) {
     const finalLimit = Math.min(limit, 100);
     const skip = (page - 1) * finalLimit;
 
-    const [logs, total] = await Promise.all([
-      AuditLog.find(query).sort({ createdAt: -1 }).skip(skip).limit(finalLimit),
+    const [logsRaw, total] = await Promise.all([
+      AuditLog.find(query).sort({ createdAt: -1 }).skip(skip).limit(finalLimit).populate('userId', 'name email').lean(),
       AuditLog.countDocuments(query)
     ]);
+
+    const logs = (logsRaw as any[]).map((log) => ({
+      ...log,
+      userName: log.userId && typeof log.userId === 'object' ? log.userId.name : undefined,
+      userId:   log.userId && typeof log.userId === 'object' ? String(log.userId._id) : log.userId,
+    }));
 
     return sendResponse(true, 'Audit logs fetched successfully', {
       logs,

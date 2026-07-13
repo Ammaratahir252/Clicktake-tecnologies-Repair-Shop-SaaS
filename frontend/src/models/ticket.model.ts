@@ -21,6 +21,15 @@ export interface ITicketPartUsed {
   addedAt:  Date;
 }
 
+export interface ITicketPhoto {
+  url:            string;
+  type:           string; // before | during | after | damage | parts
+  note?:          string;
+  uploadedBy:     mongoose.Types.ObjectId;
+  uploadedByName: string;
+  createdAt:      Date;
+}
+
 export interface ITicketHistoryEntry {
   changedBy:     mongoose.Types.ObjectId;
   changedByName: string;
@@ -37,6 +46,8 @@ export interface ITicket extends Document {
   ticketNumber:   string;                   // e.g. TKT-0042
   customerId:     mongoose.Types.ObjectId;
   technicianId?:  mongoose.Types.ObjectId;
+  driverId?:      mongoose.Types.ObjectId;
+  driverLocation?: { lat: number; lng: number; updatedAt: Date };
   deviceBrand:    string;
   deviceModel:    string;
   deviceColor?:   string;
@@ -45,7 +56,7 @@ export interface ITicket extends Document {
   diagnosisNotes?: string;
   status:         TicketStatus;
   estimateAmount?: number;
-  photos:         string[];
+  photos:         ITicketPhoto[];
   notes:          ITicketNote[];
   statusHistory:  ITicketHistoryEntry[];
   partsUsed:      ITicketPartUsed[];  // M3 — parts consumed in this repair
@@ -60,6 +71,17 @@ const TicketNoteSchema = new Schema<ITicketNote>(
     authorId:   { type: Schema.Types.ObjectId, ref: 'User', required: true },
     authorName: { type: String, required: true },
     content:    { type: String, required: true, trim: true },
+  },
+  { _id: true, timestamps: { createdAt: true, updatedAt: false } }
+);
+
+const TicketPhotoSchema = new Schema<ITicketPhoto>(
+  {
+    url:            { type: String, required: true },
+    type:           { type: String, required: true, default: 'before' },
+    note:           { type: String },
+    uploadedBy:     { type: Schema.Types.ObjectId, ref: 'User', required: true },
+    uploadedByName: { type: String, required: true },
   },
   { _id: true, timestamps: { createdAt: true, updatedAt: false } }
 );
@@ -98,6 +120,22 @@ const TicketSchema = new Schema<ITicket>(
       type: Schema.Types.ObjectId,
       ref: 'User',
       default: null,
+    },
+    driverId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    driverLocation: {
+      type: new Schema(
+        {
+          lat: { type: Number, required: true },
+          lng: { type: Number, required: true },
+          updatedAt: { type: Date, required: true },
+        },
+        { _id: false }
+      ),
+      default: undefined,
     },
     deviceBrand: {
       type: String,
@@ -138,7 +176,7 @@ const TicketSchema = new Schema<ITicket>(
       default: null,
     },
     photos: {
-      type: [String],
+      type: [TicketPhotoSchema],
       default: [],
     },
     notes: {

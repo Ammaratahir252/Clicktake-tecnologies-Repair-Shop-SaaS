@@ -1,29 +1,56 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/db';
 import { AuditLog } from '@/models/auditLog.model';
-import { sendResponse } from '@/utils/apiResponse';
 
+// See start route for why this is a hard super_admin check, not a scoped-admin permission.
 function isSuperAdmin(req: NextRequest) {
   return req.headers.get('x-role') === 'super_admin';
 }
 
 export async function POST(req: NextRequest) {
-  if (!isSuperAdmin(req)) return sendResponse(false, 'Forbidden', null, 403);
+  if (!isSuperAdmin(req)) {
+    return NextResponse.json({ success: false, message: 'Forbidden' }, { status: 403 });
+  }
   await connectDB();
   try {
-    const superAdminId = req.headers.get('x-user-id') || 'unknown';
+    const superAdminId = req.headers.get('x-user-id');
 
-    await AuditLog.create({
-      tenantId:  superAdminId,
-      userId:    superAdminId,
-      action:    'IMPERSONATE_END',
-      entity:    'session',
-      ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
-      userAgent: req.headers.get('user-agent') || 'unknown',
+    // Read impersonated tenantId from cookie for the audit log
+    let impersonatedTenantId: string | null = null;
+    const imperCookie = req.cookies.get('imper')?.value;
+    if (imperCookie) {
+      try {
+        const ctx = JSON.parse(decodeURIComponent(imperCookie));
+        impersonatedTenantId = ctx?.tenantId ?? null;
+      } catch {}
+    }
+
+    // Only log if there was an actual impersonation session — tenantId is a required,
+    // Tenant-referenced field, so we must never fall back to the admin's own userId here.
+    if (impersonatedTenantId && superAdminId) {
+      await AuditLog.create({
+        tenantId:  impersonatedTenantId,
+        userId:    superAdminId,
+        action:    'IMPERSONATE_END',
+        entity:    'session',
+        entityId:  impersonatedTenantId,
+        ipAddress: req.headers.get('x-forwarded-for') || 'unknown',
+        userAgent: req.headers.get('user-agent') || 'unknown',
+      });
+    }
+
+    const res = NextResponse.json({ success: true, message: 'Impersonation ended', data: null });
+
+    // Clear the impersonation cookie
+    res.cookies.set('imper', '', {
+      path:     '/',
+      sameSite: 'lax',
+      httpOnly: false,
+      maxAge:   0,
     });
 
-    return sendResponse(true, 'Impersonation ended', null);
+    return res;
   } catch (err: any) {
-    return sendResponse(false, err.message || 'Server error', null, 500);
+    return NextResponse.json({ success: false, message: err.message || 'Server error' }, { status: 500 });
   }
 }

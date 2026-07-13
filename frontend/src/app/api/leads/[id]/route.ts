@@ -20,8 +20,8 @@ export async function PATCH(
   await connectDB();
   try {
     const { tenantId, role } = getCtx(req);
-    if (!tenantId) return sendResponse(false, 'Unauthorized', null, 401);
     if (!['owner', 'manager', 'super_admin'].includes(role)) return sendResponse(false, 'Forbidden', null, 403);
+    if (role !== 'super_admin' && !tenantId) return sendResponse(false, 'Unauthorized', null, 401);
 
     const body = await req.json();
     const allowed = ['status', 'assignedTo', 'convertedTicketId'];
@@ -30,11 +30,12 @@ export async function PATCH(
       if (body[key] !== undefined) update[key] = body[key];
     }
 
-    const lead = await Lead.findOneAndUpdate(
-      { _id: new mongoose.Types.ObjectId(params.id), tenantId: new mongoose.Types.ObjectId(tenantId) },
-      { $set: update },
-      { new: true }
-    );
+    // super_admin has no tenantId of its own — match by lead id alone; every other
+    // role stays strictly scoped to their own tenant.
+    const filter: Record<string, unknown> = { _id: new mongoose.Types.ObjectId(params.id) };
+    if (role !== 'super_admin') filter.tenantId = new mongoose.Types.ObjectId(tenantId);
+
+    const lead = await Lead.findOneAndUpdate(filter, { $set: update }, { new: true });
 
     if (!lead) return sendResponse(false, 'Lead not found', null, 404);
     return sendResponse(true, 'Lead updated', lead);
@@ -50,13 +51,13 @@ export async function DELETE(
   await connectDB();
   try {
     const { tenantId, role } = getCtx(req);
-    if (!tenantId) return sendResponse(false, 'Unauthorized', null, 401);
     if (!['owner', 'super_admin'].includes(role)) return sendResponse(false, 'Forbidden', null, 403);
+    if (role !== 'super_admin' && !tenantId) return sendResponse(false, 'Unauthorized', null, 401);
 
-    await Lead.findOneAndDelete({
-      _id: new mongoose.Types.ObjectId(params.id),
-      tenantId: new mongoose.Types.ObjectId(tenantId),
-    });
+    const filter: Record<string, unknown> = { _id: new mongoose.Types.ObjectId(params.id) };
+    if (role !== 'super_admin') filter.tenantId = new mongoose.Types.ObjectId(tenantId);
+
+    await Lead.findOneAndDelete(filter);
     return sendResponse(true, 'Lead deleted', null);
   } catch (err: any) {
     return sendResponse(false, err.message ?? 'Server error', null, 500);

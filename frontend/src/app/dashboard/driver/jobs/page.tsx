@@ -5,7 +5,7 @@ import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
 import {
   Truck, Phone, CheckCircle, Navigation, ArrowRight, User,
-  AlertCircle, Zap, TrendingUp, Calendar, Loader2,
+  AlertCircle, Zap, TrendingUp, Calendar, Loader2, MapPin,
 } from "lucide-react";
 
 const JOB_STATUSES = [
@@ -29,7 +29,16 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`text-xs font-bold px-3 py-1.5 rounded-full ${s.color}`}>{s.label}</span>;
 }
 
-function JobCard({ job, advancing, onAdvance }: { job: any; advancing: string | null; onAdvance: (id: string, status: string) => void }) {
+function JobCard({
+  job, advancing, onAdvance, onShareLocation, sharingLocation, locationShared,
+}: {
+  job: any;
+  advancing: string | null;
+  onAdvance: (id: string, status: string) => void;
+  onShareLocation: (id: string) => void;
+  sharingLocation: string | null;
+  locationShared: string | null;
+}) {
   const statusObj = JOB_STATUSES.find((x) => x.key === job.status) ?? JOB_STATUSES[0];
   const nextStatus = NEXT_STATUS[job.status];
   const address = job.customerId?.address ?? "Address on file";
@@ -96,6 +105,27 @@ function JobCard({ job, advancing, onAdvance }: { job: any; advancing: string | 
             <Navigation size={14} />
             Maps
           </a>
+          {job.status !== "delivered" && (
+            <button
+              onClick={() => onShareLocation(job._id)}
+              disabled={sharingLocation === job._id}
+              className={`flex items-center justify-center gap-1.5 px-4 py-2.5 font-bold rounded-xl text-xs transition-all ${
+                locationShared === job._id
+                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                  : "bg-muted hover:bg-muted/70 text-foreground"
+              } disabled:opacity-60`}
+              title="Share your current GPS location with the shop and customer"
+            >
+              {sharingLocation === job._id ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : locationShared === job._id ? (
+                <CheckCircle size={14} />
+              ) : (
+                <MapPin size={14} />
+              )}
+              {locationShared === job._id ? "Shared" : "Share Location"}
+            </button>
+          )}
           {nextStatus && (
             <button
               onClick={() => onAdvance(job._id, job.status)}
@@ -127,6 +157,9 @@ function JobsContent() {
   const [jobs, setJobs]           = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
   const [advancing, setAdvancing] = useState<string | null>(null);
+  const [sharingLocation, setSharingLocation] = useState<string | null>(null);
+  const [locationShared, setLocationShared]   = useState<string | null>(null);
+  const [locationError, setLocationError]     = useState<string | null>(null);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -156,6 +189,65 @@ function JobsContent() {
     }
   };
 
+  const sendLocation = async (ticketId: string, lat: number, lng: number) => {
+    await api.patch(`/api/tickets/${ticketId}/location`, { lat, lng });
+    setLocationShared(ticketId);
+    setTimeout(() => setLocationShared((cur) => (cur === ticketId ? null : cur)), 5000);
+  };
+
+  const shareLocation = (ticketId: string) => {
+    setSharingLocation(ticketId);
+    setLocationError(null);
+
+    if (!navigator.geolocation) {
+      manualLocationFallback(ticketId);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          await sendLocation(ticketId, pos.coords.latitude, pos.coords.longitude);
+        } catch {
+          setLocationError("Could not share your location — please try again.");
+        } finally {
+          setSharingLocation(null);
+        }
+      },
+      () => {
+        // Permission denied or unavailable — fall back to manual entry
+        manualLocationFallback(ticketId);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  };
+
+  const manualLocationFallback = async (ticketId: string) => {
+    const input = window.prompt(
+      "Couldn't read GPS automatically. Enter your current coordinates as \"latitude,longitude\" " +
+      "(e.g. from Google Maps: press and hold your location, then copy the numbers shown):"
+    );
+    if (!input) {
+      setSharingLocation(null);
+      return;
+    }
+    const [latStr, lngStr] = input.split(",").map((s) => s.trim());
+    const lat = parseFloat(latStr);
+    const lng = parseFloat(lngStr);
+    if (Number.isNaN(lat) || Number.isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      setLocationError("That doesn't look like valid coordinates — try again with \"latitude,longitude\".");
+      setSharingLocation(null);
+      return;
+    }
+    try {
+      await sendLocation(ticketId, lat, lng);
+    } catch {
+      setLocationError("Could not share your location — please try again.");
+    } finally {
+      setSharingLocation(null);
+    }
+  };
+
   const pending = jobs.filter((j) => j.status !== "delivered");
   const done    = jobs.filter((j) => j.status === "delivered");
   const completionRate = jobs.length > 0 ? Math.round((done.length / jobs.length) * 100) : 0;
@@ -171,6 +263,12 @@ function JobsContent() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 space-y-6 p-4 md:p-6">
+      {locationError && (
+        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700/30 rounded-2xl p-4 shadow-sm">
+          <AlertCircle size={18} className="text-red-500 flex-shrink-0" />
+          <p className="text-red-700 dark:text-red-400 font-bold text-sm">{locationError}</p>
+        </div>
+      )}
       <div className="space-y-4">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -215,7 +313,15 @@ function JobsContent() {
           </div>
           <div className="space-y-4">
             {pending.map((job) => (
-              <JobCard key={job._id} job={job} advancing={advancing} onAdvance={advanceStatus} />
+              <JobCard
+                key={job._id}
+                job={job}
+                advancing={advancing}
+                onAdvance={advanceStatus}
+                onShareLocation={shareLocation}
+                sharingLocation={sharingLocation}
+                locationShared={locationShared}
+              />
             ))}
           </div>
         </div>
