@@ -31,6 +31,7 @@ import FAQSection          from "./sections/FAQSection";
 import CTABanner           from "./sections/CTABanner";
 import ContactSection      from "./sections/ContactSection";
 import Footer              from "./sections/footer";
+import ChatWidget          from "../components/ChatWidget";
 
 import { GLOBAL_STYLES }   from "../components/theme";
 
@@ -102,6 +103,9 @@ export default function LandingPage() {
         <Footer />
 
       </div>
+
+      {/* Floating AI assistant */}
+      <ChatWidget />
     </>
   );
 }

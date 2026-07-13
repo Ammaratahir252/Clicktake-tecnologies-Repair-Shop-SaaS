@@ -157,6 +157,15 @@ function getImpersonationCtx(): ImpersonationCtx | null {
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
+interface NotifItem {
+  _id: string;
+  title: string;
+  message: string;
+  type: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
 export default function DashboardShell({ requiredRole, children }: DashboardShellProps) {
   const branding = useBranding();
   const router   = useRouter();

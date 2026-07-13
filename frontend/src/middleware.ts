@@ -302,6 +302,22 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
+  // ─── AI Chat — public (site-wide assistant widget, works for anonymous
+  // visitors too) — attaches identity headers only when a valid session
+  // exists, but never blocks the request for lack of one.
+  if (pathname === '/api/ai/chat') {
+    const payload = await verifyToken();
+    if (payload) {
+      const role = String(payload.role ?? '');
+      requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
+      requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
+      requestHeaders.set('x-role',      role);
+      requestHeaders.set('x-user-name', String(payload.name    ?? 'Staff'));
+      applyImpersonation(requestHeaders, req, role);
+    }
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // ─── AI Routes /api/ai/* — requires valid JWT ─────────────────────────────
   if (pathname.startsWith('/api/ai')) {
     const payload = await verifyToken();
