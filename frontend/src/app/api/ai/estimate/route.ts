@@ -1,15 +1,15 @@
 /**
  * app/api/ai/estimate/route.ts
- * Module 8.1 — AI Estimate Predictor
- *
- * Queries the last 50 completed tickets with estimates for similar device+issue,
- * then sends that real cost history to Groq to predict a cost range.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NOW USES: OpenAI GPT-4o-mini (ChatGPT)
+ * WHY: GPT-4o-mini produces the most reliable cost number ranges in JSON.
+ *      Cost: ~$0.0001 per call — practically free for a repair shop.
  *
  * RBAC: technician, manager, owner
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAICompletion } from "@/lib/ai/client";
+import { callOpenAI, parseAIJson } from "@/lib/ai/providers";
 import { buildEstimateSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
@@ -67,38 +67,33 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         ? historicalTickets
             .map(
               (t) =>
-                `${t.deviceBrand} ${t.deviceModel}: "${t.issue}" → PKR ${(t as any).estimateAmount} | Parts used: ${
+                `${t.deviceBrand} ${t.deviceModel}: "${t.issue}" → PKR ${(t as any).estimateAmount} | Parts: ${
                   ((t as any).partsUsed as any[])?.length > 0
                     ? ((t as any).partsUsed as any[]).map((p: any) => p.name).join(", ")
-                    : "none recorded"
+                    : "none"
                 }`
             )
             .join("\n")
         : "No historical estimate data available for this shop yet.";
 
-    const rawText = await createAICompletion([
-      { role: "system", content: buildEstimateSystemPrompt(historicalContext) },
-      { role: "user",   content: `Predict repair cost for:\nDevice: ${deviceBrand ?? "Unknown"} ${deviceModel ?? "Unknown model"}\nIssue: "${issue}"` },
-    ], 1024);
+    const aiResponse = await callOpenAI(
+      [
+        { role: "system", content: buildEstimateSystemPrompt(historicalContext) },
+        {
+          role: "user",
+          content: `Predict repair cost for:\nDevice: ${deviceBrand ?? "Unknown"} ${deviceModel ?? "Unknown model"}\nIssue: "${issue}"`,
+        },
+      ],
+      1024
+    );
 
-    let parsed;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      const cleaned = rawText
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        parsed = { raw: cleaned };
-      }
-    }
+    const parsed = parseAIJson(aiResponse.text, { raw: aiResponse.text });
 
     return sendResponse(true, "Estimate prediction complete", {
       ...parsed,
       samplesUsed: historicalTickets.length,
+      model: aiResponse.model,
+      provider: aiResponse.provider,
     });
   } catch (err: any) {
     console.error("[AI/estimate]", err.message);

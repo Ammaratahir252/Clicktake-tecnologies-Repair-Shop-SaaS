@@ -123,10 +123,10 @@ export async function POST(req: NextRequest) {
       );
       if (rawVerifyToken) {
         void sendEmail(email, 'Verify your email address', emailVerifyAccount(ownerName, buildVerifyLink(String(createdUser._id), rawVerifyToken)));
-        return sendResponse(true, "Shop and Owner registered. Check your email to verify your address before logging in.", null, 201);
+        return sendResponse(true, "Shop and Owner registered. Check your email to verify your address before logging in.", { tenantId: newTenant._id.toString() }, 201);
       }
 
-      return sendResponse(true, "Shop and Owner registered successfully", null, 201);
+      return sendResponse(true, "Shop and Owner registered successfully", { tenantId: newTenant._id.toString() }, 201);
     }
 
     else if (role === 'customer') {

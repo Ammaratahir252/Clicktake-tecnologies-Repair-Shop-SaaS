@@ -1,9 +1,8 @@
 // src/services/tickets/ticket.service.ts
 import mongoose from 'mongoose';
 import Ticket from '@/models/ticket.model';
-import '@/models/customer.model';
-import '@/models/user.model';
-import Notification from '@/models/notification.model';
+import '@/models/customer.model'; // <--- ADD THIS LINE
+import '@/models/user.model';     // <--- ADD THIS LINE (for the technician populate)
 import { TicketStatus, TICKET_STATUS_TRANSITIONS } from '@/lib/enums';
 
 // ─── Input Types ──────────────────────────────────────────────────────────────
@@ -82,38 +81,6 @@ interface SetEstimateInput {
 }
 
 // ─── Private Helpers ──────────────────────────────────────────────────────────
-
-async function notifyShopStaff(
-  tenantId: string,
-  title: string,
-  message: string,
-  type: string,
-  metadata: Record<string, unknown>
-): Promise<void> {
-  try {
-    const User = mongoose.models.User;
-    const staffUsers = await User.find({
-      tenantId: new mongoose.Types.ObjectId(tenantId),
-      role: { $in: ['owner', 'manager'] },
-      isActive: true,
-    }).select('_id').lean() as { _id: mongoose.Types.ObjectId }[];
-
-    if (!staffUsers.length) return;
-
-    await Notification.insertMany(
-      staffUsers.map((u) => ({
-        tenantId:        new mongoose.Types.ObjectId(tenantId),
-        recipientUserId: u._id,
-        type,
-        title,
-        message,
-        metadata,
-      }))
-    );
-  } catch {
-    // Notification failure must never break ticket creation
-  }
-}
 
 /**
  * Generates TKT-0001, TKT-0042 etc.
@@ -204,14 +171,6 @@ export const TicketService = {
       }],
     });
 
-    await notifyShopStaff(
-      tenantId,
-      `New repair booked — ${ticketNumber}`,
-      `${customerName} booked a repair for ${deviceBrand} ${deviceModel}: ${issue}`,
-      'ticket_created',
-      { ticketId: ticket._id.toString(), ticketNumber, customerName, deviceBrand, deviceModel, issue }
-    );
-
     return ticket;
   },
 
@@ -239,7 +198,7 @@ export const TicketService = {
 
     return Ticket.find(query)
       .populate('customerId', 'name phone email address')
-      .populate('technicianId', 'name email')
+      .populate('technicianId', 'name email phone')
       .populate('driverId', 'name phone email')
       .sort({ createdAt: -1 });
   },
@@ -254,7 +213,7 @@ export const TicketService = {
       tenantId: new mongoose.Types.ObjectId(tenantId),
     })
       .populate('customerId', 'name phone email address')
-      .populate('technicianId', 'name email role')
+      .populate('technicianId', 'name email role phone')
       .populate('driverId', 'name phone email');
 
     if (!ticket) throw new Error('Ticket not found');
@@ -289,25 +248,6 @@ export const TicketService = {
     });
 
     await ticket.save();
-
-    // Notify shop staff on key status changes
-    const notifyStatuses: Partial<Record<TicketStatus, string>> = {
-      [TicketStatus.ready]:         'Ready for pickup',
-      [TicketStatus.in_repair]:     'Repair started',
-      [TicketStatus.estimate_sent]: 'Estimate sent to customer',
-      [TicketStatus.delivered]:     'Device delivered',
-    };
-    const statusLabel = notifyStatuses[newStatus];
-    if (statusLabel) {
-      await notifyShopStaff(
-        tenantId,
-        `${statusLabel} — ${ticket.ticketNumber}`,
-        `Ticket ${ticket.ticketNumber} status changed to: ${newStatus}`,
-        'status_changed',
-        { ticketId: ticket._id.toString(), ticketNumber: ticket.ticketNumber, newStatus }
-      );
-    }
-
     return ticket;
   },
 

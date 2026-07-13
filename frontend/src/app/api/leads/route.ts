@@ -23,18 +23,13 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   await connectDB();
   try {
     const { tenantId, role } = getCtx(req);
+    if (!tenantId) return sendResponse(false, 'Unauthorized', null, 401);
     if (!['owner', 'manager', 'super_admin'].includes(role)) return sendResponse(false, 'Forbidden', null, 403);
-
-    // super_admin has no tenantId — query all leads platform-wide
-    if (role !== 'super_admin' && !tenantId) return sendResponse(false, 'Unauthorized', null, 401);
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
 
-    const query: Record<string, unknown> = {};
-    if (role !== 'super_admin' && tenantId) {
-      query.tenantId = new mongoose.Types.ObjectId(tenantId);
-    }
+    const query: Record<string, unknown> = { tenantId: new mongoose.Types.ObjectId(tenantId) };
     if (status && status !== 'all') query.status = status;
 
     const leadsRaw = await Lead.find(query)

@@ -21,6 +21,9 @@ export interface ILead extends Document {
   source: LeadSource;
   status: LeadStatus;
   assignedTo?: mongoose.Types.ObjectId;
+  claimedBy?: mongoose.Types.ObjectId;
+  claimedByName?: string;
+  claimedAt?: Date;
   convertedTicketId?: mongoose.Types.ObjectId;
   notes: ILeadNote[];
   createdAt: Date;
@@ -32,13 +35,16 @@ const leadSchema = new Schema<ILead>(
     tenantId:    { type: Schema.Types.ObjectId, ref: 'Tenant', required: true },
     leadNumber:  { type: String, required: true },
     name:        { type: String, required: true, trim: true },
-    phone:       { type: String, trim: true },
+    phone:       { type: String, required: true, trim: true },
     email:       { type: String, trim: true, lowercase: true },
     device:      { type: String, required: true },
     issue:       { type: String, required: true },
     source:      { type: String, enum: ['walk-in', 'whatsapp', 'instagram', 'referral', 'website', 'facebook'], required: true },
     status:      { type: String, enum: ['new', 'contacted', 'qualified', 'converted', 'lost'], default: 'new' },
     assignedTo:  { type: Schema.Types.ObjectId, ref: 'User' },
+    claimedBy:     { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    claimedByName: { type: String, default: null },
+    claimedAt:     { type: Date, default: null },
     convertedTicketId: { type: Schema.Types.ObjectId, ref: 'Ticket' },
     notes: [{
       content:    { type: String, required: true },

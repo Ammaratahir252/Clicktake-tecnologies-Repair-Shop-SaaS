@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
 /**
  * Interface representing a Customer Document in TypeScript.
@@ -10,6 +10,10 @@ export interface ICustomer extends Document {
   phone: string;
   email?: string;
   address?: string;
+  // ── GPS (Module: Global GPS) — captured via browser geolocation ──────────
+  lat?: number;
+  lng?: number;
+  locationUpdatedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -44,6 +48,9 @@ const CustomerSchema: Schema = new Schema(
     address: { 
       type: String 
     },
+    lat: { type: Number },
+    lng: { type: Number },
+    locationUpdatedAt: { type: Date },
   },
   { 
     // Automatically manages createdAt and updatedAt fields
@@ -59,4 +66,7 @@ const CustomerSchema: Schema = new Schema(
 CustomerSchema.index({ tenantId: 1, phone: 1 }, { unique: true });
 
 // Export the model, preventing re-definition during Next.js Hot Reloads
-export default mongoose.models.Customer || mongoose.model<ICustomer>('Customer', CustomerSchema);
+const Customer: Model<ICustomer> =
+  mongoose.models.Customer || mongoose.model<ICustomer>('Customer', CustomerSchema);
+
+export default Customer;

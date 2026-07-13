@@ -12,6 +12,8 @@ export interface ITenant extends Document {
   email: string;
   plan: 'free' | 'pro' | 'enterprise';
   isActive: boolean;
+  stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
   // Shop profile fields
   logo?: string;
   bannerUrl?: string;
@@ -21,6 +23,15 @@ export interface ITenant extends Document {
   address?: string;
   city?: string;
   postcode?: string;
+  country?: string;
+  // ── GPS (Module: Global GPS) ──────────────────────────────────────────────
+  // GeoJSON Point — required shape for MongoDB 2dsphere geospatial queries.
+  // coordinates are stored as [lng, lat] per GeoJSON spec (NOT [lat, lng]).
+  location?: {
+    type: 'Point';
+    coordinates: [number, number]; // [lng, lat]
+  };
+  locationUpdatedAt?: Date;
   acceptedDevices: string[];
   servicesOffered: string[];
   openingHours?: string;
@@ -96,6 +107,8 @@ const tenantSchema = new Schema<ITenant>(
       default: 'free' 
     },
     isActive: { type: Boolean, default: true },
+    stripeCustomerId:     { type: String },
+    stripeSubscriptionId: { type: String },
     logo:          { type: String },
     bannerUrl:     { type: String },
     tagline:       { type: String },
@@ -104,6 +117,19 @@ const tenantSchema = new Schema<ITenant>(
     address:       { type: String },
     city:          { type: String },
     postcode:      { type: String },
+    country:       { type: String },
+    location: {
+      type: {
+        type: String,
+        enum: ['Point'],
+        default: 'Point',
+      },
+      coordinates: {
+        type: [Number], // [lng, lat]
+        default: undefined,
+      },
+    },
+    locationUpdatedAt: { type: Date },
     acceptedDevices: { type: [String], default: [] },
     servicesOffered: { type: [String], default: [] },
     openingHours:  { type: String },
@@ -150,6 +176,10 @@ const tenantSchema = new Schema<ITenant>(
     timestamps: true // Adds createdAt and updatedAt automatically
   }
 );
+
+// 2dsphere index — required for $near / $geoNear "nearby shops" queries.
+// sparse: true so tenants without a location set yet don't break the index.
+tenantSchema.index({ location: '2dsphere' }, { sparse: true });
 
 /**
  * Prevents "OverwriteModelError" in Next.js during hot-reloading.

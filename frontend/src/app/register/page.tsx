@@ -59,6 +59,16 @@ export default function RegisterPage() {
   const [isLoading,    setIsLoading]    = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
+  // Read ?plan=starter|pro|business|enterprise from the pricing page link so it can be
+  // forwarded to the (separate) plan-selection page after the account is created.
+  // Plan selection itself no longer happens on this page — see /select-plan.
+  const [preselectedPlan, setPreselectedPlan] = useState("");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const plan = new URLSearchParams(window.location.search).get("plan");
+    if (plan) setPreselectedPlan(plan.toLowerCase());
+  }, []);
+
   const roles = [
     { id:"owner",      title:"Shop Owner",   icon:Store,            color:"#1d4ed8", bg:"#dbeafe",
       perks:["Full dashboard access","Revenue analytics","Team management","Multi-location support"] },
@@ -146,7 +156,17 @@ export default function RegisterPage() {
     setIsLoading(true);
     setErrorMessage("");
     try {
-      await axios.post("/api/auth/register", { ...formData, role: selectedRole });
+      const res = await axios.post("/api/auth/register", { ...formData, role: selectedRole });
+
+      // Shop owners pick a plan and pay on a separate page — never on this form.
+      const tenantId = res.data?.data?.tenantId;
+      if (selectedRole === "owner" && tenantId) {
+        const qs = new URLSearchParams({ tenantId, email: formData.email });
+        if (preselectedPlan) qs.set("plan", preselectedPlan);
+        router.push(`/select-plan?${qs.toString()}`);
+        return;
+      }
+
       setIsSuccess(true);
       setTimeout(() => router.push("/login"), 2500);
     } catch (err: any) {
@@ -437,7 +457,7 @@ export default function RegisterPage() {
                           <Store size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
                           <input name="shopName" value={formData.shopName} onChange={handleChange} placeholder="e.g. Abid Repair Shop" style={inputSt("shopName")}
                             onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                            onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}/>
+                            onBlur={e=>{ handleBlur(e); e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}/>
                         </div>
                         {errors.shopName && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.shopName}</p>}
                       </div>
@@ -477,7 +497,7 @@ export default function RegisterPage() {
                         <User size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
                         <input name="name" value={formData.name} onChange={handleChange} placeholder="Your full name" style={inputSt("name")}
                           onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                          onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["name"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                          onBlur={e=>{ const ok=handleBlur(e); e.target.style.borderColor=ok?BORDER:"#ef4444"; e.target.style.boxShadow="none" }}/>
                       </div>
                       {errors.name && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.name}</p>}
                     </div>
@@ -489,7 +509,7 @@ export default function RegisterPage() {
                       <Mail size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
                       <input name="email" type="email" value={formData.email} onChange={handleChange} placeholder="your@email.com" style={inputSt("email")}
                         onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                        onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["email"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                        onBlur={e=>{ const ok=handleBlur(e); e.target.style.borderColor=ok?BORDER:"#ef4444"; e.target.style.boxShadow="none" }}/>
                     </div>
                     {errors.email && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.email}</p>}
                   </div>
@@ -500,7 +520,7 @@ export default function RegisterPage() {
                       <Lock size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
                       <input name="password" type={showPassword?"text":"password"} value={formData.password} onChange={handleChange} placeholder="Min 8 chars" style={{ ...inputSt("password"),paddingRight:46 }}
                         onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                        onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["password"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                        onBlur={e=>{ const ok=handleBlur(e); e.target.style.borderColor=ok?BORDER:"#ef4444"; e.target.style.boxShadow="none" }}/>
                       <button type="button" onClick={() => setShowPassword(v=>!v)} style={{ position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:MUTED }}>
                         {showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}
                       </button>
@@ -528,7 +548,7 @@ export default function RegisterPage() {
                         <Store size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
                         <input name="tenantId" value={formData.tenantId} onChange={handleChange} placeholder="Paste your Shop ID" style={{ ...inputSt("tenantId"),fontFamily:"monospace",fontSize:12 }}
                           onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                          onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["tenantId"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                          onBlur={e=>{ const ok=handleBlur(e); e.target.style.borderColor=ok?BORDER:"#ef4444"; e.target.style.boxShadow="none" }}/>
                       </div>
                       {errors.tenantId ? <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.tenantId}</p>
                         : <p style={{ fontSize:11,color:MUTED,marginTop:5,marginLeft:4 }}>Ask your shop owner for the Shop ID</p>}
@@ -542,11 +562,12 @@ export default function RegisterPage() {
                         <Phone size={15} style={{ position:"absolute",left:15,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
                         <input name="phone" value={formData.phone} onChange={handleChange} placeholder="+92 300 0000000" style={inputSt("phone")}
                           onFocus={e=>{ e.target.style.borderColor=accent; e.target.style.boxShadow=`0 0 0 3px ${accent}15` }}
-                          onBlur={e=>{ handleBlur(e as any); e.target.style.borderColor=errors["phone"]?"#ef4444":BORDER; e.target.style.boxShadow="none" }}/>
+                          onBlur={e=>{ const ok=handleBlur(e); e.target.style.borderColor=ok?BORDER:"#ef4444"; e.target.style.boxShadow="none" }}/>
                       </div>
                       {errors.phone && <p style={{ fontSize:11,color:"#dc2626",marginTop:5,marginLeft:4 }}>{errors.phone}</p>}
                     </div>
                   )}
+
 
                   {/* Submit */}
                   <button type="submit"

@@ -1,15 +1,14 @@
 /**
  * app/api/ai/forecast/route.ts
- * Module 8.3 — AI Inventory Demand Forecaster
- *
- * Reads real Part + StockMovement documents from MongoDB, calculates
- * usage velocity per part, then sends to Groq for reorder recommendations.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NOW USES: Google Gemini (gemini-1.5-flash)
+ * WHY: Inventory context can be very long (many parts). Gemini handles it best.
  *
  * RBAC: manager, owner
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAICompletion } from "@/lib/ai/client";
+import { callGemini, parseAIJson } from "@/lib/ai/providers";
 import { buildForecastSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Part from "@/models/part.model";
@@ -40,7 +39,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const mongoose = (await import("mongoose")).default;
     const tenantOid = new mongoose.Types.ObjectId(tenantId);
 
-    // ── Step 1: Get all active parts for this tenant ──────────────────────────
     const parts = await Part.find({ tenantId: tenantOid, isActive: true })
       .select("name sku category quantity lowStockLimit costPrice sellPrice")
       .lean();
@@ -55,7 +53,6 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // ── Step 2: Get stock movements from the last 30 days ────────────────────
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
@@ -67,14 +64,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .select("partId quantity createdAt")
       .lean();
 
-    // ── Step 3: Calculate usage velocity per part ─────────────────────────────
     const usageMap: Record<string, number> = {};
     for (const m of movements) {
       const key = (m as any).partId.toString();
       usageMap[key] = (usageMap[key] ?? 0) + m.quantity;
     }
 
-    // ── Step 4: Build context string for Groq ─────────────────────────────────
     const inventoryContext = parts
       .map((p) => {
         const usage30d = usageMap[(p as any)._id.toString()] ?? 0;
@@ -94,31 +89,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       })
       .join("\n");
 
-    // ── Step 5: AI analyses the real data ────────────────────────────────────
-    const rawText = await createAICompletion([
-      { role: "system", content: buildForecastSystemPrompt(inventoryContext) },
-      { role: "user",   content: `Analyse the inventory and provide reorder recommendations. Total parts: ${parts.length}. Total stock movements in 30d: ${movements.length}.` },
-    ], 1024);
+    const aiResponse = await callGemini(
+      [
+        { role: "system", content: buildForecastSystemPrompt(inventoryContext) },
+        {
+          role: "user",
+          content: `Analyse the inventory and provide reorder recommendations. Total parts: ${parts.length}. Total stock movements in 30d: ${movements.length}.`,
+        },
+      ],
+      1024
+    );
 
-    let parsed;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      const cleaned = rawText
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        parsed = { raw: cleaned };
-      }
-    }
+    const parsed = parseAIJson(aiResponse.text, { raw: aiResponse.text });
 
     return sendResponse(true, "Forecast generated", {
       ...parsed,
       partsAnalysed: parts.length,
       movementsAnalysed: movements.length,
+      model: aiResponse.model,
+      provider: aiResponse.provider,
     });
   } catch (err: any) {
     console.error("[AI/forecast]", err.message);

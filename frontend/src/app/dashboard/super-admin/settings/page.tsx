@@ -20,7 +20,6 @@ const TABS = [
   { key: "security",      label: "Security",       icon: Shield    },
   { key: "subadmins",     label: "Sub Admins",     icon: Users     },
   { key: "notifications", label: "Notifications",  icon: Bell      },
-  { key: "ai",            label: "AI Models",      icon: Cpu       },
   { key: "billing",       label: "Billing",        icon: CreditCard },
   { key: "email",         label: "Email / SMTP",   icon: Mail      },
   { key: "flags",         label: "Feature Flags",  icon: Flag      },

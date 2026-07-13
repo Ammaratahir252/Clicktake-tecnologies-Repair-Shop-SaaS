@@ -93,7 +93,7 @@ export default function PricingSection() {
                 </div>
 
                 {/* CTA */}
-                <Link href="/register" style={{
+                <Link href={`/register?plan=${p.name.toLowerCase()}`} style={{
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   background: p.popular ? "rgba(255,255,255,0.18)" : "#dbeafe",
                   color: p.popular ? "#fff" : ACCENT,

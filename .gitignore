@@ -1,12 +1,8 @@
-# ─── Node / dependencies ─────────────────────────────────────────
 node_modules/
-jspm_packages/
-
-# ─── Build outputs ───────────────────────────────────────────────
-dist/
-out/
+backend/node_modules/
+frontend/node_modules/
 .next/
-tsconfig.tsbuildinfo
+frontend/.next/
 
 # ─── Environment variables ───────────────────────────────────────
 .env
@@ -14,6 +10,14 @@ tsconfig.tsbuildinfo
 .env.development.local
 .env.test.local
 .env.production.local
+frontend/.env
+frontend/.env.local
+backend/.env
+
+# ─── Build outputs ───────────────────────────────────────────────
+dist/
+out/
+tsconfig.tsbuildinfo
 
 # ─── Logs ────────────────────────────────────────────────────────
 logs/

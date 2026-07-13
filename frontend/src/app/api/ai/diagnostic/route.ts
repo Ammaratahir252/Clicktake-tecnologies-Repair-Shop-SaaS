@@ -1,18 +1,14 @@
 /**
  * app/api/ai/diagnostic/route.ts
- * Module 8.1 — AI Diagnostic Assistant
- *
- * Flow:
- *  1. Middleware injects x-tenant-id, x-user-id, x-role
- *  2. Route fetches last 30 completed tickets from MongoDB (RAG context)
- *  3. Sends device + issue + history to Groq
- *  4. Returns structured JSON: causes, steps, parts, confidence scores
+ * ─────────────────────────────────────────────────────────────────────────────
+ * NOW USES: Google Gemini (gemini-1.5-flash)
+ * WHY: Gemini's 1M-token context window fits all repair history without truncation.
  *
  * RBAC: technician, manager, owner
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createAICompletion } from "@/lib/ai/client";
+import { callGemini, parseAIJson } from "@/lib/ai/providers";
 import { buildDiagnosticSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
@@ -55,7 +51,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   try {
     const mongoose = (await import("mongoose")).default;
 
-    // ── Step 1: Fetch real ticket history from MongoDB (RAG context) ──────────
     const recentTickets = await Ticket.find({
       tenantId: new mongoose.Types.ObjectId(tenantId),
       status: { $in: ["delivered", "ready"] },
@@ -76,30 +71,24 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             .join("\n")
         : "No relevant repair history available yet for this shop.";
 
-    // ── Step 2: Call AI with real context injected ───────────────────────────
-    const rawText = await createAICompletion([
-      { role: "system", content: buildDiagnosticSystemPrompt(historyContext) },
-      { role: "user",   content: `Device: ${deviceBrand ?? "Unknown brand"} ${deviceModel ?? "Unknown model"}\nIssue reported by customer: "${issue}"` },
-    ], 1024);
+    const aiResponse = await callGemini(
+      [
+        { role: "system", content: buildDiagnosticSystemPrompt(historyContext) },
+        {
+          role: "user",
+          content: `Device: ${deviceBrand ?? "Unknown brand"} ${deviceModel ?? "Unknown model"}\nIssue reported by customer: "${issue}"`,
+        },
+      ],
+      1024
+    );
 
-    let parsed;
-    try {
-      parsed = JSON.parse(rawText);
-    } catch {
-      const cleaned = rawText
-        .replace(/```json\n?/g, "")
-        .replace(/```\n?/g, "")
-        .trim();
-      try {
-        parsed = JSON.parse(cleaned);
-      } catch {
-        parsed = { raw: cleaned };
-      }
-    }
+    const parsed = parseAIJson(aiResponse.text, { raw: aiResponse.text });
 
     return sendResponse(true, "Diagnostic analysis complete", {
       ...parsed,
       ticketsAnalysed: recentTickets.length,
+      model: aiResponse.model,
+      provider: aiResponse.provider,
     });
   } catch (err: any) {
     console.error("[AI/diagnostic]", err.message);
