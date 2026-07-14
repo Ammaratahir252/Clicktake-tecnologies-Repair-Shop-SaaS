@@ -63,8 +63,14 @@ export async function createAICompletion(
     .lean();
 
   const s = raw as any;
-  const provider: string = s?.aiProvider || "groq";
-  const model: string    = s?.aiModel    || "llama-3.3-70b-versatile";
+  let provider: string = s?.aiProvider || "groq";
+  let model: string    = s?.aiModel    || "llama-3.3-70b-versatile";
+  // Anthropic was removed as a provider — any stale 'anthropic' value in the DB
+  // falls back to Groq (the platform default) instead of erroring.
+  if (provider === "anthropic") {
+    provider = "groq";
+    model = "llama-3.3-70b-versatile";
+  }
 
   await budgetAndPlanCheck(tenantId);
   AIUsageLog.create({

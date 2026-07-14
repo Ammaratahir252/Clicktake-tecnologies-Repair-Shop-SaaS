@@ -8,6 +8,7 @@ import SystemLog from '@/models/systemLog.model';
 import { createAuditLog } from '@/services/auditLog.service';
 import { AUDIT_ACTIONS } from '@/models/auditLog.model';
 import { notifyMaintenanceScheduled } from '@/lib/notifications';
+import { getClientIp, isIpWhitelisted, isValidWhitelistEntry } from '@/lib/ipWhitelist';
 
 function isSuperAdmin(req: NextRequest) {
   return canAccess(req, 'settings');
@@ -22,7 +23,8 @@ export async function GET(req: NextRequest) {
       settings = await PlatformSettings.create({});
       settings = (settings as any).toObject();
     }
-    return sendResponse(true, 'Settings fetched', settings);
+    // clientIp lets the settings UI show the admin their own IP next to the whitelist field.
+    return sendResponse(true, 'Settings fetched', { ...(settings as any), clientIp: getClientIp(req) });
   } catch (err: any) {
     return sendResponse(false, err.message || 'Server error', null, 500);
   }
@@ -40,6 +42,21 @@ export async function PATCH(req: NextRequest) {
 
     if (req.headers.get('x-role') !== 'super_admin' && SUPER_ADMIN_ONLY_KEYS.some((k) => k in body)) {
       return sendResponse(false, 'Only a super admin can change lockdown/read-only/IP-whitelist settings', null, 403);
+    }
+
+    if ('adminIpWhitelist' in body) {
+      const list = (Array.isArray(body.adminIpWhitelist) ? body.adminIpWhitelist : [])
+        .map((e: unknown) => String(e).trim())
+        .filter(Boolean);
+      const bad = list.find((e: string) => !isValidWhitelistEntry(e));
+      if (bad) {
+        return sendResponse(false, `"${bad}" is not a valid IP address or IPv4 CIDR range (e.g. 203.0.113.4 or 198.51.100.0/24)`, null, 400);
+      }
+      // Self-lockout guard: the list must cover the IP you are saving it from.
+      if (list.length > 0 && !isIpWhitelisted(getClientIp(req), list)) {
+        return sendResponse(false, `This whitelist would lock you out — your current IP is ${getClientIp(req) ?? 'undetectable'}. Add it (or a range containing it), or clear the list.`, null, 400);
+      }
+      body.adminIpWhitelist = list;
     }
 
     const before = await PlatformSettings.findOne().select('emergencyLockdown maintenanceMode maintenanceScheduledAt').lean() as any;

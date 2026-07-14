@@ -8,6 +8,7 @@ import { createAuditLog } from '../../../../services/auditLog.service';
 import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
 import { sendEmail, emailTwoFactorCode } from '../../../../lib/notifications';
 import { getPlatformSettings, isMaintenanceActive } from '@/lib/platformSettings';
+import { getClientIp, isIpWhitelisted } from '@/lib/ipWhitelist';
 import { issueSession } from '@/lib/auth/issueSession';
 import { notifySuperAdmins } from '@/lib/notifications';
 
@@ -16,14 +17,16 @@ export async function POST(req: NextRequest) {
     await connectDB();
     const { email, password } = await req.json();
     const settings = await getPlatformSettings();
-    const ip = req.headers.get('x-forwarded-for') || 'unknown';
+    const clientIp = getClientIp(req);
+    const ip = clientIp || 'unknown';
 
     const user = await User.findOne({ email });
     if (!user) {
       return sendResponse(false, 'Invalid email or password.', null, 401);
     }
 
-    if (user.role === 'super_admin' && settings.adminIpWhitelist.length > 0 && !settings.adminIpWhitelist.includes(ip)) {
+    // Fails closed: with a non-empty whitelist, an undeterminable IP is blocked too.
+    if (user.role === 'super_admin' && !isIpWhitelisted(clientIp, settings.adminIpWhitelist)) {
       return sendResponse(false, 'Login blocked: this network is not on the super-admin IP whitelist.', null, 403);
     }
 

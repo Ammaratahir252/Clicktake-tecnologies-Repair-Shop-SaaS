@@ -70,6 +70,8 @@ export interface ITicket extends Document {
     address?: string;    // reverse-geocoded human-readable address
     updatedAt: Date;
   };
+  /** When the stuck-ticket escalation alert fired for this ticket — null until escalated. */
+  escalationAlertedAt?: Date | null;
   createdAt:      Date;
   updatedAt:      Date;
 }
@@ -219,6 +221,7 @@ const TicketSchema = new Schema<ITicket>(
       address:   { type: String },
       updatedAt: { type: Date },
     },
+    escalationAlertedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

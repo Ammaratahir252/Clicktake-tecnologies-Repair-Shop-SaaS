@@ -24,7 +24,8 @@ export async function POST(req: NextRequest) {
     const recipients = await User.find({ ...roleFilter, isActive: true }).select('_id name email tenantId').lean() as any[];
 
     await Promise.allSettled(
-      recipients.filter((r) => r.email).map((r) => sendEmail(r.email, 'Announcement from Platform Admin', emailAdminNotice(r.name, message)))
+      // Broadcasts are announcements, not transactional mail — honor the "Disable Marketing Emails" toggle.
+      recipients.filter((r) => r.email).map((r) => sendEmail(r.email, 'Announcement from Platform Admin', emailAdminNotice(r.name, message), { category: 'marketing' }))
     );
     await Promise.allSettled(
       recipients.filter((r) => r.tenantId).map((r) =>

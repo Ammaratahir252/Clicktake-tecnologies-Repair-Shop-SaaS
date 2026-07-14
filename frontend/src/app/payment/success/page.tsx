@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, ArrowRight, Loader2, Zap, Star, TrendingUp } from "lucide-react";
 import Link from "next/link";
@@ -13,6 +13,14 @@ const PLAN_LABELS: Record<string, { label: string; color: string; bg: string; ic
 };
 
 export default function PaymentSuccessPage() {
+  return (
+    <Suspense fallback={null}>
+      <PaymentSuccessContent />
+    </Suspense>
+  );
+}
+
+function PaymentSuccessContent() {
   const params   = useSearchParams();
   const router   = useRouter();
   const plan     = params.get("plan") ?? "pro";

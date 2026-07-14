@@ -4,7 +4,27 @@ import Tenant from '@/models/tenant.model';
 import Subscription from '@/models/subscription.model';
 import { AuditLog } from '@/models/auditLog.model';
 import { sendResponse } from '@/utils/apiResponse';
-import { sendEmail, emailSubscriptionChanged, createNotification } from '@/lib/notifications';
+import { sendEmail, emailSubscriptionChanged, createNotification, notifySuperAdmins } from '@/lib/notifications';
+import { getPlatformSettings } from '@/lib/platformSettings';
+
+/** "Subscription Cancelled" alert (Settings → Notifications) — fired from both the
+ * PATCH (status → cancelled) and DELETE (hard cancel) paths. */
+function alertSubscriptionCancelled(tenantId: string, context: string): void {
+  void (async () => {
+    try {
+      const settings = await getPlatformSettings();
+      if (!settings.notifs.subscriptionCancelled) return;
+      const Tenant = (await import('@/models/tenant.model')).default;
+      const tenant = await Tenant.findById(tenantId).select('name subdomain').lean() as any;
+      await notifySuperAdmins(
+        'Subscription Cancelled',
+        `<p>The subscription for <strong>${tenant?.name || tenantId}</strong>${tenant?.subdomain ? ` (${tenant.subdomain})` : ''} was cancelled.</p><p>${context}</p>`
+      );
+    } catch {
+      // Alerting must never break the cancellation itself.
+    }
+  })();
+}
 import User from '@/models/user.model';
 
 import { canAccess } from '@/lib/adminAccess';
@@ -34,6 +54,9 @@ export async function PATCH(
     // If cancelling, set cancelledAt timestamp
     if (body.status === 'cancelled' && !update.cancelledAt) {
       update.cancelledAt = new Date();
+    }
+    if (body.status === 'cancelled') {
+      alertSubscriptionCancelled(tenantId, 'Cancelled by a platform admin via the subscription editor.');
     }
 
     const sub = await Subscription.findOneAndUpdate(
@@ -117,6 +140,8 @@ export async function DELETE(
       entity:   'subscription',
       entityId: tenantId,
     });
+
+    alertSubscriptionCancelled(tenantId, 'Hard-cancelled by a platform admin — the tenant was suspended.');
 
     return sendResponse(true, 'Subscription cancelled and tenant suspended', null);
   } catch (err: any) {

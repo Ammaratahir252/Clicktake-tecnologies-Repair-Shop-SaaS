@@ -6,7 +6,8 @@ import bcrypt from 'bcryptjs';
 import { ADMIN_SECTIONS, canAccess } from '@/lib/adminAccess';
 import { createAuditLog } from '@/services/auditLog.service';
 import { AUDIT_ACTIONS } from '@/models/auditLog.model';
-import { sendEmail, emailWelcomeStaff } from '@/lib/notifications';
+import { sendEmail, emailWelcomeStaff, notifySuperAdmins } from '@/lib/notifications';
+import { getPlatformSettings } from '@/lib/platformSettings';
 
 function isSuperAdmin(req: NextRequest) {
   return canAccess(req, 'users');
@@ -88,6 +89,18 @@ export async function POST(req: NextRequest) {
     }
 
     sendEmail(email, 'Your Admin Account Is Ready', emailWelcomeStaff(name, 'admin', 'the platform team')).catch(() => {});
+
+    // "New Admin Created" alert (Settings → Notifications) — every super admin
+    // should know when a new privileged account appears on the platform.
+    getPlatformSettings().then((settings) => {
+      if (!settings.notifs.newAdminCreated) return;
+      return notifySuperAdmins(
+        'New Admin Account Created',
+        `<p>A new scoped admin account was just created:</p>
+         <p><strong>${name}</strong> — ${email}</p>
+         <p>Granted sections: ${perms.length ? perms.join(', ') : 'none'}</p>`
+      );
+    }).catch(() => {});
 
     const { password: _pw, ...safe } = (admin as any).toObject();
     return sendResponse(true, 'Admin account created', safe, 201);

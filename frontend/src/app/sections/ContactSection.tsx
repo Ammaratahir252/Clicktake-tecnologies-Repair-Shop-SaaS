@@ -123,7 +123,7 @@ function ContactForm() {
         </div>
       )}
 
-      <style>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         .spin-anim { animation: spin 1s linear infinite; }
         .success-pop { animation: scaleIn 0.4s cubic-bezier(0.34,1.56,0.64,1); }
         .contact-input {
@@ -139,7 +139,7 @@ function ContactForm() {
         }
         .contact-card { transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease; }
         .contact-card:hover { transform: translateY(-4px); box-shadow: 0 32px 72px rgba(120,83,56,0.14); }
-      `}</style>
+      ` }} />
     </div>
   );
 }

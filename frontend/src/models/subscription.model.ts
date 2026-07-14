@@ -11,6 +11,8 @@ export interface ISubscription extends Document {
   nextBillingDate: Date | null;
   cancelledAt:     Date | null;
   notes:           string;
+  /** When the "subscription expiring soon" alert was last sent — prevents daily re-alert spam. */
+  lastExpiryAlertAt: Date | null;
   createdAt:       Date;
   updatedAt:       Date;
 }
@@ -27,6 +29,7 @@ const subscriptionSchema = new Schema<ISubscription>(
     nextBillingDate: { type: Date, default: null },
     cancelledAt:     { type: Date, default: null },
     notes:           { type: String, default: '' },
+    lastExpiryAlertAt: { type: Date, default: null },
   },
   { timestamps: true }
 );

@@ -4,14 +4,16 @@ import PlatformSettings from '@/models/platformSettings.model';
 import EmailLog from '@/models/emailLog.model';
 import { EMAIL_PROVIDERS, DEFAULT_PROVIDER } from './providers';
 
+export interface SendEmailOptions {
+  /** 'marketing' sends are suppressed entirely when Settings → Email → Disable Marketing Emails is on. */
+  category?: 'transactional' | 'marketing';
+}
+
 // Simple in-memory sliding-window limiter — resets on process restart. Good enough
 // for a soft per-hour cap without needing Redis; not shared across horizontally
 // scaled instances (this app runs as a single Next.js process).
 const sendTimestamps: number[] = [];
-async function withinRateLimit(): Promise<boolean> {
-  await connectDB();
-  const settings = await PlatformSettings.findOne().select('emailRateLimitPerHour').lean() as any;
-  const limit = settings?.emailRateLimitPerHour || 0;
+function withinRateLimit(limit: number): boolean {
   if (!limit) return true;
   const cutoff = Date.now() - 60 * 60 * 1000;
   while (sendTimestamps.length && sendTimestamps[0] < cutoff) sendTimestamps.shift();
@@ -20,31 +22,66 @@ async function withinRateLimit(): Promise<boolean> {
   return true;
 }
 
-async function getActiveProvider(): Promise<string> {
+interface EmailSettings {
+  activeEmailProvider: string;
+  defaultSenderName: string;
+  defaultSenderEmail: string;
+  replyToEmail: string;
+  disableMarketingEmails: boolean;
+  emailRateLimitPerHour: number;
+}
+
+async function getEmailSettings(): Promise<EmailSettings> {
+  const fallback: EmailSettings = {
+    activeEmailProvider: DEFAULT_PROVIDER,
+    defaultSenderName: process.env.NOTIFICATION_FROM_NAME || 'Dibnow Repair',
+    defaultSenderEmail: process.env.NOTIFICATION_FROM_EMAIL || 'noreply@dibnow.com',
+    replyToEmail: '',
+    disableMarketingEmails: false,
+    emailRateLimitPerHour: 0,
+  };
   try {
     await connectDB();
-    const settings = await PlatformSettings.findOne().lean() as any;
-    return settings?.activeEmailProvider || DEFAULT_PROVIDER;
+    const s = await PlatformSettings.findOne()
+      .select('activeEmailProvider defaultSenderName defaultSenderEmail replyToEmail disableMarketingEmails emailRateLimitPerHour')
+      .lean() as any;
+    if (!s) return fallback;
+    return {
+      activeEmailProvider: s.activeEmailProvider || fallback.activeEmailProvider,
+      defaultSenderName: s.defaultSenderName || fallback.defaultSenderName,
+      defaultSenderEmail: s.defaultSenderEmail || fallback.defaultSenderEmail,
+      replyToEmail: s.replyToEmail || '',
+      disableMarketingEmails: s.disableMarketingEmails ?? false,
+      emailRateLimitPerHour: s.emailRateLimitPerHour || 0,
+    };
   } catch {
-    return DEFAULT_PROVIDER;
+    return fallback;
   }
 }
 
 /**
  * Sends an email through whichever single provider is set active in
- * Super Admin → Settings → Email. No fallback chain — switching the active
- * provider fully shifts all outgoing mail to it.
+ * Super Admin → Settings → Email. Sender name/address and reply-to come from
+ * the same settings tab (env vars are only the fallback). No fallback chain —
+ * switching the active provider fully shifts all outgoing mail to it.
  */
-export async function sendPlatformEmail(to: string, subject: string, html: string): Promise<boolean> {
+export async function sendPlatformEmail(to: string, subject: string, html: string, opts?: SendEmailOptions): Promise<boolean> {
   if (!to || !to.includes('@')) return false;
 
-  if (!(await withinRateLimit())) {
+  const settings = await getEmailSettings();
+
+  if (opts?.category === 'marketing' && settings.disableMarketingEmails) {
+    await EmailLog.create({ to, subject, provider: 'none', status: 'suppressed', error: 'Marketing emails are disabled in platform settings' }).catch(() => {});
+    return false;
+  }
+
+  if (!withinRateLimit(settings.emailRateLimitPerHour)) {
     await EmailLog.create({ to, subject, provider: 'none', status: 'failed', error: 'Hourly email rate limit reached' }).catch(() => {});
     console.error('[Email] Hourly rate limit reached — dropping send to', to);
     return false;
   }
 
-  const providerId = await getActiveProvider();
+  const providerId = settings.activeEmailProvider;
   const provider = EMAIL_PROVIDERS[providerId];
   if (!provider) {
     console.error('[Email] Unknown active provider:', providerId);
@@ -59,7 +96,12 @@ export async function sendPlatformEmail(to: string, subject: string, html: strin
     return false;
   }
 
-  const result = await provider.send({ to, subject, html, apiKey });
+  const result = await provider.send({
+    to, subject, html, apiKey,
+    fromName: settings.defaultSenderName,
+    fromEmail: settings.defaultSenderEmail,
+    replyTo: settings.replyToEmail && settings.replyToEmail.includes('@') ? settings.replyToEmail : undefined,
+  });
   await EmailLog.create({
     to, subject, provider: providerId,
     status: result.success ? 'sent' : 'failed',

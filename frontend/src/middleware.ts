@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
+import { getClientIp } from '@/lib/ipWhitelist';
 
 // ─── Impersonation helper ──────────────────────────────────────────────────────
 /**
@@ -18,6 +19,34 @@ function applyImpersonation(headers: Headers, req: NextRequest, role: string): v
     }
   } catch {}
 }
+
+// ─── Feature-flag enforcement ─────────────────────────────────────────────────
+/**
+ * True when a platform feature flag disables this module for the requester.
+ * Admin-tier accounts are exempt — flags gate tenant modules, and admins need
+ * access to manage/inspect them regardless.
+ */
+function flagBlocked(payload: any, flagKey: string): boolean {
+  const role = String(payload?.role ?? '');
+  if (role === 'super_admin' || role === 'admin') return false;
+  return payload?.__flags?.[flagKey] === false;
+}
+
+function flagBlockedResponse(moduleName: string): NextResponse {
+  return NextResponse.json(
+    { success: false, message: `The ${moduleName} module is currently disabled by the platform administrator.` },
+    { status: 403 }
+  );
+}
+
+/** Dashboard page sections gated by feature flags (APIs are gated separately). */
+const PAGE_FLAG_RULES: { test: (p: string) => boolean; flag: string; label: string }[] = [
+  { test: (p) => p.startsWith('/dashboard/customer'), flag: 'enableCustomerPortal', label: 'Customer Portal' },
+  { test: (p) => /^\/dashboard\/[^/]+\/reports/.test(p), flag: 'enableReports', label: 'Reports' },
+  { test: (p) => /^\/dashboard\/[^/]+\/inventory/.test(p), flag: 'enableInventory', label: 'Inventory' },
+  { test: (p) => /^\/dashboard\/[^/]+\/tickets/.test(p), flag: 'enableTickets', label: 'Tickets' },
+  { test: (p) => p.startsWith('/dashboard/technician/ai'), flag: 'enableAI', label: 'AI Assistant' },
+];
 
 // ─── Route Definitions ────────────────────────────────────────────────────────
 
@@ -68,7 +97,8 @@ export async function middleware(req: NextRequest) {
       
       // Edge-compatible database session validation (3 s timeout to prevent middleware hang)
       try {
-        const verifyUrl = new URL(`/api/auth/verify-session?userId=${payload.userId}`, req.url);
+        const clientIp = getClientIp(req) ?? '';
+        const verifyUrl = new URL(`/api/auth/verify-session?userId=${payload.userId}&ip=${encodeURIComponent(clientIp)}`, req.url);
         const controller = new AbortController();
         const tid = setTimeout(() => controller.abort(), 3000);
         const res = await fetch(verifyUrl.toString(), { cache: 'no-store', signal: controller.signal });
@@ -81,6 +111,10 @@ export async function middleware(req: NextRequest) {
           if (data.maintenanceMode === true && payload.role !== 'super_admin') {
             return null; // Platform under maintenance — only super admins may proceed
           }
+          // Whitelist violations are NOT a global session kill — they only gate
+          // the admin panel (see the /api/admin and /dashboard/super-admin blocks).
+          (payload as any).__ipBlocked = data.ipBlocked === true;
+          (payload as any).__flags = data.flags ?? null;
           (payload as any).__readOnly = data.readOnlyMode === true;
           (payload as any).__lockdown = data.emergencyLockdown === true;
         }
@@ -133,6 +167,7 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    if (flagBlocked(payload, 'enableInventory')) return flagBlockedResponse('Inventory');
     const requestHeaders = new Headers(req.headers);
     const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
@@ -152,6 +187,7 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    if (flagBlocked(payload, 'enableTickets')) return flagBlockedResponse('Tickets');
     const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
@@ -198,6 +234,13 @@ export async function middleware(req: NextRequest) {
       return NextResponse.json(
         { success: false, message: 'Unauthorized: missing or invalid token' },
         { status: 401 }
+      );
+    }
+    // Admin IP whitelist — enforced ONLY here (admin panel APIs), not platform-wide.
+    if ((payload as any).__ipBlocked) {
+      return NextResponse.json(
+        { success: false, message: 'Access blocked: this network is not on the super-admin IP whitelist.' },
+        { status: 403 }
       );
     }
     const role = String(payload.role ?? '');
@@ -308,6 +351,7 @@ export async function middleware(req: NextRequest) {
   if (pathname === '/api/ai/chat') {
     const payload = await verifyToken();
     if (payload) {
+      if (flagBlocked(payload, 'enableAI')) return flagBlockedResponse('AI Assistant');
       const role = String(payload.role ?? '');
       requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
       requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
@@ -327,6 +371,7 @@ export async function middleware(req: NextRequest) {
         { status: 401 }
       );
     }
+    if (flagBlocked(payload, 'enableAI')) return flagBlockedResponse('AI Assistant');
     const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
@@ -344,6 +389,9 @@ export async function middleware(req: NextRequest) {
         { success: false, message: 'Unauthorized: missing or invalid token' },
         { status: 401 }
       );
+    }
+    if (pathname.startsWith('/api/analytics') && flagBlocked(payload, 'enableAnalytics')) {
+      return flagBlockedResponse('Analytics');
     }
     const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
@@ -409,6 +457,24 @@ export async function middleware(req: NextRequest) {
       const loginUrl = new URL('/login', req.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
+    }
+    // Feature-flag-disabled module pages → friendly 403 for tenant roles.
+    for (const rule of PAGE_FLAG_RULES) {
+      if (rule.test(pathname) && flagBlocked(payload, rule.flag)) {
+        return new NextResponse(
+          `<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1 style="font-size:1.4rem">${rule.label} is currently disabled</h1><p style="color:#666">The platform administrator has turned this module off. Contact support if you believe this is a mistake.</p></div></body></html>`,
+          { status: 403, headers: { 'content-type': 'text/html' } }
+        );
+      }
+    }
+
+    // Admin IP whitelist gates ONLY the super-admin panel pages — the rest of
+    // the dashboard (and platform) stays fully usable from any network.
+    if (pathname.startsWith('/dashboard/super-admin') && (payload as any).__ipBlocked) {
+      return new NextResponse(
+        '<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1 style="font-size:1.4rem">403 — Admin panel unavailable from this network</h1><p style="color:#666">Your IP is not on the super-admin whitelist. Connect from an approved network, or update the whitelist from one.</p></div></body></html>',
+        { status: 403, headers: { 'content-type': 'text/html' } }
+      );
     }
     return NextResponse.next({ request: { headers: requestHeaders } });
   }

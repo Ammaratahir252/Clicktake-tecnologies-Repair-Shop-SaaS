@@ -45,6 +45,34 @@ const paymentSchema = new Schema<IPayment>(
 
 paymentSchema.index({ tenantId: 1, kind: 1, referenceId: 1 });
 
+// Fires the "Payment Failed" super-admin alert (Settings → Notifications) from a
+// single choke point instead of every gateway callback/initiate route separately.
+// Dynamic imports keep this model file free of lib-level import cycles.
+paymentSchema.pre('save', function (next) {
+  (this as any).__becameFailed = this.isModified('status') && this.status === 'failed';
+  next();
+});
+paymentSchema.post('save', function (doc: IPayment) {
+  if (!(doc as any).__becameFailed) return;
+  void (async () => {
+    try {
+      const { getPlatformSettings } = await import('@/lib/platformSettings');
+      const settings = await getPlatformSettings();
+      if (!settings.notifs.paymentFailed) return;
+      const { notifySuperAdmins, findTenantName } = await import('@/lib/notifications');
+      const shopName = await findTenantName(String(doc.tenantId));
+      await notifySuperAdmins(
+        'Payment Failed',
+        `<p>A <strong>${doc.gateway}</strong> ${doc.kind} payment of <strong>${doc.currency} ${doc.amount.toLocaleString()}</strong> failed for <strong>${shopName}</strong>.</p>
+         <p>Reason: ${doc.failureReason || 'unknown'}</p>
+         <p>Order reference: ${doc.gatewayOrderId}</p>`
+      );
+    } catch {
+      // Alerting must never break payment processing.
+    }
+  })();
+});
+
 const Payment: Model<IPayment> =
   mongoose.models.Payment ||
   mongoose.model<IPayment>('Payment', paymentSchema);

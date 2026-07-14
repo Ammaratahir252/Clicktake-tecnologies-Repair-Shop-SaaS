@@ -15,9 +15,10 @@
  */
 
 import DashboardShell from "@/components/DashboardShell";
-import { useEffect, useState, useCallback } from "react";
+import { Suspense, useEffect, useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
+import { usePlatformDateFormat } from "@/lib/clientLocale";
 import {
   FileText, Search, Loader2, ShieldAlert,
   AlertTriangle, XCircle, RefreshCw,
@@ -73,9 +74,11 @@ const getActionColor = (action: string) => {
 
 export default function SuperAdminAuditPage() {
   return (
-    <DashboardShell requiredRole={["super_admin", "admin"]}>
-      {(user) => <AuditContent superAdmin={user} />}
-    </DashboardShell>
+    <Suspense fallback={null}>
+      <DashboardShell requiredRole={["super_admin", "admin"]}>
+        {(user) => <AuditContent superAdmin={user} />}
+      </DashboardShell>
+    </Suspense>
   );
 }
 
@@ -84,6 +87,7 @@ function AuditContent({ superAdmin }: { superAdmin: any }) {
   const router = useRouter();
   const userIdFilter = searchParams.get("userId") || "";
 
+  const fmtDate = usePlatformDateFormat();
   const [logs, setLogs]           = useState<AuditLog[]>([]);
   const [loading, setLoading]     = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -296,7 +300,7 @@ function AuditContent({ superAdmin }: { superAdmin: any }) {
                       <td className="px-6 py-3.5 text-slate-600">{log.entity}</td>
                       <td className="px-6 py-3.5 font-mono text-xs text-slate-500">{log.ipAddress || "N/A"}</td>
                       <td className="px-6 py-3.5 text-slate-400 text-xs whitespace-nowrap">
-                        {new Date(log.createdAt).toLocaleString()}
+                        {fmtDate(log.createdAt)}
                       </td>
                     </tr>
                   ))}

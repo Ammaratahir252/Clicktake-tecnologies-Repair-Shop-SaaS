@@ -6,22 +6,17 @@ export interface SendResult {
   providerReference?: string;
 }
 
-interface SendArgs {
+export interface SendArgs {
   to: string;
   subject: string;
   html: string;
   apiKey: string;
+  fromName: string;
+  fromEmail: string;
+  replyTo?: string;
 }
 
-function fromEmail() {
-  return process.env.NOTIFICATION_FROM_EMAIL || 'noreply@dibnow.com';
-}
-
-function fromName() {
-  return process.env.NOTIFICATION_FROM_NAME || 'Dibnow Repair';
-}
-
-async function sendViaResend({ to, subject, html, apiKey }: SendArgs): Promise<SendResult> {
+async function sendViaResend({ to, subject, html, apiKey, fromName, fromEmail, replyTo }: SendArgs): Promise<SendResult> {
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -30,10 +25,11 @@ async function sendViaResend({ to, subject, html, apiKey }: SendArgs): Promise<S
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `${fromName()} <${fromEmail()}>`,
+        from: `${fromName} <${fromEmail}>`,
         to: [to],
         subject,
         html,
+        ...(replyTo ? { reply_to: replyTo } : {}),
       }),
     });
 
@@ -47,7 +43,7 @@ async function sendViaResend({ to, subject, html, apiKey }: SendArgs): Promise<S
   }
 }
 
-async function sendViaMailerSend({ to, subject, html, apiKey }: SendArgs): Promise<SendResult> {
+async function sendViaMailerSend({ to, subject, html, apiKey, fromName, fromEmail, replyTo }: SendArgs): Promise<SendResult> {
   try {
     const res = await fetch('https://api.mailersend.com/v1/email', {
       method: 'POST',
@@ -56,10 +52,11 @@ async function sendViaMailerSend({ to, subject, html, apiKey }: SendArgs): Promi
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: { email: fromEmail(), name: fromName() },
+        from: { email: fromEmail, name: fromName },
         to: [{ email: to }],
         subject,
         html,
+        ...(replyTo ? { reply_to: { email: replyTo } } : {}),
       }),
     });
 
@@ -73,7 +70,7 @@ async function sendViaMailerSend({ to, subject, html, apiKey }: SendArgs): Promi
   }
 }
 
-async function sendViaMailtrap({ to, subject, html, apiKey }: SendArgs): Promise<SendResult> {
+async function sendViaMailtrap({ to, subject, html, apiKey, fromName, fromEmail, replyTo }: SendArgs): Promise<SendResult> {
   const inboxId = process.env.MAILTRAP_INBOX_ID;
   const endpoint = inboxId
     ? `https://sandbox.api.mailtrap.io/api/send/${inboxId}`
@@ -87,10 +84,11 @@ async function sendViaMailtrap({ to, subject, html, apiKey }: SendArgs): Promise
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: { email: fromEmail(), name: fromName() },
+        from: { email: fromEmail, name: fromName },
         to: [{ email: to }],
         subject,
         html,
+        ...(replyTo ? { reply_to: { email: replyTo } } : {}),
       }),
     });
 

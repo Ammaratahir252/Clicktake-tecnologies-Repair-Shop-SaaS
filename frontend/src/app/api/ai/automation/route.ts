@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { groq, AI_MODEL } from "@/lib/ai/anthropic";
+import { groq, AI_MODEL } from "@/lib/ai/groq";
 import { buildAutomationSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import AutomationRule from "@/models/automationRule.model";

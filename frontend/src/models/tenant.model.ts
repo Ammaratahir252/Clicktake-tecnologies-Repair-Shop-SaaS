@@ -118,11 +118,15 @@ const tenantSchema = new Schema<ITenant>(
     city:          { type: String },
     postcode:      { type: String },
     country:       { type: String },
+    // NO default on `type` — a default of 'Point' used to stamp every new tenant
+    // with `location: { type: 'Point' }` and no coordinates, which breaks 2dsphere
+    // key extraction ("Can't extract geo keys ... got type missing") on every
+    // subsequent write to that document. `location` must be entirely absent until
+    // real coordinates are saved via the shop profile GPS flow.
     location: {
       type: {
         type: String,
         enum: ['Point'],
-        default: 'Point',
       },
       coordinates: {
         type: [Number], // [lng, lat]
@@ -180,6 +184,16 @@ const tenantSchema = new Schema<ITenant>(
 // 2dsphere index — required for $near / $geoNear "nearby shops" queries.
 // sparse: true so tenants without a location set yet don't break the index.
 tenantSchema.index({ location: '2dsphere' }, { sparse: true });
+
+// Safety net: strip a half-formed location (type without coordinates) before any
+// save, so a malformed document can never poison the 2dsphere index again.
+tenantSchema.pre('validate', function (next) {
+  const loc = this.location as any;
+  if (loc && (!Array.isArray(loc.coordinates) || loc.coordinates.length !== 2)) {
+    this.location = undefined;
+  }
+  next();
+});
 
 /**
  * Prevents "OverwriteModelError" in Next.js during hot-reloading.

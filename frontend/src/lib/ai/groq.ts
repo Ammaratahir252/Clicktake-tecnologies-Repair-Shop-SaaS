@@ -1,9 +1,9 @@
 /**
- * lib/ai/anthropic.ts
+ * lib/ai/groq.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Backward-compatible Groq export.
- * Existing routes (chat, automation) import from here — no changes needed there.
- * New routes should import from "@/lib/ai/providers" directly.
+ * Shared Groq client — the platform's default AI provider.
+ * Used by the public chat widget and the AI automation builder; multi-provider
+ * routes should go through lib/ai/client.ts (createAICompletion) instead.
  */
 
 import "server-only";

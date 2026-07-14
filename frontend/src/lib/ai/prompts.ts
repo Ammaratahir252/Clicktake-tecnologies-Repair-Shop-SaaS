@@ -92,7 +92,12 @@ Response format (raw JSON only, no markdown):
 
 // ─── 8.2 Customer Chatbot ─────────────────────────────────────────────────────
 
-export function buildChatbotSystemPrompt(ticketContext: string, shopInfo: string): string {
+const LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English', ur: 'Urdu', ar: 'Arabic', hi: 'Hindi', es: 'Spanish', fr: 'French', de: 'German', zh: 'Chinese',
+};
+
+export function buildChatbotSystemPrompt(ticketContext: string, shopInfo: string, defaultLanguage = 'en'): string {
+  const langName = LANGUAGE_NAMES[defaultLanguage] || defaultLanguage;
   return `You are a friendly customer support chatbot for a repair shop using DibnowRepairSaaS.
 
 SHOP INFORMATION:
@@ -102,6 +107,7 @@ CUSTOMER'S TICKET DATA (if found):
 ${ticketContext}
 
 RULES:
+- Default to responding in ${langName}; if the customer writes in a different language, mirror their language instead
 - Be warm, concise, and helpful
 - If the customer asks about their repair status and ticket data is provided, give accurate info
 - If ticket data is not provided, tell them you can look it up if they share their ticket number

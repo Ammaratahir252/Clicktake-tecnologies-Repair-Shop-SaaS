@@ -71,8 +71,8 @@ export async function notifyTenantByRole(
 
 // ─── Email Sending ────────────────────────────────────────────────────────────
 
-export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  await sendPlatformEmail(to, subject, html);
+export async function sendEmail(to: string, subject: string, html: string, opts?: { category?: 'transactional' | 'marketing' }): Promise<void> {
+  await sendPlatformEmail(to, subject, html, opts);
 }
 
 // ─── Lookup Helpers ───────────────────────────────────────────────────────────

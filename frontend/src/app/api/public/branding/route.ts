@@ -8,7 +8,7 @@ export async function GET() {
   try {
     await connectDB();
     const s = await PlatformSettings.findOne()
-      .select('companyName footerText primaryColor secondaryColor logoUrl faviconUrl loginBackgroundUrl darkModeDefault')
+      .select('companyName footerText primaryColor secondaryColor logoUrl faviconUrl loginBackgroundUrl darkModeDefault timezone dateFormat timeFormat')
       .lean() as any;
     return NextResponse.json({ success: true, data: s ?? {} });
   } catch {

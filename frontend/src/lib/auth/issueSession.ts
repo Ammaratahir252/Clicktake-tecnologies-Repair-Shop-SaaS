@@ -8,6 +8,7 @@ import { sendEmail, emailSuperAdminLoginAlert } from '@/lib/notifications';
 import User from '@/models/user.model';
 import Session from '@/models/session.model';
 import { createSession } from '@/lib/sessions';
+import { getPlatformLocale, formatPlatformDateTime } from '@/lib/locale';
 
 /**
  * Issues a fully authenticated session for a user who has already passed
@@ -68,11 +69,15 @@ export async function issueSession(user: any, req: NextRequest, sessionTimeoutMi
   });
 
   if (user.role === 'super_admin') {
-    sendEmail(
-      'nowdib@gmail.com',
-      'Super Admin Login Alert',
-      emailSuperAdminLoginAlert(loginIp, loginUserAgent, new Date().toISOString())
-    ).catch(() => {});
+    getPlatformLocale()
+      .then((locale) =>
+        sendEmail(
+          'nowdib@gmail.com',
+          'Super Admin Login Alert',
+          emailSuperAdminLoginAlert(loginIp, loginUserAgent, formatPlatformDateTime(new Date(), locale))
+        )
+      )
+      .catch(() => {});
   }
 
   User.findByIdAndUpdate(user._id, { lastLoginAt: new Date() }).catch(() => {});

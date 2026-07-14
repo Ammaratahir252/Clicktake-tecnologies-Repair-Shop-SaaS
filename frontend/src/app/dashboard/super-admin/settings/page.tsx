@@ -3,6 +3,7 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useRef } from "react";
 import api from "@/lib/api";
+import { usePlatformDateFormat } from "@/lib/clientLocale";
 import SubAdminManager from "@/components/admin/SubAdminManager";
 import {
   Settings, Globe, Bell, Shield, CreditCard, Mail,
@@ -338,6 +339,8 @@ function SettingsContent({ user }: { user: any }) {
   const [maxLoginAttempts,  setMaxLoginAttempts]  = useState("5");
   const [lockoutDurationMinutes, setLockoutDurationMinutes] = useState("15");
   const [adminIpWhitelist, setAdminIpWhitelist] = useState("");
+  const [myIp, setMyIp] = useState<string | null>(null);
+  const fmtDate = usePlatformDateFormat();
   const [savingS, setSavingS] = useState(false);
   const [savedS,  setSavedS]  = useState(false);
 
@@ -507,6 +510,7 @@ function SettingsContent({ user }: { user: any }) {
         setMaxLoginAttempts(String(s.maxLoginAttempts ?? 5));
         setLockoutDurationMinutes(String(s.lockoutDurationMinutes ?? 15));
         setAdminIpWhitelist((s.adminIpWhitelist ?? []).join(", "));
+        setMyIp(s.clientIp ?? null);
 
         if (s.notifs) setNotifs((p) => ({ ...p, ...s.notifs }));
         if (s.aiProvider) setAiProvider(s.aiProvider);
@@ -886,7 +890,7 @@ function SettingsContent({ user }: { user: any }) {
                       />
                       <p className="text-xs text-muted-foreground">
                         Saving with Maintenance Mode on emails every tenant, technician, and staff account (and notifies them in-app) with this message{maintenanceScheduledAt ? " and the scheduled start time" : ""}.
-                        {maintenanceNoticeSentAt && ` Last notice sent ${new Date(maintenanceNoticeSentAt).toLocaleString()}.`}
+                        {maintenanceNoticeSentAt && ` Last notice sent ${fmtDate(maintenanceNoticeSentAt)}.`}
                       </p>
                     </div>
                   )}
@@ -991,7 +995,7 @@ function SettingsContent({ user }: { user: any }) {
 
                   {isSuperAdmin && (
                     <div className="pt-2">
-                      <InputField label="Admin IP Whitelist" value={adminIpWhitelist} onChange={setAdminIpWhitelist} placeholder="203.0.113.4, 198.51.100.0" hint="Comma-separated exact IPs — when non-empty, super_admin logins are blocked from any other IP. Super-admin only." />
+                      <InputField label="Admin IP Whitelist" value={adminIpWhitelist} onChange={setAdminIpWhitelist} placeholder="203.0.113.4, 198.51.100.0/24" hint={`Comma-separated IPs or IPv4 CIDR ranges. When non-empty, super-admin login and the admin panel (pages + APIs) are blocked from any other IP — the rest of the platform is unaffected. Saving requires your own IP to be covered.${myIp ? ` Your current IP: ${myIp}` : ""}`} />
                     </div>
                   )}
 
@@ -1039,7 +1043,7 @@ function SettingsContent({ user }: { user: any }) {
                     <div key={s._id} className="flex items-center justify-between gap-4 py-2.5 border-b border-border last:border-0">
                       <div>
                         <p className="text-sm font-semibold text-foreground">{s.userId?.name ?? "Unknown"} <span className="text-xs text-muted-foreground font-normal">· {s.role}</span></p>
-                        <p className="text-xs text-muted-foreground">{s.ipAddress} · {new Date(s.createdAt).toLocaleString()}</p>
+                        <p className="text-xs text-muted-foreground">{s.ipAddress} · {fmtDate(s.createdAt)}</p>
                       </div>
                       <button
                         onClick={async () => { await api.post(`/api/admin/sessions/${s.userId?._id}`); setSessionsLoaded(false); }}
@@ -1213,7 +1217,7 @@ function SettingsContent({ user }: { user: any }) {
                   <p className="text-xs text-muted-foreground">{s.tenantSubdomain}.dibnow.com · {s.plan}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-medium text-foreground">{s.nextBillingDate ? new Date(s.nextBillingDate).toLocaleDateString() : "—"}</p>
+                  <p className="text-xs font-medium text-foreground">{s.nextBillingDate ? fmtDate(s.nextBillingDate).split(" ")[0] : "—"}</p>
                   <p className="text-[10px] text-muted-foreground">Rs. {s.amount?.toLocaleString?.() ?? 0}</p>
                 </div>
               </div>
@@ -1509,7 +1513,7 @@ function SettingsContent({ user }: { user: any }) {
                     <div key={b.filename} className="flex items-center justify-between gap-4 py-2.5 border-b border-border last:border-0">
                       <div>
                         <p className="text-sm font-semibold text-foreground font-mono">{b.filename}</p>
-                        <p className="text-xs text-muted-foreground">{new Date(b.createdAt).toLocaleString()} · {(b.sizeBytes / 1024).toFixed(1)} KB</p>
+                        <p className="text-xs text-muted-foreground">{fmtDate(b.createdAt)} · {(b.sizeBytes / 1024).toFixed(1)} KB</p>
                       </div>
                       <div className="flex items-center gap-3">
                         <a href={`/api/admin/tools/backup?download=${b.filename}`} className="text-xs font-bold text-primary hover:underline flex items-center gap-1"><Download size={12} />Download</a>

@@ -28,6 +28,7 @@ import {
   haversineKm,
 } from '../utils/postcode.utils';
 import { calculateDeliveryFee } from '../utils/pricing.utils';
+import { createInAppNotification, resolveCustomerUserId } from '../utils/notify.utils';
 import { getRedis, gpsKey, GPS_TTL_SECONDS } from '../../../config/redis';
 import { NotFoundError, ForbiddenError, ConflictError, ValidationError } from '../../../errors';
 import { logger } from '../../../utils/logger';
@@ -342,7 +343,16 @@ export const assignDriver = async (input: AssignDriverInput): Promise<IDeliveryJ
 
   await job.save();
 
-  // TODO: send push notification / SMS to driver here
+  // Alert the driver in-app — shows up in their dashboard notification bell.
+  void createInAppNotification({
+    tenantId,
+    recipientUserId: driverId,
+    type: 'delivery_assigned',
+    title: 'New delivery assigned to you',
+    message: `A ${job.jobType} job was assigned to you — check your Jobs list for pickup details.`,
+    metadata: { jobId, jobType: job.jobType },
+  });
+
   logger.info('Driver assigned', { jobId, driverId, assignedBy });
   return job;
 };
@@ -419,8 +429,29 @@ export const updateDeliveryStatus = async (input: UpdateStatusInput): Promise<ID
 
   await job.save();
 
-  // TODO: send customer notification on key status changes (EN_ROUTE, ARRIVED, DELIVERED)
-  logger.info('Job status updated', { jobId, from: job.status, to: newStatus, changedBy });
+  // Customer-facing in-app updates for the milestones they actually care about.
+  const CUSTOMER_STATUS_MESSAGES: Partial<Record<DeliveryStatus, { title: string; message: string }>> = {
+    [DeliveryStatus.EN_ROUTE]:  { title: 'Your driver is on the way',   message: 'The driver has departed and is heading to your address. Track them live from your Delivery page.' },
+    [DeliveryStatus.ARRIVED]:   { title: 'Your driver has arrived',     message: 'The driver is at your address now.' },
+    [DeliveryStatus.DELIVERED]: { title: 'Delivery completed',          message: 'Your delivery has been completed. Thank you!' },
+  };
+  const customerMsg = CUSTOMER_STATUS_MESSAGES[newStatus];
+  const customerRef = job.customerId?.toString();
+  if (customerMsg && customerRef) {
+    void resolveCustomerUserId(customerRef).then((userId) => {
+      if (!userId) return;
+      return createInAppNotification({
+        tenantId,
+        recipientUserId: userId,
+        type: `delivery_${newStatus.toLowerCase()}`,
+        title: customerMsg.title,
+        message: customerMsg.message,
+        metadata: { jobId, status: newStatus },
+      });
+    });
+  }
+
+  logger.info('Job status updated', { jobId, to: newStatus, changedBy });
   return job;
 };
 
@@ -559,7 +590,23 @@ export const completeDeliveryJob = async (input: CompleteJobInput): Promise<IDel
 
   await job.save();
 
-  // TODO: send completion notification to customer + generate invoice
+  // Completion notice to the customer, with payment summary when one was taken.
+  const completedCustomerRef = job.customerId?.toString();
+  if (completedCustomerRef) void resolveCustomerUserId(completedCustomerRef).then((userId) => {
+    if (!userId) return;
+    const paidLine = job.isPaid && job.paidAmount
+      ? ` Payment of £${Number(job.paidAmount).toFixed(2)} was collected${job.paymentReference ? ` (ref ${job.paymentReference})` : ''}.`
+      : '';
+    return createInAppNotification({
+      tenantId,
+      recipientUserId: userId,
+      type: 'delivery_completed',
+      title: 'Delivery completed',
+      message: `Your delivery was completed with proof of delivery on record.${paidLine}`,
+      metadata: { jobId, paidAmount: job.paidAmount ?? 0, paymentReference: job.paymentReference ?? null },
+    });
+  });
+
   logger.info('Job completed', { jobId, driverId });
   return job;
 };

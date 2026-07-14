@@ -22,9 +22,6 @@ const envSchema = z.object({
   // MongoDB Atlas
   MONGODB_URI: z.string().url(),
 
-  // PostgreSQL (Supabase) — Financial data
-  POSTGRES_URI: z.string(),
-
   // Redis
   REDIS_URL: z.string(),
 

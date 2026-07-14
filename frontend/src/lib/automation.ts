@@ -4,6 +4,7 @@ import connectDB from '@/lib/db';
 import AutomationRule, { RuleTrigger } from '@/models/automationRule.model';
 import { createNotification, notifyTenantByRole, sendEmail, emailTenantStaff, findTenantName } from '@/lib/notifications';
 import { TicketService } from '@/services/tickets/ticket.service';
+import { isSmsConfigured, sendSms } from '@/lib/sms';
 
 interface AutomationContext {
   tenantId: string;
@@ -157,16 +158,42 @@ async function executeAction(
     }
 
     case 'send_sms': {
-      // No SMS provider is configured on this platform — be honest about it
-      // rather than silently doing nothing or pretending it was sent.
-      createNotification({
-        tenantId: ctx.tenantId,
-        recipientUserId: ruleActorId,
-        type: 'automation_sms_unavailable',
-        title: `SMS not sent — no provider configured`,
-        message: `Rule "${rule.name}" tried to text ${rule.actionTarget || 'a recipient'} but this platform has no SMS provider set up yet.`,
-        metadata: { ruleId: rule._id.toString() },
-      });
+      if (!isSmsConfigured()) {
+        // No SMS provider configured — be honest about it rather than
+        // silently doing nothing or pretending it was sent.
+        createNotification({
+          tenantId: ctx.tenantId,
+          recipientUserId: ruleActorId,
+          type: 'automation_sms_unavailable',
+          title: `SMS not sent — no provider configured`,
+          message: `Rule "${rule.name}" tried to text ${rule.actionTarget || 'a recipient'} but no SMS provider is set up. Add TWILIO_ACCOUNT_SID / TWILIO_AUTH_TOKEN / TWILIO_FROM_NUMBER to enable texting.`,
+          metadata: { ruleId: rule._id.toString() },
+        });
+        break;
+      }
+      if (!rule.actionTarget) {
+        createNotification({
+          tenantId: ctx.tenantId,
+          recipientUserId: ruleActorId,
+          type: 'automation_sms_failed',
+          title: `SMS not sent — no recipient`,
+          message: `Rule "${rule.name}" has no phone number set as its action target.`,
+          metadata: { ruleId: rule._id.toString() },
+        });
+        break;
+      }
+      const shopName = await findTenantName(ctx.tenantId);
+      const result = await sendSms(rule.actionTarget, `${shopName}: ${summary} (automation "${rule.name}")`);
+      if (!result.success) {
+        createNotification({
+          tenantId: ctx.tenantId,
+          recipientUserId: ruleActorId,
+          type: 'automation_sms_failed',
+          title: `SMS to ${rule.actionTarget} failed`,
+          message: `Rule "${rule.name}": ${result.error}`,
+          metadata: { ruleId: rule._id.toString() },
+        });
+      }
       break;
     }
   }

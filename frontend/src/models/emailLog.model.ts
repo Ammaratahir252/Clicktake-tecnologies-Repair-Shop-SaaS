@@ -4,7 +4,7 @@ export interface IEmailLog extends Document {
   to: string;
   subject: string;
   provider: string;
-  status: 'sent' | 'failed';
+  status: 'sent' | 'failed' | 'suppressed';
   error?: string;
   createdAt: Date;
 }
@@ -14,7 +14,7 @@ const schema = new Schema<IEmailLog>(
     to: { type: String, required: true },
     subject: { type: String, required: true },
     provider: { type: String, required: true },
-    status: { type: String, enum: ['sent', 'failed'], required: true },
+    status: { type: String, enum: ['sent', 'failed', 'suppressed'], required: true },
     error: { type: String },
   },
   { timestamps: { createdAt: true, updatedAt: false } }

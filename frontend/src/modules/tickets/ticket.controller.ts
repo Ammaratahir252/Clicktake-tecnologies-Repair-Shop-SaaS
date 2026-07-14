@@ -480,8 +480,10 @@ export async function addNoteHandler(
 }
 
 // ─── POST /api/tickets/:id/photos ────────────────────────────────────────────
-const MAX_PHOTO_BYTES = 10 * 1024 * 1024; // 10MB
-const ALLOWED_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
+// Size, file-type, and per-tenant storage-cap limits come from Super Admin →
+// Settings → Storage (maxUploadSizeMb / allowedFileTypes / maxStoragePerTenantMb).
+const FALLBACK_UPLOAD_MB = 10;
+const FALLBACK_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
 
 export async function addPhotoHandler(
   req: NextRequest,
@@ -503,12 +505,30 @@ export async function addPhotoHandler(
       return sendResponse(false, parsed.error.errors[0].message, null, 400);
     }
 
-    if (file.size > MAX_PHOTO_BYTES) {
-      return sendResponse(false, 'Photo exceeds the 10MB limit', null, 400);
+    const PlatformSettings = (await import('@/models/platformSettings.model')).default;
+    const storageSettings = await PlatformSettings.findOne()
+      .select('maxUploadSizeMb allowedFileTypes maxStoragePerTenantMb')
+      .lean() as any;
+    const maxUploadMb: number = storageSettings?.maxUploadSizeMb || FALLBACK_UPLOAD_MB;
+    const allowedExt: string[] = storageSettings?.allowedFileTypes?.length
+      ? storageSettings.allowedFileTypes.map((e: string) => e.toLowerCase().replace(/^\./, ''))
+      : FALLBACK_PHOTO_EXT;
+
+    if (file.size > maxUploadMb * 1024 * 1024) {
+      return sendResponse(false, `Photo exceeds the ${maxUploadMb}MB upload limit`, null, 400);
     }
     const ext = (file.name.split('.').pop() || '').toLowerCase();
-    if (!ALLOWED_PHOTO_EXT.includes(ext)) {
-      return sendResponse(false, `File type ".${ext}" isn't supported (${ALLOWED_PHOTO_EXT.join(', ')})`, null, 400);
+    if (!allowedExt.includes(ext)) {
+      return sendResponse(false, `File type ".${ext}" isn't supported (${allowedExt.join(', ')})`, null, 400);
+    }
+
+    const capMb: number = storageSettings?.maxStoragePerTenantMb || 0;
+    if (capMb > 0 && tenantId) {
+      const { getTenantStorageMb } = await import('@/lib/storageUsage');
+      const usedMb = await getTenantStorageMb(tenantId);
+      if (usedMb >= capMb) {
+        return sendResponse(false, `Storage limit reached (${usedMb.toFixed(1)}MB of ${capMb}MB used). Contact the platform admin to raise your cap.`, null, 413);
+      }
     }
 
     const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'tickets', id);

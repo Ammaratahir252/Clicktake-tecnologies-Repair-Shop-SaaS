@@ -1,6 +1,5 @@
 import 'server-only';
-import fs from 'fs/promises';
-import path from 'path';
+import mongoose, { Schema, Model } from 'mongoose';
 import connectDB from '@/lib/db';
 import Tenant from '@/models/tenant.model';
 import User from '@/models/user.model';
@@ -12,14 +11,38 @@ import PlatformSettings from '@/models/platformSettings.model';
 import SystemLog from '@/models/systemLog.model';
 
 /**
- * Application-level backup: dumps the core collections to a single JSON file
- * on local disk. This is NOT a mongodump — it's plain documents, restored via
- * deleteMany+insertMany. Good enough for self-hosted recovery; it requires a
- * persistent filesystem (works under `next start` / `next dev` on a real
- * server or this machine — will NOT survive on ephemeral/serverless hosting
- * like Vercel, since the filesystem there is wiped between invocations).
+ * Application-level backup: dumps the core collections to a single JSON blob.
+ * This is NOT a mongodump — it's plain documents, restored via
+ * deleteMany+insertMany. Backups are stored IN MongoDB (a `platformbackups`
+ * collection) rather than on local disk, so they survive serverless hosting
+ * (Vercel wipes the filesystem between invocations) and redeploys. For
+ * disaster recovery beyond the database itself, download a copy via
+ * Settings → Backup & Recovery.
  */
-const BACKUP_DIR = path.join(process.cwd(), 'backups');
+
+// A single BSON document tops out at 16MB — refuse anything close to it so the
+// insert can't fail halfway. If the platform outgrows this, backups need
+// GridFS or object storage.
+const MAX_BACKUP_BYTES = 14 * 1024 * 1024;
+
+interface IPlatformBackup {
+  filename: string;
+  sizeBytes: number;
+  content: string;
+  createdAt: Date;
+}
+
+const backupSchema = new Schema<IPlatformBackup>(
+  {
+    filename: { type: String, required: true, unique: true },
+    sizeBytes: { type: Number, required: true },
+    content: { type: String, required: true },
+  },
+  { timestamps: { createdAt: true, updatedAt: false } }
+);
+
+const PlatformBackup: Model<IPlatformBackup> =
+  mongoose.models.PlatformBackup || mongoose.model<IPlatformBackup>('PlatformBackup', backupSchema);
 
 const COLLECTIONS: Record<string, any> = {
   tenants: Tenant,
@@ -31,13 +54,8 @@ const COLLECTIONS: Record<string, any> = {
   platformSettings: PlatformSettings,
 };
 
-async function ensureDir() {
-  await fs.mkdir(BACKUP_DIR, { recursive: true });
-}
-
 export async function createBackup(): Promise<{ filename: string; sizeBytes: number }> {
   await connectDB();
-  await ensureDir();
 
   const dump: Record<string, any[]> = {};
   for (const [key, Model] of Object.entries(COLLECTIONS)) {
@@ -45,31 +63,36 @@ export async function createBackup(): Promise<{ filename: string; sizeBytes: num
   }
 
   const filename = `backup-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-  const filePath = path.join(BACKUP_DIR, filename);
   const content = JSON.stringify({ createdAt: new Date().toISOString(), collections: dump }, null, 0);
-  await fs.writeFile(filePath, content, 'utf-8');
+  const sizeBytes = Buffer.byteLength(content, 'utf-8');
 
-  const stat = await fs.stat(filePath);
-  await SystemLog.create({ category: 'backup', message: `Backup created: ${filename}`, status: 'ok', details: { sizeBytes: stat.size } });
+  if (sizeBytes > MAX_BACKUP_BYTES) {
+    await SystemLog.create({ category: 'backup', message: `Backup skipped: dump is ${(sizeBytes / 1024 / 1024).toFixed(1)}MB, above the ${(MAX_BACKUP_BYTES / 1024 / 1024).toFixed(0)}MB single-document limit`, status: 'error' });
+    throw new Error('Backup too large for database storage — export collections individually or configure external storage.');
+  }
 
-  return { filename, sizeBytes: stat.size };
+  await PlatformBackup.create({ filename, sizeBytes, content });
+  await SystemLog.create({ category: 'backup', message: `Backup created: ${filename}`, status: 'ok', details: { sizeBytes } });
+
+  return { filename, sizeBytes };
 }
 
 export async function listBackups(): Promise<{ filename: string; sizeBytes: number; createdAt: string }[]> {
-  await ensureDir();
-  const files = await fs.readdir(BACKUP_DIR);
-  const results = await Promise.all(
-    files.filter((f) => f.endsWith('.json')).map(async (f) => {
-      const stat = await fs.stat(path.join(BACKUP_DIR, f));
-      return { filename: f, sizeBytes: stat.size, createdAt: stat.birthtime.toISOString() };
-    })
-  );
-  return results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  await connectDB();
+  const rows = await PlatformBackup.find().select('filename sizeBytes createdAt').sort({ createdAt: -1 }).lean();
+  return rows.map((r: any) => ({
+    filename: r.filename,
+    sizeBytes: r.sizeBytes,
+    createdAt: new Date(r.createdAt).toISOString(),
+  }));
 }
 
 export async function readBackupFile(filename: string): Promise<string> {
   if (!/^[a-zA-Z0-9._-]+\.json$/.test(filename)) throw new Error('Invalid backup filename');
-  return fs.readFile(path.join(BACKUP_DIR, filename), 'utf-8');
+  await connectDB();
+  const row = await PlatformBackup.findOne({ filename }).select('content').lean() as any;
+  if (!row) throw new Error('Backup not found');
+  return row.content;
 }
 
 export async function restoreBackup(filename: string): Promise<Record<string, number>> {
@@ -92,17 +115,8 @@ export async function restoreBackup(filename: string): Promise<Record<string, nu
 
 export async function purgeOldBackups(retentionDays: number): Promise<number> {
   if (!retentionDays || retentionDays <= 0) return 0;
-  await ensureDir();
-  const cutoff = Date.now() - retentionDays * 86_400_000;
-  const files = await fs.readdir(BACKUP_DIR);
-  let removed = 0;
-  for (const f of files) {
-    const filePath = path.join(BACKUP_DIR, f);
-    const stat = await fs.stat(filePath);
-    if (stat.birthtimeMs < cutoff) {
-      await fs.unlink(filePath);
-      removed++;
-    }
-  }
-  return removed;
+  await connectDB();
+  const cutoff = new Date(Date.now() - retentionDays * 86_400_000);
+  const res = await PlatformBackup.deleteMany({ createdAt: { $lt: cutoff } });
+  return res.deletedCount ?? 0;
 }

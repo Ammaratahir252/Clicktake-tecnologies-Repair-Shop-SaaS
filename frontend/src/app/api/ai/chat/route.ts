@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import groq, { AI_MODEL } from "@/lib/ai/anthropic";
+import groq, { AI_MODEL } from "@/lib/ai/groq";
 import { buildChatbotSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
+import PlatformSettings from "@/models/platformSettings.model";
 import { sendResponse } from "@/utils/apiResponse";
 
 function getTenantId(req: NextRequest): string {
@@ -79,13 +80,15 @@ Warranty: 30-day warranty on all repairs`;
       { role: "user", content: body.message },
     ];
 
+    const langSettings = await PlatformSettings.findOne().select('defaultLanguage').lean() as any;
+
     const response = await groq.chat.completions.create({
       model: AI_MODEL,
       max_tokens: 512,
       messages: [
         {
           role: "system",
-          content: buildChatbotSystemPrompt(ticketContext, shopInfo),
+          content: buildChatbotSystemPrompt(ticketContext, shopInfo, langSettings?.defaultLanguage || 'en'),
         },
         ...conversationMessages,
       ],
