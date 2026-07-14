@@ -454,6 +454,10 @@ export async function middleware(req: NextRequest) {
   if (pathname.startsWith('/dashboard')) {
     const payload = await verifyToken();
     if (!payload) {
+      // Admin panel has its own login page — don't bounce admins to the tenant login.
+      if (pathname.startsWith('/dashboard/super-admin')) {
+        return NextResponse.redirect(new URL('/admin', req.url));
+      }
       const loginUrl = new URL('/login', req.url);
       loginUrl.searchParams.set('callbackUrl', pathname);
       return NextResponse.redirect(loginUrl);
