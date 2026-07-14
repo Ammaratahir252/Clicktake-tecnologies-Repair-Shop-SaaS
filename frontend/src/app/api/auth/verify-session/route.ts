@@ -5,6 +5,11 @@ import PlatformSettings from '../../../../models/platformSettings.model';
 import { isMaintenanceActive } from '../../../../lib/platformSettings';
 import { isIpWhitelisted } from '../../../../lib/ipWhitelist';
 
+// Next would otherwise prerender this route as STATIC at build time (it reads
+// no headers/cookies), freezing tokenVersion at 0 forever — which makes the
+// middleware treat every user whose tokenVersion was ever bumped as revoked.
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const userId = req.nextUrl.searchParams.get('userId');
@@ -29,7 +34,9 @@ export async function GET(req: NextRequest) {
       ...(settings?.featureFlags ?? {}),
     };
 
-    if (!userId) return NextResponse.json({ tokenVersion: 0, maintenanceMode, readOnlyMode, emergencyLockdown, ipBlocked: false, flags });
+    // No userId → nothing to validate; omit tokenVersion so the middleware
+    // skips the version check instead of treating the session as revoked.
+    if (!userId) return NextResponse.json({ maintenanceMode, readOnlyMode, emergencyLockdown, ipBlocked: false, flags });
 
     const user = await User.findById(userId).select('tokenVersion role');
 
@@ -43,6 +50,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ tokenVersion: user?.tokenVersion || 0, maintenanceMode, readOnlyMode, emergencyLockdown, ipBlocked, flags });
   } catch {
-    return NextResponse.json({ tokenVersion: 0, maintenanceMode: false, readOnlyMode: false, emergencyLockdown: false, ipBlocked: false, flags: null });
+    // DB error — fail open WITHOUT a tokenVersion: reporting 0 here would make
+    // the middleware revoke every session whose version was ever bumped.
+    return NextResponse.json({ maintenanceMode: false, readOnlyMode: false, emergencyLockdown: false, ipBlocked: false, flags: null });
   }
 }
