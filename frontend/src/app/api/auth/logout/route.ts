@@ -2,6 +2,7 @@ import { NextResponse, NextRequest } from 'next/server';
 import connectDB from '../../../../lib/db';
 import User from '../../../../models/user.model';
 import { jwtVerify } from 'jose';
+import { getJwtSecretBytes } from '../../../../lib/auth/jwtSecret';
 import { createAuditLog } from '../../../../services/auditLog.service';
 import { AUDIT_ACTIONS, AuditLog } from '../../../../models/auditLog.model';
 import { sendEmail, emailSuperAdminActivityReport } from '../../../../lib/notifications';
@@ -17,11 +18,16 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    // Attempt to invalidate tokenVersion in DB
-    const token = req.cookies.get('token')?.value;
+    // Attempt to invalidate tokenVersion in DB. Accept the token from the
+    // cookie OR the Authorization header — the same two places middleware
+    // reads it from — so API-client logouts revoke the session too.
+    const token =
+      req.cookies.get('token')?.value ??
+      (req.headers.get('authorization')?.startsWith('Bearer ')
+        ? req.headers.get('authorization')!.substring(7)
+        : undefined);
     if (token) {
-      const secret = new TextEncoder().encode(process.env.JWT_SECRET || 'fallback_secret_key');
-      const { payload } = await jwtVerify(token, secret);
+      const { payload } = await jwtVerify(token, getJwtSecretBytes());
       
       await connectDB();
       const user = await User.findById(payload.userId);

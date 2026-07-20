@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import DashboardShell from "@/components/DashboardShell";
+import StockMovementHistory from "@/components/inventory/StockMovementHistory";
 import api from "@/lib/api";
 import {
   Package, Plus, Search, AlertTriangle, Loader2,
@@ -211,6 +212,9 @@ function InventoryContent() {
           </div>
         )}
       </div>
+
+      {/* Full audit trail of restocks/usage/adjustments (owner+manager API) */}
+      <StockMovementHistory />
     </div>
   );
 }

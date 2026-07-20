@@ -1,20 +1,26 @@
 import { NextRequest } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
 import connectDB from '@/lib/db';
 import PlatformSettings from '@/models/platformSettings.model';
+import Tenant from '@/models/tenant.model';
 import { sendResponse } from '@/utils/apiResponse';
+import {
+  uploadImage,
+  destroyImage,
+  publicIdFromUrl,
+  CloudinaryConfigError,
+} from '@/lib/uploads/cloudinary';
 
-const ALLOWED_FIELDS = ['logo', 'bannerUrl', 'teamPhoto'];
+const ALLOWED_FIELDS = ['logo', 'bannerUrl', 'teamPhoto'] as const;
 
 // POST /api/tenant/branding/upload — multipart form: { file, field }
 // Owner/manager-only image upload for a shop's own public profile (logo, banner,
-// team member photos). Saves to public/uploads/shops/<tenantId>/ and just returns
-// the resulting URL — unlike the platform-level branding upload, this route does NOT
-// persist the URL onto the Tenant document itself (team photos belong to array items,
-// not a single field), so the caller is responsible for saving it via
-// /api/shop/profile or /api/tenant/branding afterward.
+// team member photos). Uploads to Cloudinary under shops/<tenantId>/ — permanent
+// cloud storage that works on serverless hosts, unlike the old local-disk writes.
+//
+// logo/bannerUrl are persisted onto the Tenant document here (URL + public_id),
+// replacing and deleting the previous Cloudinary file. teamPhoto belongs to an
+// array item the caller manages, so it only returns { url, publicId } for the
+// caller to save via /api/shop/profile.
 export async function POST(req: NextRequest) {
   await connectDB();
   try {
@@ -25,7 +31,7 @@ export async function POST(req: NextRequest) {
 
     const form = await req.formData();
     const file = form.get('file') as File | null;
-    const field = String(form.get('field') || '');
+    const field = String(form.get('field') || '') as (typeof ALLOWED_FIELDS)[number];
 
     if (!file) return sendResponse(false, 'No file provided', null, 400);
     if (!ALLOWED_FIELDS.includes(field)) return sendResponse(false, 'Invalid field', null, 400);
@@ -42,15 +48,21 @@ export async function POST(req: NextRequest) {
       return sendResponse(false, `File type ".${ext}" isn't in the allowed list (${allowed.join(', ')})`, null, 400);
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'shops', tenantId);
-    await fs.mkdir(uploadDir, { recursive: true });
-    const filename = `${field}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await fs.writeFile(path.join(uploadDir, filename), buffer);
+    const uploaded = await uploadImage(file, `shops/${tenantId}`);
 
-    const url = `/uploads/shops/${tenantId}/${filename}`;
-    return sendResponse(true, 'Uploaded', { url });
+    if (field === 'logo' || field === 'bannerUrl') {
+      const pidField = field === 'logo' ? 'logoPublicId' : 'bannerPublicId';
+      const tenant = await Tenant.findById(tenantId).select(`${field} ${pidField}`).lean() as any;
+      // Replace-in-place: remove the previous Cloudinary file for this slot.
+      await destroyImage(tenant?.[pidField] || publicIdFromUrl(tenant?.[field]));
+      await Tenant.findByIdAndUpdate(tenantId, {
+        $set: { [field]: uploaded.url, [pidField]: uploaded.publicId },
+      });
+    }
+
+    return sendResponse(true, 'Uploaded', { url: uploaded.url, publicId: uploaded.publicId });
   } catch (err: any) {
+    if (err instanceof CloudinaryConfigError) return sendResponse(false, err.message, null, 503);
     return sendResponse(false, err.message || 'Upload failed', null, 500);
   }
 }

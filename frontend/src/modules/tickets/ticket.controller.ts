@@ -1,9 +1,7 @@
 // src/modules/tickets/ticket.controller.ts
 
 import { NextRequest, NextResponse } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
+import { uploadImage, CloudinaryConfigError } from '@/lib/uploads/cloudinary';
 import { sendResponse } from '@/utils/apiResponse';
 import { TicketService } from '@/services/tickets/ticket.service';
 import {
@@ -485,13 +483,20 @@ export async function addNoteHandler(
 const FALLBACK_UPLOAD_MB = 10;
 const FALLBACK_PHOTO_EXT = ['jpg', 'jpeg', 'png', 'webp', 'heic'];
 
+// Staff and drivers document repairs/deliveries; customers only view photos.
+const PHOTO_UPLOAD_ROLES = new Set(['super_admin', 'owner', 'manager', 'frontdesk', 'technician', 'driver']);
+
 export async function addPhotoHandler(
   req: NextRequest,
   id: string
 ): Promise<NextResponse> {
   await connectDB();
   try {
-    const { tenantId, userId, userName } = getCtx(req);
+    const { tenantId, userId, userName, role } = getCtx(req);
+
+    if (!PHOTO_UPLOAD_ROLES.has(role)) {
+      return sendResponse(false, 'Forbidden: only shop staff can upload ticket photos', null, 403);
+    }
 
     const form = await req.formData();
     const file = form.get('file') as File | null;
@@ -531,17 +536,15 @@ export async function addPhotoHandler(
       }
     }
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'tickets', id);
-    await fs.mkdir(uploadDir, { recursive: true });
-    const filename = `${parsed.data.type}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await fs.writeFile(path.join(uploadDir, filename), buffer);
-    const url = `/uploads/tickets/${id}/${filename}`;
+    // Cloudinary — permanent cloud storage; local-disk writes don't survive
+    // (or even succeed) on serverless hosts.
+    const uploaded = await uploadImage(file, `tickets/${tenantId}`);
 
     const ticket = await TicketService.addPhoto({
       ticketId: id,
       tenantId,
-      url,
+      url: uploaded.url,
+      publicId: uploaded.publicId,
       type: parsed.data.type,
       note: parsed.data.note,
       uploadedBy: userId,
@@ -550,6 +553,7 @@ export async function addPhotoHandler(
 
     return sendResponse(true, 'Photo uploaded', ticket, 201);
   } catch (err: any) {
+    if (err instanceof CloudinaryConfigError) return sendResponse(false, err.message, null, 503);
     const status = err.message === 'Ticket not found' ? 404 : 500;
     return sendResponse(false, err.message ?? 'Server error', null, status);
   }

@@ -15,8 +15,10 @@ const STATUS_FILTERS = [
 
 const PRIORITY_FILTERS = [
   { key: "all", label: "All Priorities" },
-  { key: "high", label: "High Priority" },
-  { key: "normal", label: "Normal" },
+  { key: "urgent", label: "Urgent" },
+  { key: "high", label: "High" },
+  { key: "medium", label: "Medium" },
+  { key: "low", label: "Low" },
 ];
 
 export default function TechnicianTicketsPage() {
@@ -124,12 +126,16 @@ export default function TechnicianTicketsPage() {
             </div>
           </div>
 
-          {/* Ticket List */}
+          {/* Ticket List — driven by the filter controls above */}
           <div className="animate-in fade-in slide-in-from-top duration-700 delay-200">
             <TicketList
               rolePath="/dashboard/technician/tickets"
               canCreate={false}
               canDelete={false}
+              statusFilter={statusFilter}
+              search={searchTerm}
+              priorityFilter={priorityFilter}
+              sortBy={sortBy as any}
             />
           </div>
         </div>

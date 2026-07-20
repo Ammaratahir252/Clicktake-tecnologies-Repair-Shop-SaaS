@@ -139,11 +139,11 @@ export default function HeroSection() {
                   }}>{a[0]}</div>
                 ))}
               </div>
-              <span style={{ fontSize: 13, color: MUTED, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>500+ shops trust us</span>
+              <span style={{ fontSize: 13, color: MUTED, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Built for every role in your shop</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {[1, 2, 3, 4, 5].map(s => <Star key={s} size={14} fill="#f59e0b" color="#f59e0b" />)}
-              <span style={{ fontSize: 13, color: MUTED, fontWeight: 600, marginLeft: 5, fontFamily: "'DM Sans',sans-serif" }}>4.9 / 5</span>
+              <Star size={14} fill="#f59e0b" color="#f59e0b" />
+              <span style={{ fontSize: 13, color: MUTED, fontWeight: 600, marginLeft: 5, fontFamily: "'DM Sans',sans-serif" }}>Free 14-day trial · No credit card</span>
             </div>
           </div>
         </div>
@@ -255,7 +255,7 @@ export default function HeroSection() {
               <div style={{ width: 28, height: 28, borderRadius: 7, background: "#d1fae5", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <Zap size={13} color="#065f46" />
               </div>
-              <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46", fontFamily: "'DM Sans',sans-serif" }}>60% faster repairs ✓</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#065f46", fontFamily: "'DM Sans',sans-serif" }}>Faster repairs ✓</span>
             </div>
           </div>
         </div>

@@ -53,7 +53,7 @@ export default function AboutSection() {
                 He and his technical co-founder Ali spent a year building the platform they wished existed — one that understood local payment methods, worked offline, ran on any phone, and was simple enough for front desk staff to learn in an afternoon.
               </p>
               <p style={{ color: MUTED, fontSize: 15, lineHeight: 2, fontFamily: "'DM Sans',sans-serif" }}>
-                Today, DibnowRepairSaaS is used by 500+ shops across Pakistan, UAE, and the UK. We're growing because our customers grow with us.
+                Today, DibnowRepairSaaS helps repair shops in Pakistan and beyond run faster, more transparent operations. We grow when our customers grow.
               </p>
               <div style={{ display: "flex", gap: 16, marginTop: 28, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -70,10 +70,10 @@ export default function AboutSection() {
             {/* Stats grid */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
               {[
-                { val: "500+", label: "Active shops",       bg: "#dbeafe", color: "#1d4ed8" },
-                { val: "10K+", label: "Repairs tracked",    bg: "#d1fae5", color: "#065f46" },
-                { val: "3",    label: "Countries",          bg: "#ede9fe", color: "#6d28d9" },
-                { val: "98%",  label: "Satisfaction rate",  bg: "#fef3c7", color: "#92400e" },
+                { val: "6",    label: "Role dashboards",    bg: "#dbeafe", color: "#1d4ed8" },
+                { val: "Live", label: "Repair tracking",    bg: "#d1fae5", color: "#065f46" },
+                { val: "4",    label: "Payment gateways",   bg: "#ede9fe", color: "#6d28d9" },
+                { val: "24/7", label: "Customer portal",    bg: "#fef3c7", color: "#92400e" },
               ].map(s => (
                 <div key={s.label} style={{ background: "#fff", border: `1px solid ${BORDER}`, borderRadius: 18, padding: "32px 24px", textAlign: "center" }}>
                   <div style={{ fontSize: 40, fontWeight: 700, color: s.color, letterSpacing: "-2px", lineHeight: 1, marginBottom: 8, fontFamily: "'DM Serif Display',Georgia,serif" }}>{s.val}</div>

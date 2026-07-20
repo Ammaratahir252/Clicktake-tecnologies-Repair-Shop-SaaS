@@ -1,66 +1,68 @@
 "use client";
 
+// /dashboard/reports has no reports of its own — each role has a real reports
+// page. This route just forwards owners/managers to theirs and shows a proper
+// access-denied panel for everyone else (no redirect loop: the targets are
+// different routes that render their own content).
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
-import { Loader2 } from "lucide-react";
+import { Loader2, ShieldAlert } from "lucide-react";
+
+const ROLE_REPORTS: Record<string, string> = {
+  owner: "/dashboard/owner/reports",
+  manager: "/dashboard/manager/reports",
+};
 
 export default function ReportsPage() {
   const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [denied, setDenied] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem("user");
-    if (!raw) {
-      router.replace("/login");
-      return;
-    }
-
-    let user: any;
+    let role = "";
     try {
-      user = JSON.parse(raw);
-    } catch {
+      role = (JSON.parse(localStorage.getItem("user") ?? "{}")?.role ?? "")
+        .toString().trim().toLowerCase();
+    } catch { /* fall through to denied */ }
+
+    const target = ROLE_REPORTS[role];
+    if (target) {
+      router.replace(target);
+    } else if (!role) {
       router.replace("/login");
-      return;
+    } else {
+      setDenied(true);
     }
-
-    const role = (user?.role ?? "").toString().trim().toLowerCase();
-
-    // owner and manager can see reports
-    if (!["owner", "manager"].includes(role)) {
-      router.replace("/dashboard");
-      return;
-    }
-
-    setCurrentUser(user);
-  }, []);
-
-  if (!currentUser) {
-    return (
-      <DashboardShell requiredRole={["owner", "manager"]}>
-        {() => (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-            <Loader2 className="animate-spin w-8 h-8 mb-4" />
-            <p>Loading reports...</p>
-          </div>
-        )}
-      </DashboardShell>
-    );
-  }
+  }, [router]);
 
   return (
-    <DashboardShell requiredRole={["owner", "manager"]}>
-      {() => (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-black text-slate-900">Reports</h1>
+    <DashboardShell requiredRole={["owner", "manager", "technician", "frontdesk", "driver", "customer"]}>
+      {() =>
+        denied ? (
+          <div className="max-w-lg mx-auto mt-16 bg-card border border-border rounded-2xl shadow-sm p-8 text-center">
+            <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+              <ShieldAlert className="w-7 h-7 text-red-500" />
+            </div>
+            <h1 className="text-xl font-black text-foreground">Reports are not available for your role</h1>
+            <p className="text-sm text-muted-foreground mt-2">
+              Only shop owners and managers can view business reports. If you believe you
+              need access, ask your shop owner.
+            </p>
+            <button
+              onClick={() => router.push("/dashboard")}
+              className="mt-6 px-5 py-2.5 bg-primary text-primary-foreground font-bold text-sm rounded-xl hover:opacity-90 transition-all"
+            >
+              Back to Dashboard
+            </button>
           </div>
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8 text-center text-slate-500">
-            <p className="font-medium text-lg">Reports Module</p>
-            <p className="text-sm mt-2">Coming soon. Real-time metrics and analytics.</p>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-20 text-muted-foreground">
+            <Loader2 className="animate-spin w-8 h-8 mb-4" />
+            <p>Opening your reports…</p>
           </div>
-        </div>
-      )}
+        )
+      }
     </DashboardShell>
   );
 }

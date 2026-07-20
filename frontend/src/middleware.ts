@@ -1,6 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { jwtVerify } from 'jose';
 import { getClientIp } from '@/lib/ipWhitelist';
+import { getJwtSecretBytes, isJwtConfigured } from '@/lib/auth/jwtSecret';
+
+// Identity headers only middleware may set (from a verified JWT). Any value the
+// CLIENT sends for these must be discarded before the request reaches a route
+// handler — otherwise pass-through paths would forward spoofable identity.
+const IDENTITY_HEADERS = [
+  'x-tenant-id',
+  'x-user-id',
+  'x-role',
+  'x-user-name',
+  'x-permissions',
+  'x-impersonating',
+  'x-subdomain',
+];
 
 // ─── Impersonation helper ──────────────────────────────────────────────────────
 /**
@@ -60,6 +74,27 @@ const PUBLIC_ROUTES = ['/forgot-password', '/reset-password'];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   const requestHeaders = new Headers(req.headers);
+  for (const h of IDENTITY_HEADERS) requestHeaders.delete(h);
+
+  // Fail closed when the JWT secret is missing: every matched path either needs
+  // authentication or participates in the auth flow, and none of that can be
+  // done safely without a real secret. (There is intentionally no fallback.)
+  if (!isJwtConfigured()) {
+    if (pathname.startsWith('/api/')) {
+      return NextResponse.json(
+        { success: false, message: 'Server configuration error: JWT_SECRET is not set. Authentication is disabled until it is configured.' },
+        { status: 500 }
+      );
+    }
+    if (pathname.startsWith('/dashboard')) {
+      return new NextResponse(
+        '<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><div style="text-align:center"><h1 style="font-size:1.4rem">Server configuration error</h1><p style="color:#666">JWT_SECRET is not set — sign-in is disabled until the server is configured.</p></div></body></html>',
+        { status: 500, headers: { 'content-type': 'text/html' } }
+      );
+    }
+    // Public/auth pages (login, register, …) may still render.
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
 
   // ─── 0. Subdomain Extraction ────────────────────────────────────────────────
   const host = req.headers.get('host') || '';
@@ -90,10 +125,7 @@ export async function middleware(req: NextRequest) {
   const verifyToken = async () => {
     if (!token) return null;
     try {
-      const secret = new TextEncoder().encode(
-        process.env.JWT_SECRET || 'fallback_secret_key'
-      );
-      const { payload } = await jwtVerify(token, secret);
+      const { payload } = await jwtVerify(token, getJwtSecretBytes());
       
       // Edge-compatible database session validation (3 s timeout to prevent middleware hang)
       try {
@@ -168,7 +200,6 @@ export async function middleware(req: NextRequest) {
       );
     }
     if (flagBlocked(payload, 'enableInventory')) return flagBlockedResponse('Inventory');
-    const requestHeaders = new Headers(req.headers);
     const role = String(payload.role ?? '');
     requestHeaders.set('x-tenant-id', String(payload.tenantId ?? ''));
     requestHeaders.set('x-user-id',   String(payload.userId  ?? ''));
@@ -178,8 +209,10 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // ─── 3. API: /api/tickets — requires valid JWT ────────────────────────────
-  if (pathname.startsWith('/api/tickets')) {
+  // ─── 3. API: /api/tickets + /api/time-sessions — requires valid JWT ───────
+  // Time sessions ride the Tickets feature flag: they are labor logged against
+  // tickets, so disabling the Tickets module disables time tracking too.
+  if (pathname.startsWith('/api/tickets') || pathname.startsWith('/api/time-sessions')) {
     const payload = await verifyToken();
     if (!payload) {
       return NextResponse.json(
@@ -505,6 +538,8 @@ export const config = {
     '/reset-password',
     '/api/tickets',
     '/api/tickets/:path*',
+    '/api/time-sessions',
+    '/api/time-sessions/:path*',
     '/api/users',
     '/api/users/:path*',
     '/api/audit-logs',

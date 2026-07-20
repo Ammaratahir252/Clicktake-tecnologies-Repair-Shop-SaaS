@@ -9,6 +9,7 @@ import User from '@/models/user.model';
 import Session from '@/models/session.model';
 import { createSession } from '@/lib/sessions';
 import { getPlatformLocale, formatPlatformDateTime } from '@/lib/locale';
+import { getJwtSecret } from '@/lib/auth/jwtSecret';
 
 /**
  * Issues a fully authenticated session for a user who has already passed
@@ -40,7 +41,7 @@ export async function issueSession(user: any, req: NextRequest, sessionTimeoutMi
       tokenVersion: effectiveTokenVersion,
       permissions: user.role === 'admin' ? (user.permissions || []) : undefined,
     },
-    process.env.JWT_SECRET || 'fallback_secret_key',
+    getJwtSecret(),
     { expiresIn: expiresInSeconds }
   );
 

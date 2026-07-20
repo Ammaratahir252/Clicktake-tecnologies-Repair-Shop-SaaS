@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Loader2, ArrowLeft, Clock, Save, UserPlus, MessageSquare, Images, DollarSign } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, Save, UserPlus, MessageSquare, Images, DollarSign, Package, Timer } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { TICKET_STATUS_TRANSITIONS, TicketStatus } from "@/lib/enums";
 
@@ -37,12 +37,27 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
   const [estimateInput, setEstimateInput] = useState("");
   const [estimateLoading, setEstimateLoading] = useState(false);
 
+  // Parts used (M2-M3 bridge — deducts stock via /api/tickets/:id/parts)
+  const [parts, setParts] = useState<any[]>([]);
+  const [selectedPart, setSelectedPart] = useState("");
+  const [partQty, setPartQty] = useState("1");
+  const [partLoading, setPartLoading] = useState(false);
+  const [partError, setPartError] = useState("");
+
+  // Labor time logged against this ticket (time-sessions API)
+  const [laborSeconds, setLaborSeconds] = useState<number | null>(null);
+  const [laborSessions, setLaborSessions] = useState(0);
+
   const canAssign = userRole === "owner" || userRole === "manager";
   const canSetEstimate = userRole === "owner" || userRole === "manager" || userRole === "technician";
+  const canUseParts = ["owner", "manager", "technician"].includes(userRole);
+  const canSeeLabor = ["owner", "manager", "technician", "frontdesk"].includes(userRole);
 
   useEffect(() => {
     fetchTicket();
     if (canAssign) fetchTechnicians();
+    if (canUseParts) fetchParts();
+    if (canSeeLabor) fetchLabor();
   }, []);
 
   const fetchTicket = async () => {
@@ -62,6 +77,43 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
       setTechnicians(res.data.data || []);
     } catch {
       // silent fail for tech fetch
+    }
+  };
+
+  const fetchParts = async () => {
+    try {
+      const res = await api.get("/api/parts");
+      setParts((res.data.data || []).filter((p: any) => p.quantity > 0));
+    } catch {
+      // silent fail — the add-part form just stays empty
+    }
+  };
+
+  const fetchLabor = async () => {
+    try {
+      const res = await api.get(`/api/time-sessions?ticketId=${ticketId}`);
+      const sessions: any[] = res.data.data || [];
+      setLaborSessions(sessions.length);
+      setLaborSeconds(sessions.reduce((sum, s) => sum + (s.durationSeconds ?? 0), 0));
+    } catch {
+      setLaborSeconds(null);
+    }
+  };
+
+  const handleUsePart = async () => {
+    const qty = parseInt(partQty, 10);
+    if (!selectedPart || !Number.isInteger(qty) || qty <= 0) return;
+    setPartLoading(true);
+    setPartError("");
+    try {
+      await api.post(`/api/tickets/${ticketId}/parts`, { partId: selectedPart, quantity: qty });
+      setSelectedPart("");
+      setPartQty("1");
+      await Promise.all([fetchTicket(), fetchParts()]);
+    } catch (err: any) {
+      setPartError(err.response?.data?.message || "Failed to add part");
+    } finally {
+      setPartLoading(false);
     }
   };
 
@@ -197,6 +249,13 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                   <span className="block font-semibold text-slate-900">PKR {ticket.estimateAmount.toLocaleString()}</span>
                 </div>
               )}
+              <div>
+                <span className="block text-xs font-bold text-slate-400 mb-1">Priority</span>
+                <span className="block font-semibold text-slate-900 capitalize">{ticket.priority || "medium"}</span>
+                {ticket.dueDate && (
+                  <span className="block text-sm text-slate-500">Due {new Date(ticket.dueDate).toLocaleDateString()}</span>
+                )}
+              </div>
               <div className="col-span-2 mt-2">
                 <span className="block text-xs font-bold text-slate-400 mb-1">Issue Description</span>
                 <p className="text-sm text-slate-700 bg-slate-50 p-4 rounded-xl border border-slate-100 whitespace-pre-wrap">
@@ -228,6 +287,67 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                   </a>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* SECTION 4.7: Parts Used — real inventory deduction via /api/tickets/:id/parts */}
+          {(canUseParts || ticket.partsUsed?.length > 0) && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+              <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Package size={16} /> Parts Used {ticket.partsUsed?.length > 0 && `(${ticket.partsUsed.length})`}
+              </h2>
+
+              {ticket.partsUsed?.length > 0 ? (
+                <div className="space-y-2 mb-4">
+                  {[...ticket.partsUsed].reverse().map((p: any, i: number) => (
+                    <div key={p._id ?? i} className="flex items-center justify-between bg-slate-50 border border-slate-100 px-4 py-3 rounded-xl">
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">{p.name}</p>
+                        <p className="text-xs text-slate-500">SKU: {p.sku} · {new Date(p.addedAt).toLocaleString()}</p>
+                      </div>
+                      <span className="text-sm font-black text-slate-700">×{p.quantity}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-400 italic mb-4">No parts used on this repair yet.</p>
+              )}
+
+              {canUseParts && ticket.status !== "delivered" && ticket.status !== "cancelled" && (
+                <div className="pt-4 border-t border-slate-100">
+                  {partError && (
+                    <p className="text-red-600 text-xs font-bold mb-2">{partError}</p>
+                  )}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <select
+                      value={selectedPart}
+                      onChange={(e) => setSelectedPart(e.target.value)}
+                      className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-semibold text-slate-700"
+                    >
+                      <option value="">Select a part from inventory…</option>
+                      {parts.map((p) => (
+                        <option key={p._id} value={p._id}>{p.name} · {p.sku} ({p.quantity} in stock)</option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      min="1"
+                      value={partQty}
+                      onChange={(e) => setPartQty(e.target.value)}
+                      className="w-full sm:w-24 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-semibold text-slate-700"
+                      placeholder="Qty"
+                    />
+                    <button
+                      onClick={handleUsePart}
+                      disabled={!selectedPart || partLoading || parseInt(partQty, 10) <= 0}
+                      className="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white rounded-xl text-sm font-bold transition-all whitespace-nowrap"
+                    >
+                      {partLoading ? "Adding…" : "Use Part"}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-2">Stock is deducted from inventory and logged in stock movement history.</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -364,6 +484,19 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* SECTION 5.5: Labor time logged via the technician timer */}
+          {canSeeLabor && laborSeconds !== null && laborSessions > 0 && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+              <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Timer size={16} /> Time Logged
+              </h2>
+              <p className="text-2xl font-black text-slate-900 tabular-nums">
+                {Math.floor(laborSeconds / 3600)}h {Math.floor((laborSeconds % 3600) / 60).toString().padStart(2, "0")}m
+              </p>
+              <p className="text-xs text-slate-500 mt-1">{laborSessions} session{laborSessions !== 1 ? "s" : ""} recorded by technicians</p>
             </div>
           )}
 

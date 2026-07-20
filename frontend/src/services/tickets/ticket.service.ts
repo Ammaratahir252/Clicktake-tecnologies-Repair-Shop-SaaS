@@ -17,6 +17,8 @@ interface CreateTicketInput {
   issue: string;
   deviceColor?: string;
   deviceIMEI?: string;
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  dueDate?: string | null;
   createdByUserId: string;
   createdByName: string;
 }
@@ -25,6 +27,7 @@ interface AddPhotoInput {
   ticketId: string;
   tenantId: string;
   url: string;
+  publicId?: string;
   type: string;
   note?: string;
   uploadedBy: string;
@@ -122,7 +125,7 @@ export const TicketService = {
   createTicket: async (data: CreateTicketInput) => {
     const {
       tenantId, customerName, customerPhone, estimateAmount, deviceBrand, deviceModel,
-      issue, deviceColor, deviceIMEI,
+      issue, deviceColor, deviceIMEI, priority, dueDate,
       createdByUserId, createdByName,
     } = data;
 
@@ -159,6 +162,8 @@ export const TicketService = {
       estimateAmount: estimateAmount ?? null,
       deviceColor: deviceColor ?? undefined,
       deviceIMEI: deviceIMEI ?? undefined,
+      priority: priority ?? 'medium',
+      dueDate: dueDate ? new Date(dueDate) : null,
       photos: [],
       status: TicketStatus.received,
       statusHistory: [{
@@ -354,7 +359,7 @@ export const TicketService = {
    * Appends a repair photo (before/during/after/damage/parts). Never overwrites.
    */
   addPhoto: async (data: AddPhotoInput) => {
-    const { ticketId, tenantId, url, type, note, uploadedBy, uploadedByName } = data;
+    const { ticketId, tenantId, url, publicId, type, note, uploadedBy, uploadedByName } = data;
 
     const ticket = await Ticket.findOneAndUpdate(
       {
@@ -365,6 +370,7 @@ export const TicketService = {
         $push: {
           photos: {
             url,
+            publicId,
             type,
             note,
             uploadedBy: new mongoose.Types.ObjectId(uploadedBy),

@@ -18,14 +18,16 @@ export default function TicketForm({ rolePath }: TicketFormProps) {
     issue: "",
     customerName: "",
     customerPhone: "",
-    estimateAmount: ""
+    estimateAmount: "",
+    priority: "medium",
+    dueDate: ""
   });
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     // Clear field error when user types
     if (fieldErrors[e.target.name]) {
@@ -64,6 +66,8 @@ export default function TicketForm({ rolePath }: TicketFormProps) {
       if (formData.estimateAmount && !isNaN(Number(formData.estimateAmount))) {
         payload.estimateAmount = Number(formData.estimateAmount);
       }
+      payload.priority = formData.priority;
+      if (formData.dueDate) payload.dueDate = formData.dueDate;
 
       await api.post("/api/tickets", payload);
       router.push(rolePath);
@@ -181,6 +185,32 @@ export default function TicketForm({ rolePath }: TicketFormProps) {
                 }`}
               />
               {fieldErrors.issue && <p className="text-red-500 text-xs font-bold mt-1.5">{fieldErrors.issue}</p>}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Priority</label>
+                <select
+                  name="priority"
+                  value={formData.priority}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white transition-colors focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 font-semibold text-slate-700"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="urgent">Urgent</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1.5">Due Date <span className="text-slate-400 font-normal ml-1">(Optional)</span></label>
+                <input
+                  type="date"
+                  name="dueDate"
+                  value={formData.dueDate}
+                  onChange={handleChange}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white transition-colors focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1.5">Initial Estimate Amount (PKR) <span className="text-slate-400 font-normal ml-1">(Optional)</span></label>

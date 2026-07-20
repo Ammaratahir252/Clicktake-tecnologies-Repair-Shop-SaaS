@@ -5,39 +5,57 @@ import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Loader2, Plus, ShieldAlert, Trash2, Eye } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
+import { filterAndSortTickets, ticketPriority, TicketSortBy } from "@/lib/ticketFilters";
 
 interface TicketListProps {
   rolePath: string; // e.g. "/dashboard/owner/tickets"
   canCreate?: boolean;
   canDelete?: boolean;
+  /**
+   * Controlled mode: when a page supplies its own filter controls, it passes
+   * their state here and TicketList hides its built-in filter row — one source
+   * of truth. `statusFilter` is the API status key ('all' | 'received' | …).
+   */
+  statusFilter?: string;
+  search?: string;
+  priorityFilter?: string;
+  sortBy?: TicketSortBy;
 }
 
-export default function TicketList({ rolePath, canCreate, canDelete }: TicketListProps) {
+const PRIORITY_STYLES: Record<string, string> = {
+  urgent: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400",
+  high:   "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+  medium: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  low:    "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400",
+};
+
+export default function TicketList({
+  rolePath, canCreate, canDelete,
+  statusFilter, search, priorityFilter, sortBy,
+}: TicketListProps) {
   const router = useRouter();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("All");
 
-  useEffect(() => {
-    fetchTickets(filter);
-  }, [filter]);
+  const controlled = statusFilter !== undefined || search !== undefined
+    || priorityFilter !== undefined || sortBy !== undefined;
 
-  const fetchTickets = async (currentFilter: string) => {
+  // Status is filtered server-side (?status=...); search/priority/sort client-side.
+  const apiStatus = controlled
+    ? (statusFilter && statusFilter !== "all" ? statusFilter : "")
+    : ({ "Received": "received", "In Repair": "in_repair", "Ready": "ready", "Delivered": "delivered" }[filter] ?? "");
+
+  useEffect(() => {
+    fetchTickets(apiStatus);
+  }, [apiStatus]);
+
+  const fetchTickets = async (status: string) => {
     setLoading(true);
     setError("");
     try {
-      let url = "/api/tickets";
-      if (currentFilter !== "All") {
-        const statusMap: Record<string, string> = {
-          "Received": "received",
-          "In Repair": "in_repair",
-          "Ready": "ready",
-          "Delivered": "delivered"
-        };
-        const mappedStatus = statusMap[currentFilter];
-        if (mappedStatus) url += `?status=${mappedStatus}`;
-      }
+      const url = status ? `/api/tickets?status=${status}` : "/api/tickets";
       const res = await api.get(url);
       setTickets(res.data?.data || []);
     } catch (err: any) {
@@ -59,6 +77,10 @@ export default function TicketList({ rolePath, canCreate, canDelete }: TicketLis
 
   const filters = ["All", "Received", "In Repair", "Ready", "Delivered"];
 
+  const visibleTickets = controlled
+    ? filterAndSortTickets(tickets, { search, priority: priorityFilter, sortBy })
+    : tickets;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -74,21 +96,23 @@ export default function TicketList({ rolePath, canCreate, canDelete }: TicketLis
         )}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {filters.map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
-              filter === f
-                ? "bg-primary text-primary-foreground shadow-md"
-                : "bg-card text-muted-foreground border border-border hover:border-border/80"
-            }`}
-          >
-            {f}
-          </button>
-        ))}
-      </div>
+      {!controlled && (
+        <div className="flex flex-wrap gap-2">
+          {filters.map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all ${
+                filter === f
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "bg-card text-muted-foreground border border-border hover:border-border/80"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
         {loading ? (
@@ -103,7 +127,7 @@ export default function TicketList({ rolePath, canCreate, canDelete }: TicketLis
               {error}
             </div>
           </div>
-        ) : tickets.length === 0 ? (
+        ) : visibleTickets.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-muted-foreground font-medium mb-4">No tickets found.</p>
             {canCreate && (
@@ -125,6 +149,7 @@ export default function TicketList({ rolePath, canCreate, canDelete }: TicketLis
                   <th className="px-6 py-4">Device</th>
                   <th className="px-6 py-4">Issue</th>
                   <th className="px-6 py-4">Status</th>
+                  <th className="px-6 py-4">Priority</th>
                   <th className="px-6 py-4">Customer</th>
                   <th className="px-6 py-4">Assigned To</th>
                   <th className="px-6 py-4">Created</th>
@@ -132,7 +157,7 @@ export default function TicketList({ rolePath, canCreate, canDelete }: TicketLis
                 </tr>
               </thead>
               <tbody className="text-sm font-medium text-card-foreground divide-y divide-border">
-                {tickets.map((ticket) => (
+                {visibleTickets.map((ticket) => (
                   <tr key={ticket._id} className="hover:bg-muted/50 transition-colors">
                     <td className="px-6 py-4 font-mono text-xs font-bold text-foreground">
                       {ticket.ticketNumber}
@@ -145,6 +170,16 @@ export default function TicketList({ rolePath, canCreate, canDelete }: TicketLis
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={ticket.status} />
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`inline-flex px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${PRIORITY_STYLES[ticketPriority(ticket)]}`}>
+                        {ticketPriority(ticket)}
+                      </span>
+                      {ticket.dueDate && (
+                        <span className="block text-[10px] text-muted-foreground mt-1">
+                          Due {new Date(ticket.dueDate).toLocaleDateString()}
+                        </span>
+                      )}
                     </td>
                     <td className="px-6 py-4">
                       {ticket.customerId?.name || "Unknown"}

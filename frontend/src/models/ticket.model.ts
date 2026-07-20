@@ -3,6 +3,9 @@
 import mongoose, { Schema, Document, Model } from 'mongoose';
 import { TicketStatus } from '@/lib/enums';
 
+export const TICKET_PRIORITIES = ['low', 'medium', 'high', 'urgent'] as const;
+export type TicketPriority = (typeof TICKET_PRIORITIES)[number];
+
 // ─── Sub-Document Interfaces ──────────────────────────────────────────────────
 
 export interface ITicketNote {
@@ -23,6 +26,7 @@ export interface ITicketPartUsed {
 
 export interface ITicketPhoto {
   url:            string;
+  publicId?:      string; // Cloudinary public_id (absent on legacy /uploads/... photos)
   type:           string; // before | during | after | damage | parts
   note?:          string;
   uploadedBy:     mongoose.Types.ObjectId;
@@ -54,6 +58,10 @@ export interface ITicket extends Document {
   deviceIMEI?:    string;
   issue:          string;
   diagnosisNotes?: string;
+  /** Repair urgency. Older tickets have no value — treat as 'medium'. */
+  priority?:      TicketPriority;
+  /** Promised completion date — drives the "Due Soon" sort. Optional. */
+  dueDate?:       Date | null;
   status:         TicketStatus;
   estimateAmount?: number;
   photos:         ITicketPhoto[];
@@ -90,6 +98,7 @@ const TicketNoteSchema = new Schema<ITicketNote>(
 const TicketPhotoSchema = new Schema<ITicketPhoto>(
   {
     url:            { type: String, required: true },
+    publicId:       { type: String },
     type:           { type: String, required: true, default: 'before' },
     note:           { type: String },
     uploadedBy:     { type: Schema.Types.ObjectId, ref: 'User', required: true },
@@ -175,6 +184,15 @@ const TicketSchema = new Schema<ITicket>(
     diagnosisNotes: {
       type: String,
       trim: true,
+    },
+    priority: {
+      type: String,
+      enum: TICKET_PRIORITIES,
+      default: 'medium',
+    },
+    dueDate: {
+      type: Date,
+      default: null,
     },
     status: {
       type: String,

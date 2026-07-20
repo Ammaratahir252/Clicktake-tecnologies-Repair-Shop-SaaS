@@ -96,14 +96,14 @@ async function checkJwtSecret(): Promise<DiagnosticResult> {
     if (!val) {
       return {
         status: 'error',
-        message: 'JWT_SECRET is not set — falling back to a public, hardcoded default.',
+        message: 'JWT_SECRET is not set — authentication fails closed (all sign-ins are rejected) until it is configured.',
         fix: 'Set JWT_SECRET in .env.local to a long random string. Every login and session check uses this.',
       };
     }
     if (val === 'fallback_secret_key') {
       return {
         status: 'error',
-        message: 'JWT_SECRET is literally the fallback string used in code — anyone can forge session tokens.',
+        message: 'JWT_SECRET is set to the old public fallback string — anyone who saw the source history can forge session tokens.',
         fix: 'Generate a real secret: node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))" and set JWT_SECRET.',
       };
     }

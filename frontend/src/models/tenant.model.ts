@@ -16,7 +16,9 @@ export interface ITenant extends Document {
   stripeSubscriptionId?: string;
   // Shop profile fields
   logo?: string;
+  logoPublicId?: string;    // Cloudinary public_id backing `logo`
   bannerUrl?: string;
+  bannerPublicId?: string;  // Cloudinary public_id backing `bannerUrl`
   tagline?: string;
   description?: string;
   phone?: string;
@@ -109,8 +111,10 @@ const tenantSchema = new Schema<ITenant>(
     isActive: { type: Boolean, default: true },
     stripeCustomerId:     { type: String },
     stripeSubscriptionId: { type: String },
-    logo:          { type: String },
-    bannerUrl:     { type: String },
+    logo:           { type: String },
+    logoPublicId:   { type: String },
+    bannerUrl:      { type: String },
+    bannerPublicId: { type: String },
     tagline:       { type: String },
     description:   { type: String },
     phone:         { type: String },

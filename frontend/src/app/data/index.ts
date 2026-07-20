@@ -13,11 +13,13 @@ export const NAV_LINKS = [
 ];
 
 // ─── STATS ────────────────────────────────────────────────────────────────────
+// Product facts only — no invented usage numbers. These describe what the
+// platform actually ships, so they stay true regardless of adoption.
 export const STATS = [
-  { value: "10K+",  label: "Repairs Tracked"       },
-  { value: "500+",  label: "Active Shops"           },
-  { value: "98%",   label: "Customer Satisfaction"  },
-  { value: "24/7",  label: "Real-time Updates"      },
+  { value: "Real-time", label: "Repair Tracking"       },
+  { value: "6 Roles",   label: "Purpose-Built Dashboards" },
+  { value: "AI-Powered", label: "Diagnostics & Chat"    },
+  { value: "24/7",      label: "Customer Portal Access" },
 ];
 
 // ─── FEATURES ─────────────────────────────────────────────────────────────────
@@ -33,7 +35,7 @@ export const FEATURES = [
     icon: "Bot",
     color: "#6d28d9", bg: "#ede9fe",
     title: "AI-Powered Diagnostics",
-    desc: "GPT-4o assistant helps technicians identify issues 60% faster using a RAG-enhanced repair knowledge base. Ask in plain language, get expert-level answers instantly.",
+    desc: "An AI-powered assistant helps technicians identify likely causes and repair steps. Ask in plain language, get expert-level suggestions instantly.",
     badge: "AI",
   },
   {
@@ -228,7 +230,7 @@ export const PRICING = [
     desc: "Everything you need to run a high-efficiency repair shop at scale.",
     features: [
       "Unlimited staff accounts",
-      "AI Diagnostics (GPT-4o)",
+      "AI Diagnostics",
       "Live delivery GPS tracking",
       "Advanced inventory & POs",
       "Full analytics dashboard",
@@ -277,8 +279,8 @@ export const ABOUT_VALUES = [
 // ─── BLOG ─────────────────────────────────────────────────────────────────────
 export const BLOG_POSTS = [
   {
-    title: "How AI Diagnostics Cut Repair Time by 60% in 3 Months",
-    excerpt: "We analyzed data from 500+ shops using our AI diagnostic tool and found a consistent pattern: technicians who use AI assistance close tickets significantly faster — without sacrificing quality.",
+    title: "How AI Diagnostics Speed Up Everyday Repairs",
+    excerpt: "A look at how technicians use AI assistance in practice: describing symptoms in plain language, narrowing fault trees faster, and closing tickets sooner — without sacrificing quality.",
     category: "AI & Technology",
     date: "June 3, 2026",
     readTime: "6 min read",
@@ -334,7 +336,7 @@ export const FAQS = [
   },
   {
     q: "How does the AI Diagnostics feature work?",
-    a: "Our AI Diagnostic assistant is powered by GPT-4o with a Retrieval-Augmented Generation (RAG) knowledge base built from thousands of device repair guides, common fault trees, and community diagnostics. Technicians describe the symptom, and the AI suggests likely causes and repair steps.",
+    a: "Our AI Diagnostic assistant uses large language models trained on broad technical knowledge. Technicians describe the symptom in plain language, and the AI suggests likely causes and repair steps they can verify on the bench.",
   },
   {
     q: "Can I manage multiple shop locations?",
@@ -342,7 +344,7 @@ export const FAQS = [
   },
   {
     q: "Is my data secure?",
-    a: "All data is encrypted at rest and in transit (AES-256 + TLS 1.3). We host on AWS in the Asia Pacific region, run automated daily backups, and are compliant with Pakistan's PECA data protection guidelines. You can export all your data at any time.",
+    a: "All data is encrypted in transit over HTTPS and stored in managed cloud infrastructure with encryption at rest. Role-based access control and audit logging protect every account, admin-triggered backups are supported, and you can export your data at any time.",
   },
   {
     q: "What kind of support is available?",

@@ -260,7 +260,7 @@ export default function RegisterPage() {
             <>
               <div style={{ display:"inline-flex",alignItems:"center",gap:7,background:"rgba(255,255,255,0.1)",border:"1px solid rgba(255,255,255,0.15)",borderRadius:999,padding:"7px 14px",marginBottom:24 }}>
                 <Zap size={12} color="rgba(255,255,255,0.8)"/>
-                <span style={{ color:"rgba(255,255,255,0.8)",fontSize:11,fontWeight:700,letterSpacing:"0.08em" }}>JOIN 500+ REPAIR SHOPS</span>
+                <span style={{ color:"rgba(255,255,255,0.8)",fontSize:11,fontWeight:700,letterSpacing:"0.08em" }}>BUILT FOR REPAIR SHOPS</span>
               </div>
               <h1 style={{ color:"#fff",fontWeight:700,fontSize:"clamp(30px,3.2vw,48px)",lineHeight:1.1,letterSpacing:"-1.2px",marginBottom:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>
                 Start running<br/>your shop<br/>
@@ -271,7 +271,7 @@ export default function RegisterPage() {
               </p>
               {/* Mini stats */}
               <div style={{ display:"flex",gap:20,marginBottom:40 }}>
-                {[{val:"500+",label:"Shops"},{ val:"4.9",label:"Rating"},{val:"6",label:"Roles"}].map(s=>(
+                {[{val:"6",label:"Roles"},{ val:"Live",label:"Tracking"},{val:"4",label:"Gateways"}].map(s=>(
                   <div key={s.label}>
                     <p style={{ color:"#fff",fontWeight:700,fontSize:22,letterSpacing:"-0.5px",fontFamily:"'DM Serif Display',Georgia,serif",lineHeight:1 }}>{s.val}</p>
                     <p style={{ color:"rgba(255,255,255,0.4)",fontSize:11,fontWeight:600,marginTop:2 }}>{s.label}</p>
@@ -282,8 +282,8 @@ export default function RegisterPage() {
               <div style={{ display:"flex",gap:8 }}>
                 {[
                   { icon:ShieldCheck, text:"SSL Secured" },
-                  { icon:Star,        text:"4.9 Rated"   },
-                  { icon:TrendingUp,  text:"99% Uptime"  },
+                  { icon:Star,        text:"Free Trial"  },
+                  { icon:TrendingUp,  text:"Multi-Tenant" },
                 ].map(({ icon:Icon,text }) => (
                   <div key={text} style={{ display:"inline-flex",alignItems:"center",gap:6,background:"rgba(255,255,255,0.09)",border:"1px solid rgba(255,255,255,0.13)",borderRadius:10,padding:"7px 11px" }}>
                     <Icon size={12} color="rgba(255,255,255,0.7)"/>

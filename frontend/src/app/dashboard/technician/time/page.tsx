@@ -4,7 +4,7 @@ import DashboardShell from "@/components/DashboardShell";
 import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
 import {
-  Clock, Play, Pause, CheckCircle, ChevronDown, Timer,
+  Clock, Play, Pause, CheckCircle, Timer, AlertCircle,
   Trash2, Edit2, Save, X, TrendingUp, Calendar, Loader2, Search,
 } from "lucide-react";
 
@@ -17,6 +17,23 @@ type Session = {
   duration: number;
   notes?:   string;
 };
+
+function ticketLabel(t: any): string {
+  if (!t) return "Ticket";
+  return `${t.ticketNumber ?? "Ticket"} · ${t.deviceBrand ?? ""} ${t.deviceModel ?? ""}`.trim();
+}
+
+function toSession(raw: any): Session {
+  return {
+    id:       raw._id,
+    ticketId: raw.ticketId?._id ?? raw.ticketId,
+    label:    ticketLabel(raw.ticketId),
+    start:    new Date(raw.startedAt),
+    end:      raw.endedAt ? new Date(raw.endedAt) : null,
+    duration: raw.durationSeconds ?? 0,
+    notes:    raw.note || undefined,
+  };
+}
 
 function formatDuration(seconds: number) {
   const h = Math.floor(seconds / 3600);
@@ -42,16 +59,31 @@ export default function TechnicianTimePage() {
 function TimeContent() {
   const [tickets, setTickets]         = useState<any[]>([]);
   const [loadingTickets, setLoadingTickets] = useState(true);
+  const [loadingSessions, setLoadingSessions] = useState(true);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [open, setOpen]               = useState(false);
-  const [running, setRunning]         = useState(false);
+  const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [elapsed, setElapsed]         = useState(0);
   const [sessionNotes, setSessionNotes] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId]     = useState<string | null>(null);
   const [editDuration, setEditDuration] = useState(0);
   const [success, setSuccess]         = useState(false);
+  const [error, setError]             = useState<string | null>(null);
+  const [busy, setBusy]               = useState(false);
   const [sessions, setSessions]       = useState<Session[]>([]);
+
+  const running = !!activeSession;
+
+  const showError = (err: any, fallback: string) => {
+    setError(err?.response?.data?.message || fallback);
+    setTimeout(() => setError(null), 5000);
+  };
+
+  const flashSuccess = () => {
+    setSuccess(true);
+    setTimeout(() => setSuccess(false), 3000);
+  };
 
   const fetchTickets = useCallback(async () => {
     try {
@@ -59,7 +91,7 @@ function TimeContent() {
       const all: any[] = res.data?.data ?? [];
       const active = all.filter((t) => !["delivered", "cancelled"].includes(t.status));
       setTickets(active);
-      if (active.length > 0) setSelectedTicket(active[0]);
+      if (active.length > 0) setSelectedTicket((prev: any) => prev ?? active[0]);
     } catch {
       setTickets([]);
     } finally {
@@ -67,7 +99,30 @@ function TimeContent() {
     }
   }, []);
 
-  useEffect(() => { fetchTickets(); }, [fetchTickets]);
+  // Load persisted sessions: today's completed ones + any still-running timer
+  // (so a refresh mid-session resumes instead of losing it).
+  const fetchSessions = useCallback(async () => {
+    try {
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const res = await api.get(`/api/time-sessions?from=${todayStart.toISOString()}`);
+      const raw: any[] = res.data?.data ?? [];
+      const done = raw.filter((s) => s.endedAt).map(toSession);
+      setSessions(done);
+      const active = raw.find((s) => !s.endedAt);
+      if (active) {
+        const session = toSession(active);
+        setActiveSession(session);
+        setElapsed(Math.max(0, Math.floor((Date.now() - session.start.getTime()) / 1000)));
+      }
+    } catch (err: any) {
+      showError(err, "Could not load your saved sessions.");
+    } finally {
+      setLoadingSessions(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchTickets(); fetchSessions(); }, [fetchTickets, fetchSessions]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -75,36 +130,78 @@ function TimeContent() {
     return () => clearInterval(interval);
   }, [running]);
 
-  const handleStart = () => { setRunning(true); setElapsed(0); setSessionNotes(""); };
-
-  const handleStop = () => {
-    setRunning(false);
-    if (elapsed > 0 && selectedTicket) {
-      setSessions((prev) => [{
-        id:       Date.now().toString(),
-        ticketId: selectedTicket._id,
-        label:    `${selectedTicket.ticketNumber} · ${selectedTicket.deviceBrand} ${selectedTicket.deviceModel}`,
-        start:    new Date(Date.now() - elapsed * 1000),
-        end:      new Date(),
-        duration: elapsed,
-        notes:    sessionNotes || undefined,
-      }, ...prev]);
+  const handleStart = async () => {
+    if (!selectedTicket || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post("/api/time-sessions", { ticketId: selectedTicket._id });
+      const session = toSession(res.data?.data ?? {});
+      session.label = ticketLabel(selectedTicket);
+      setActiveSession(session);
       setElapsed(0);
       setSessionNotes("");
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+    } catch (err: any) {
+      // 409 → a timer is already running (e.g. in another tab); resume it.
+      if (err?.response?.status === 409 && err.response.data?.data) {
+        const session = toSession(err.response.data.data);
+        setActiveSession(session);
+        setElapsed(Math.max(0, Math.floor((Date.now() - session.start.getTime()) / 1000)));
+      } else {
+        showError(err, "Could not start the timer.");
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleDeleteSession = (id: string) => {
-    if (confirm("Delete this session?")) setSessions((prev) => prev.filter((s) => s.id !== id));
+  const handleStop = async () => {
+    if (!activeSession || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.patch(`/api/time-sessions/${activeSession.id}`, {
+        stop: true,
+        ...(sessionNotes ? { note: sessionNotes } : {}),
+      });
+      const saved = toSession(res.data?.data ?? {});
+      if (!saved.label || saved.label === "Ticket") saved.label = activeSession.label;
+      setSessions((prev) => [saved, ...prev]);
+      setActiveSession(null);
+      setElapsed(0);
+      setSessionNotes("");
+      flashSuccess();
+    } catch (err: any) {
+      showError(err, "Could not save the session.");
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleUpdateSession = (id: string) => {
-    setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, duration: editDuration } : s)));
-    setEditingId(null);
-    setSuccess(true);
-    setTimeout(() => setSuccess(false), 3000);
+  const handleDeleteSession = async (id: string) => {
+    if (!confirm("Delete this session?")) return;
+    try {
+      await api.delete(`/api/time-sessions/${id}`);
+      setSessions((prev) => prev.filter((s) => s.id !== id));
+    } catch (err: any) {
+      showError(err, "Could not delete the session.");
+    }
+  };
+
+  const handleUpdateSession = async (id: string) => {
+    if (editDuration <= 0) {
+      setError("Duration must be a positive number of seconds.");
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+    try {
+      await api.patch(`/api/time-sessions/${id}`, { durationSeconds: editDuration });
+      setSessions((prev) => prev.map((s) => (s.id === id ? { ...s, duration: editDuration } : s)));
+      setEditingId(null);
+      flashSuccess();
+    } catch (err: any) {
+      showError(err, "Could not update the session.");
+    }
   };
 
   const filteredTickets = tickets.filter(
@@ -143,6 +240,15 @@ function TimeContent() {
             <p className="text-emerald-900 dark:text-emerald-100 font-bold">Session saved!</p>
             <p className="text-emerald-700 dark:text-emerald-400 text-xs">Your time has been logged</p>
           </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center gap-3 bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800 rounded-2xl p-4 shadow-lg">
+          <div className="w-10 h-10 bg-red-500 rounded-full flex items-center justify-center">
+            <AlertCircle size={20} className="text-white" />
+          </div>
+          <p className="text-red-900 dark:text-red-100 font-bold text-sm">{error}</p>
         </div>
       )}
 
@@ -223,14 +329,19 @@ function TimeContent() {
                     </>
                   )}
 
-                  {selectedTicket && !open && (
+                  {running && activeSession ? (
+                    <div className="mt-2 bg-background border-2 border-primary/30 rounded-xl px-4 py-3">
+                      <p className="font-bold text-sm text-foreground">{activeSession.label}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">Started {formatTime(activeSession.start)}</p>
+                    </div>
+                  ) : selectedTicket && !open ? (
                     <div className="mt-2 bg-background border-2 border-border rounded-xl px-4 py-3">
                       <p className="font-bold text-sm text-foreground">{selectedTicket.ticketNumber}</p>
                       <p className="text-xs text-muted-foreground mt-0.5">
                         {selectedTicket.customerId?.name ?? "Customer"} · {selectedTicket.deviceBrand} {selectedTicket.deviceModel}
                       </p>
                     </div>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
@@ -265,19 +376,20 @@ function TimeContent() {
               {!running ? (
                 <button
                   onClick={handleStart}
-                  disabled={!selectedTicket}
+                  disabled={!selectedTicket || busy || loadingSessions}
                   className="flex-1 flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-primary to-primary/80 text-primary-foreground font-black rounded-xl hover:shadow-lg transition-all text-sm shadow-md disabled:opacity-50"
                 >
-                  <Play size={20} fill="currentColor" />
-                  Start Timer
+                  {busy ? <Loader2 size={20} className="animate-spin" /> : <Play size={20} fill="currentColor" />}
+                  {busy ? "Starting…" : "Start Timer"}
                 </button>
               ) : (
                 <button
                   onClick={handleStop}
-                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white font-black rounded-xl hover:shadow-lg transition-all text-sm shadow-md"
+                  disabled={busy}
+                  className="flex-1 flex items-center justify-center gap-2 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white font-black rounded-xl hover:shadow-lg transition-all text-sm shadow-md disabled:opacity-60"
                 >
-                  <Pause size={20} fill="currentColor" />
-                  Stop & Save
+                  {busy ? <Loader2 size={20} className="animate-spin" /> : <Pause size={20} fill="currentColor" />}
+                  {busy ? "Saving…" : "Stop & Save"}
                 </button>
               )}
             </div>
@@ -288,14 +400,19 @@ function TimeContent() {
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
             <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
-              Today's Sessions ({sessions.length})
+              Today&apos;s Sessions ({sessions.length})
             </p>
             {sessions.length > 0 && (
               <p className="text-xs font-bold text-muted-foreground">Avg: {formatDuration(averageSession)}</p>
             )}
           </div>
 
-          {sessions.length === 0 ? (
+          {loadingSessions ? (
+            <div className="flex items-center justify-center py-16 text-muted-foreground">
+              <Loader2 size={18} className="animate-spin mr-2" />
+              <span className="text-sm font-medium">Loading sessions…</span>
+            </div>
+          ) : sessions.length === 0 ? (
             <div className="bg-gradient-to-br from-card to-muted/30 border-2 border-dashed border-border rounded-2xl p-12 text-center">
               <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
                 <Timer size={36} className="text-muted-foreground" />
@@ -330,6 +447,7 @@ function TimeContent() {
                         <>
                           <input
                             type="number"
+                            min={1}
                             value={editDuration}
                             onChange={(e) => setEditDuration(parseInt(e.target.value) || 0)}
                             className="w-20 bg-background border border-border rounded-lg px-2 py-1 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-primary/50"

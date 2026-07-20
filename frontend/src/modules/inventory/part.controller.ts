@@ -571,7 +571,7 @@ export async function getAllStockMovementsHandler(req: NextRequest): Promise<Nex
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /api/tickets/[id]/parts — Use a part on a ticket (M2-M3 bridge)
 // ─────────────────────────────────────────────────────────────────────────────
-export async function usePartOnTicketHandler(req: NextRequest, ticketId: string): Promise<NextResponse> {
+export async function recordPartUsageOnTicketHandler(req: NextRequest, ticketId: string): Promise<NextResponse> {
   await connectDB();
   try {
     const { tenantId, userId, role } = getCtx(req);

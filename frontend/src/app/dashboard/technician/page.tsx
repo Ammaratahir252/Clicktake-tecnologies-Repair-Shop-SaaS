@@ -11,7 +11,7 @@ import {
 
 const MODULES = [
   { key: "my-tickets", icon: Wrench,  title: "My Tickets",   desc: "View only your assigned repairs",   href: "/dashboard/technician/tickets", color: "from-amber-500 to-amber-600"   },
-  { key: "ai",         icon: Brain,   title: "AI Diagnostic", desc: "GPT-4o-mini repair assistant",      href: "/dashboard/technician/ai",      color: "from-purple-500 to-purple-600", badge: "Hot" },
+  { key: "ai",         icon: Brain,   title: "AI Diagnostic", desc: "AI-powered repair assistant",      href: "/dashboard/technician/ai",      color: "from-purple-500 to-purple-600", badge: "Hot" },
   { key: "time",       icon: Clock,   title: "Time Tracking", desc: "Clock in/out per repair ticket",   href: "/dashboard/technician/time",    color: "from-blue-500 to-blue-600"    },
   { key: "photos",     icon: Camera,  title: "Upload Photos", desc: "Before/after damage photos",       href: "/dashboard/technician/photos",  color: "from-emerald-500 to-emerald-600", badge: "New" },
 ];

@@ -36,7 +36,7 @@ export default function CTABanner() {
             </h2>
 
             <p style={{ color: "rgba(255,255,255,0.72)", fontSize: 18, lineHeight: 1.85, maxWidth: 480, margin: "0 auto 48px", fontFamily: "'DM Sans',sans-serif" }}>
-              Join 500+ repair shops already using DibnowRepairSaaS to deliver faster, smarter repairs.
+              Join the repair shops using DibnowRepairSaaS to deliver faster, smarter repairs.
             </p>
 
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>

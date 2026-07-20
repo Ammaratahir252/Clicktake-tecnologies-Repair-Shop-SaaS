@@ -1,47 +1,45 @@
 import { NextRequest } from 'next/server';
-import fs from 'fs/promises';
-import path from 'path';
-import crypto from 'crypto';
 import connectDB from '@/lib/db';
 import PlatformSettings from '@/models/platformSettings.model';
 import { sendResponse } from '@/utils/apiResponse';
 import { canAccess } from '@/lib/adminAccess';
+import {
+  uploadImage,
+  destroyImage,
+  publicIdFromUrl,
+  CloudinaryConfigError,
+} from '@/lib/uploads/cloudinary';
 
-const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'branding');
-const ALLOWED_FIELDS = ['logoUrl', 'faviconUrl', 'loginBackgroundUrl'];
+const ALLOWED_FIELDS = ['logoUrl', 'faviconUrl', 'loginBackgroundUrl'] as const;
+type BrandingField = (typeof ALLOWED_FIELDS)[number];
 
-/** Deletes a previously-uploaded branding file from disk, given its stored `/uploads/branding/...`
- * URL. No-ops silently for anything else (external URL, already-empty, already-missing file). */
-async function deleteBrandingFile(url: string | undefined): Promise<void> {
-  if (!url || !url.startsWith('/uploads/branding/')) return;
-  const filename = url.split('/').pop();
-  if (!filename) return;
-  try {
-    await fs.unlink(path.join(UPLOAD_DIR, filename));
-  } catch {
-    // File already gone or never existed — nothing to clean up.
-  }
+/** logoUrl → logoPublicId, faviconUrl → faviconPublicId, loginBackgroundUrl → loginBackgroundPublicId */
+function publicIdField(field: BrandingField): string {
+  return `${field.replace(/Url$/, '')}PublicId`;
 }
 
 // POST /api/admin/branding/upload — multipart form: { file, field }
-// Saves to public/uploads/branding (served directly by Next.js as a static asset),
-// updates PlatformSettings[field] to the resulting URL, and returns it. This is a
-// real local-disk upload — enforces Settings > Storage's Max Upload Size and
-// Allowed File Types, since this is the first (and only, for now) real consumer
-// of those two settings. Also deletes the field's previous file (if any) so
-// re-uploads don't leak orphaned files on disk indefinitely.
+// Uploads to Cloudinary (serverless-safe permanent storage — the old local-disk
+// approach broke in production where the filesystem is read-only), updates
+// PlatformSettings[field] to the returned secure URL, stores the public_id
+// alongside it, and deletes the field's previous Cloudinary file so re-uploads
+// don't leak orphans. Enforces Settings > Storage's Max Upload Size and Allowed
+// File Types. Legacy `/uploads/...` values are simply cleared — there is no
+// cloud file behind them to delete.
 export async function POST(req: NextRequest) {
   if (!canAccess(req, 'settings')) return sendResponse(false, 'Forbidden', null, 403);
   await connectDB();
   try {
     const form = await req.formData();
     const file = form.get('file') as File | null;
-    const field = String(form.get('field') || '');
+    const field = String(form.get('field') || '') as BrandingField;
 
     if (!file) return sendResponse(false, 'No file provided', null, 400);
     if (!ALLOWED_FIELDS.includes(field)) return sendResponse(false, 'Invalid field', null, 400);
 
-    const settings = await PlatformSettings.findOne().select('maxUploadSizeMb allowedFileTypes logoUrl faviconUrl loginBackgroundUrl').lean() as any;
+    const settings = await PlatformSettings.findOne()
+      .select('maxUploadSizeMb allowedFileTypes logoPublicId faviconPublicId loginBackgroundPublicId logoUrl faviconUrl loginBackgroundUrl')
+      .lean() as any;
     const maxBytes = (settings?.maxUploadSizeMb ?? 10) * 1024 * 1024;
     if (file.size > maxBytes) {
       return sendResponse(false, `File exceeds the configured max upload size (${settings?.maxUploadSizeMb ?? 10}MB)`, null, 400);
@@ -56,34 +54,45 @@ export async function POST(req: NextRequest) {
       return sendResponse(false, `File type ".${ext}" isn't in the allowed list (${allowed.join(', ')})`, null, 400);
     }
 
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-    const filename = `${field}-${crypto.randomBytes(8).toString('hex')}.${ext}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await fs.writeFile(path.join(UPLOAD_DIR, filename), buffer);
+    const uploaded = await uploadImage(file, 'branding');
 
-    const url = `/uploads/branding/${filename}`;
-    await deleteBrandingFile(settings?.[field]);
-    await PlatformSettings.findOneAndUpdate({}, { $set: { [field]: url } }, { upsert: true });
+    // Remove the previous file for this field (stored publicId, or derived from
+    // an older Cloudinary URL saved before publicIds were tracked).
+    const pidField = publicIdField(field);
+    await destroyImage(settings?.[pidField] || publicIdFromUrl(settings?.[field]));
 
-    return sendResponse(true, 'Uploaded', { url });
+    await PlatformSettings.findOneAndUpdate(
+      {},
+      { $set: { [field]: uploaded.url, [pidField]: uploaded.publicId } },
+      { upsert: true }
+    );
+
+    return sendResponse(true, 'Uploaded', { url: uploaded.url, publicId: uploaded.publicId });
   } catch (err: any) {
+    if (err instanceof CloudinaryConfigError) return sendResponse(false, err.message, null, 503);
     return sendResponse(false, err.message || 'Upload failed', null, 500);
   }
 }
 
-// DELETE /api/admin/branding/upload — body: { field }. Removes the uploaded file from
-// disk (if any) and clears PlatformSettings[field] back to empty.
+// DELETE /api/admin/branding/upload — body: { field }. Removes the Cloudinary
+// file (if any) and clears PlatformSettings[field] back to empty.
 export async function DELETE(req: NextRequest) {
   if (!canAccess(req, 'settings')) return sendResponse(false, 'Forbidden', null, 403);
   await connectDB();
   try {
     const body = await req.json().catch(() => ({}));
-    const field = String(body.field || '');
+    const field = String(body.field || '') as BrandingField;
     if (!ALLOWED_FIELDS.includes(field)) return sendResponse(false, 'Invalid field', null, 400);
 
-    const settings = await PlatformSettings.findOne().select(field).lean() as any;
-    await deleteBrandingFile(settings?.[field]);
-    await PlatformSettings.findOneAndUpdate({}, { $set: { [field]: '' } }, { upsert: true });
+    const pidField = publicIdField(field);
+    const settings = await PlatformSettings.findOne().select(`${field} ${pidField}`).lean() as any;
+    await destroyImage(settings?.[pidField] || publicIdFromUrl(settings?.[field]));
+
+    await PlatformSettings.findOneAndUpdate(
+      {},
+      { $set: { [field]: '', [pidField]: '' } },
+      { upsert: true }
+    );
 
     return sendResponse(true, 'Removed', { url: '' });
   } catch (err: any) {

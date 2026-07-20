@@ -95,11 +95,14 @@ export interface IPlatformSettings extends Document {
 
   // ── Appearance / Branding ────────────────────────────────────────────
   logoUrl: string;
+  logoPublicId: string;               // Cloudinary public_id backing logoUrl
   faviconUrl: string;
+  faviconPublicId: string;            // Cloudinary public_id backing faviconUrl
   primaryColor: string;
   secondaryColor: string;
   darkModeDefault: boolean;
   loginBackgroundUrl: string;
+  loginBackgroundPublicId: string;    // Cloudinary public_id backing loginBackgroundUrl
   companyName: string;
   footerText: string;
 
@@ -198,11 +201,14 @@ const schema = new Schema<IPlatformSettings>(
     },
 
     logoUrl: { type: String, default: '' },
+    logoPublicId: { type: String, default: '' },
     faviconUrl: { type: String, default: '' },
+    faviconPublicId: { type: String, default: '' },
     primaryColor: { type: String, default: '#2563eb' },
     secondaryColor: { type: String, default: '#7c3aed' },
     darkModeDefault: { type: Boolean, default: false },
     loginBackgroundUrl: { type: String, default: '' },
+    loginBackgroundPublicId: { type: String, default: '' },
     companyName: { type: String, default: 'Dibnow Repair' },
     footerText: { type: String, default: 'DibnowRepairSaaS © 2026' },
 

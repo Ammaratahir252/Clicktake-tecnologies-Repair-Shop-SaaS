@@ -8,6 +8,7 @@ import { validatePassword, isPasswordReused } from '@/utils/passwordPolicy';
 import { createAuditLog } from '@/services/auditLog.service';
 import { AUDIT_ACTIONS } from '@/models/auditLog.model';
 import { getPlatformSettings } from '@/lib/platformSettings';
+import { getJwtSecret } from '@/lib/auth/jwtSecret';
 
 // POST /api/auth/change-password — for an already-logged-in user changing their own
 // password from Settings (different from the unauthenticated forgot/reset-password flow).
@@ -76,7 +77,7 @@ export async function POST(req: NextRequest) {
         tokenVersion: user.tokenVersion,
         permissions: user.role === 'admin' ? (user as any).permissions || [] : undefined,
       },
-      process.env.JWT_SECRET || 'fallback_secret_key',
+      getJwtSecret(),
       { expiresIn: expiresInSeconds }
     );
 

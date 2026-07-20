@@ -13,6 +13,8 @@ export const CreateTicketSchema = z.object({
   estimateAmount: z.number().min(0).optional().nullable(),
   deviceColor:   z.string().max(50).optional(),
   deviceIMEI:    z.string().max(20).optional(),
+  priority:      z.enum(['low', 'medium', 'high', 'urgent']).optional(),
+  dueDate:       z.string().refine((v) => !isNaN(Date.parse(v)), 'Invalid due date').optional().nullable(),
 });
 
 // ─── POST /api/tickets/:id/photos ────────────────────────────────────────────
