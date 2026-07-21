@@ -521,7 +521,7 @@ function SettingsContent({ user }: { user: any }) {
     } finally {
       setStatsLoading(false);
     }
-  }, [user]);
+  }, []);
 
   useEffect(() => { loadData(); }, [loadData]);
 

@@ -4,6 +4,10 @@ import { sendResponse } from '@/utils/apiResponse';
 import Ticket from '@/models/ticket.model';
 import mongoose from 'mongoose';
 
+// This route is protected by middleware.ts's default-deny API auth model —
+// the headers below are the verified values middleware sets from the caller's
+// JWT after stripping whatever the client sent, never raw client headers.
+// See the 2026-07-20 audit (Critical #2) for why that distinction matters here.
 function getCtx(req: NextRequest) {
   return {
     tenantId: req.headers.get('x-tenant-id') ?? '',
@@ -12,6 +16,13 @@ function getCtx(req: NextRequest) {
   };
 }
 
+/**
+ * GET /api/delivery-jobs/my — the tickets currently assigned to the calling
+ * driver (technicianId === the driver's own userId), formatted as delivery
+ * jobs. Narrower than GET /api/tickets (which returns every ready/delivered
+ * ticket tenant-wide to a driver, not just their own assignments) — surfaced
+ * on the driver dashboard as "My Deliveries".
+ */
 export async function GET(req: NextRequest): Promise<NextResponse> {
   await connectDB();
   try {

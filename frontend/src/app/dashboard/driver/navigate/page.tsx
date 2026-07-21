@@ -35,6 +35,17 @@ function NavigateContent() {
   const [routeLoading, setRouteLoading] = useState(false);
   const [marking, setMarking] = useState(false);
 
+  // Last GPS fix this driver shared, restored on load so a page refresh
+  // mid-delivery doesn't lose that context before the next "Start sharing"
+  // tap sends a fresh one (GET /api/driver/location, previously never called).
+  const [lastKnownLocation, setLastKnownLocation] = useState<{ lat: number; lng: number; updatedAt: string } | null>(null);
+
+  useEffect(() => {
+    api.get("/api/driver/location")
+      .then((res) => setLastKnownLocation(res.data?.data ?? null))
+      .catch(() => setLastKnownLocation(null));
+  }, []);
+
   const fetchJobs = useCallback(async () => {
     try {
       const res = await api.get("/api/tickets");
@@ -416,9 +427,16 @@ function NavigateContent() {
             )}
 
             {!tracking && (
-              <p className="text-xs text-muted-foreground">
-                Tap "Start sharing location" to send your live GPS position and get real-time distance/ETA to this job.
-              </p>
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground">
+                  Tap "Start sharing location" to send your live GPS position and get real-time distance/ETA to this job.
+                </p>
+                {lastKnownLocation?.updatedAt && (
+                  <p className="text-xs text-muted-foreground/70">
+                    Last shared: {new Date(lastKnownLocation.updatedAt).toLocaleTimeString()} ({lastKnownLocation.lat.toFixed(4)}, {lastKnownLocation.lng.toFixed(4)})
+                  </p>
+                )}
+              </div>
             )}
           </div>
 

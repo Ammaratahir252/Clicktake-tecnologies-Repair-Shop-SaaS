@@ -26,6 +26,9 @@ export default function TestimonialsSection() {
             <h2 style={{ fontSize: "clamp(36px,5vw,64px)", fontWeight: 700, color: TEXT, letterSpacing: "-2px", lineHeight: 1.08, fontFamily: "'DM Serif Display',Georgia,serif" }}>
               Trusted by repair shops<br />across Pakistan & beyond.
             </h2>
+            <p style={{ marginTop: 14, color: MUTED, fontSize: 12.5, fontFamily: "'DM Sans',sans-serif" }}>
+              Illustrative examples — the kind of results the product is built to deliver.
+            </p>
           </div>
         </FadeIn>
 

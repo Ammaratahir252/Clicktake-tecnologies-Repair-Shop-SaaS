@@ -364,6 +364,10 @@ export async function assignTechnicianHandler(
   }
 }
 
+// Only staff who manage the shop floor may hand a ticket to a driver —
+// mirrors RECORD_PAYMENT_ROLES/PHOTO_UPLOAD_ROLES above (same file, same pattern).
+const ASSIGN_DRIVER_ROLES = new Set(['super_admin', 'owner', 'manager']);
+
 // ─── PATCH /api/tickets/:id/assign-driver ────────────────────────────────────
 export async function assignDriverHandler(
   req: NextRequest,
@@ -371,7 +375,12 @@ export async function assignDriverHandler(
 ): Promise<NextResponse> {
   await connectDB();
   try {
-    const { tenantId, userId, userName } = getCtx(req);
+    const { tenantId, userId, userName, role } = getCtx(req);
+
+    if (!ASSIGN_DRIVER_ROLES.has(role)) {
+      return sendResponse(false, 'Forbidden: only owner/manager may assign a driver', null, 403);
+    }
+
     const body = await req.json();
 
     const parsed = AssignDriverSchema.safeParse(body);

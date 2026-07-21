@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const BACKEND = process.env.BACKEND_URL || 'http://localhost:4001';
+// Fastify delivery backend runs on :4000 in dev (see backend/.env.local PORT) —
+// this fallback must match that, not an arbitrary placeholder port.
+const BACKEND = process.env.BACKEND_URL || 'http://localhost:4000';
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   try {

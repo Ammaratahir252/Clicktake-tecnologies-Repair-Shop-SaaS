@@ -41,6 +41,13 @@ export default function LoginPage() {
     setIsLocked(false);
 
     try {
+      // No client-side subdomain header needed: middleware.ts derives
+      // x-subdomain from the request's own Host header for every /api/*
+      // request (including this one, now that /api/auth/login is covered by
+      // the default-deny middleware matcher) — a login POSTed from
+      // shopname.dibnow.com always carries that Host automatically, so the
+      // login route's tenant-mismatch check (route.ts:33-46) is live without
+      // this page doing anything extra.
       const res = await axios.post("/api/auth/login", { email, password });
       if (res.data.data?.requiresOtp) {
         setOtpUserId(res.data.data.userId);
@@ -98,10 +105,7 @@ export default function LoginPage() {
   return (
     <div style={{ minHeight:"100vh", display:"flex", background: BG, fontFamily:"'DM Sans',system-ui,sans-serif" }}>
 
-      {/* Google Fonts */}
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+      {/* Google Fonts now loaded once in app/layout.tsx's <head> instead of here. */}
 
       <style suppressHydrationWarning>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}

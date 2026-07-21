@@ -175,6 +175,12 @@ export const ROLES = [
 ];
 
 // ─── TESTIMONIALS ─────────────────────────────────────────────────────────────
+// ILLUSTRATIVE PLACEHOLDER CONTENT — these are not real customers. Names,
+// shops, quotes, and metrics below are examples of the kind of results the
+// product is designed to produce, not testimonials anyone actually gave.
+// Flagged in the 2026-07-20 platform audit (High: "misleading content") —
+// replace with real, consented customer quotes before this ships as genuine
+// social proof, or keep the on-page "illustrative example" label below.
 export const TESTIMONIALS = [
   {
     name: "Ahmed Hassan",
@@ -277,6 +283,11 @@ export const ABOUT_VALUES = [
 ];
 
 // ─── BLOG ─────────────────────────────────────────────────────────────────────
+// ILLUSTRATIVE PLACEHOLDER CONTENT — no real articles exist behind these teasers
+// yet (BlogSection's "Read article"/"View all posts" buttons are intentionally
+// inert — there's nowhere for them to go). Flagged in the 2026-07-20 audit
+// alongside TESTIMONIALS above; needs either real published posts or an
+// explicit decision to remove this section before it ships as genuine content.
 export const BLOG_POSTS = [
   {
     title: "How AI Diagnostics Speed Up Everyday Repairs",

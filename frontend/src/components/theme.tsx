@@ -89,7 +89,7 @@ export function useInView(threshold = 0.1) {
     }, { threshold });
     obs.observe(el);
     return () => obs.disconnect();
-  }, []);
+  }, [threshold]);
   return { ref, inView };
 }
 

@@ -220,7 +220,11 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     } catch {
       router.replace("/login");
     }
-  }, []);
+    // Depend on the serialized role list, not the raw prop: callers often pass
+    // requiredRole as an inline array literal, which would otherwise get a new
+    // reference on every parent re-render and re-run this guard needlessly.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, Array.isArray(requiredRole) ? requiredRole.join(',') : requiredRole]);
 
   // Fetch notifications + poll every 30 s
   useEffect(() => {
@@ -261,6 +265,10 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
         }
       })
       .catch(() => { /* non-critical — fall back to showing all tabs */ });
+    // Intentionally narrowed to user?.role: this only needs to re-run when the
+    // role changes (e.g. after impersonation), not on every `user` object identity
+    // change from unrelated state updates elsewhere in this component.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.role]);
 
   const markAllRead = async () => {

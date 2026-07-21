@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Loader2, ShieldAlert } from "lucide-react";
@@ -22,6 +22,27 @@ export default function AuditLogsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("All");
+
+  const fetchLogs = useCallback(async (currentFilter: string) => {
+    setLoading(true);
+    setError("");
+    try {
+      let url = "/api/audit-logs?limit=50";
+      if (currentFilter !== "All") {
+        url += `&action=${currentFilter}`;
+      }
+      const res = await api.get(url);
+      setLogs(res.data?.data?.logs || []);
+    } catch (err: any) {
+      const msg = err.response?.data?.message || "Failed to load audit logs.";
+      setError(msg);
+      if (err.response?.status === 403) {
+        router.replace("/dashboard");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
 
   useEffect(() => {
     const raw = localStorage.getItem("user");
@@ -45,28 +66,7 @@ export default function AuditLogsPage() {
     }
 
     fetchLogs(filter);
-  }, [filter]);
-
-  const fetchLogs = async (currentFilter: string) => {
-    setLoading(true);
-    setError("");
-    try {
-      let url = "/api/audit-logs?limit=50";
-      if (currentFilter !== "All") {
-        url += `&action=${currentFilter}`;
-      }
-      const res = await api.get(url);
-      setLogs(res.data?.data?.logs || []);
-    } catch (err: any) {
-      const msg = err.response?.data?.message || "Failed to load audit logs.";
-      setError(msg);
-      if (err.response?.status === 403) {
-        router.replace("/dashboard");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [filter, router, fetchLogs]);
 
   const getActionColor = (action: string) => {
     if (action.includes("LOGIN") || action.includes("LOGOUT")) return "bg-blue-100 text-blue-700";

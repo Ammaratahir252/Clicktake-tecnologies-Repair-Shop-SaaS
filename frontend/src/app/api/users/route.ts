@@ -42,8 +42,15 @@ export async function GET(req: NextRequest) {
     
     const tenantId = req.headers.get('x-tenant-id');
 
+    // ?role=technician / ?role=driver etc. — used by ticket-assignment dropdowns
+    // to list only staff of that role. Previously ignored entirely (every caller
+    // got the full tenant user list regardless of this param); fixed 2026-07-20.
+    const roleFilter = req.nextUrl.searchParams.get('role');
+    const query: Record<string, unknown> = { tenantId };
+    if (roleFilter) query.role = roleFilter;
+
     // Security: Fetch users excluding sensitive password field
-    const users = await User.find({ tenantId }).select('-password'); 
+    const users = await User.find(query).select('-password');
 
     createAuditLog({
       tenantId: tenantId as string,

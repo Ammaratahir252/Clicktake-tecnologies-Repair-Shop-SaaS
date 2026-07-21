@@ -88,6 +88,12 @@ function DriverContent({ user }: { user: any }) {
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState("");
 
+  // "My Deliveries" — jobs specifically assigned to this driver (technicianId
+  // === my userId), distinct from the shop-wide feed above. Separate loading
+  // state so a slow/failed call here never blocks the main jobs list.
+  const [myJobs, setMyJobs]             = useState<any[]>([]);
+  const [myJobsLoading, setMyJobsLoading] = useState(true);
+
   useEffect(() => {
     // Driver "jobs" are tickets in a pickup/delivery-relevant status
     api.get("/api/tickets")
@@ -97,6 +103,11 @@ function DriverContent({ user }: { user: any }) {
       })
       .catch((err) => setError(err.response?.data?.message || "Could not load jobs."))
       .finally(() => setLoading(false));
+
+    api.get("/api/delivery-jobs/my")
+      .then((res) => setMyJobs(res.data?.data ?? []))
+      .catch(() => setMyJobs([]))
+      .finally(() => setMyJobsLoading(false));
   }, []);
 
   const activeJobs     = jobs.filter((j) => j.status !== "delivered");
@@ -142,6 +153,53 @@ function DriverContent({ user }: { user: any }) {
             </a>
           ))}
         </div>
+      </section>
+
+      {/* ── My Deliveries (assigned to me specifically) ─────────────────── */}
+      <section className="bg-card rounded-2xl border border-border shadow-sm overflow-hidden">
+        <div className="px-6 py-4 border-b border-border flex items-center gap-2">
+          <Package size={17} className="text-blue-500 dark:text-blue-400" />
+          <h2 className="font-bold text-foreground">My Deliveries</h2>
+          <span className="text-xs text-muted-foreground bg-muted border border-border rounded-full px-2.5 py-0.5 font-semibold ml-1">
+            {myJobsLoading ? "…" : myJobs.length}
+          </span>
+        </div>
+
+        {myJobsLoading && (
+          <div className="flex items-center justify-center py-8 gap-2 text-muted-foreground">
+            <Loader2 className="animate-spin w-5 h-5" />
+            <span className="text-sm">Loading your deliveries...</span>
+          </div>
+        )}
+
+        {!myJobsLoading && myJobs.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-muted-foreground font-semibold text-sm">Nothing assigned to you yet.</p>
+          </div>
+        )}
+
+        {!myJobsLoading && myJobs.length > 0 && (
+          <div className="divide-y divide-border">
+            {myJobs.map((job, i) => (
+              <div key={job._id ?? i} className="px-6 py-3 flex items-center justify-between gap-4 flex-wrap">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-blue-100 dark:bg-blue-900/30">
+                    <Truck size={14} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground text-sm">
+                      {job.ticketNumber} — {job.customerName ?? "Customer"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{job.address?.street ?? "Address not set"}</p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 capitalize">
+                  {job.status}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* ── Today's Job List ─────────────────────────────────────────── */}

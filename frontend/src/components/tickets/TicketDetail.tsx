@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Loader2, ArrowLeft, Clock, Save, UserPlus, MessageSquare, Images, DollarSign, Package, Timer } from "lucide-react";
@@ -24,6 +24,12 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
   const [technicians, setTechnicians] = useState<any[]>([]);
   const [selectedTech, setSelectedTech] = useState("");
   const [assignLoading, setAssignLoading] = useState(false);
+
+  // Driver assignment (explicit hand-off, alongside a driver's own implicit
+  // self-claim via status transitions on their dashboard)
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [selectedDriver, setSelectedDriver] = useState("");
+  const [driverAssignLoading, setDriverAssignLoading] = useState(false);
 
   // Status
   const [newStatus, setNewStatus] = useState("");
@@ -53,14 +59,7 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
   const canUseParts = ["owner", "manager", "technician"].includes(userRole);
   const canSeeLabor = ["owner", "manager", "technician", "frontdesk"].includes(userRole);
 
-  useEffect(() => {
-    fetchTicket();
-    if (canAssign) fetchTechnicians();
-    if (canUseParts) fetchParts();
-    if (canSeeLabor) fetchLabor();
-  }, []);
-
-  const fetchTicket = async () => {
+  const fetchTicket = useCallback(async () => {
     try {
       const res = await api.get(`/api/tickets/${ticketId}`);
       setTicket(res.data.data);
@@ -69,27 +68,36 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
     } finally {
       setLoading(false);
     }
-  };
+  }, [ticketId]);
 
-  const fetchTechnicians = async () => {
+  const fetchTechnicians = useCallback(async () => {
     try {
       const res = await api.get("/api/users?role=technician");
       setTechnicians(res.data.data || []);
     } catch {
       // silent fail for tech fetch
     }
-  };
+  }, []);
 
-  const fetchParts = async () => {
+  const fetchDrivers = useCallback(async () => {
+    try {
+      const res = await api.get("/api/users?role=driver");
+      setDrivers(res.data.data || []);
+    } catch {
+      // silent fail — the assign-driver form just stays empty
+    }
+  }, []);
+
+  const fetchParts = useCallback(async () => {
     try {
       const res = await api.get("/api/parts");
       setParts((res.data.data || []).filter((p: any) => p.quantity > 0));
     } catch {
       // silent fail — the add-part form just stays empty
     }
-  };
+  }, []);
 
-  const fetchLabor = async () => {
+  const fetchLabor = useCallback(async () => {
     try {
       const res = await api.get(`/api/time-sessions?ticketId=${ticketId}`);
       const sessions: any[] = res.data.data || [];
@@ -98,7 +106,18 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
     } catch {
       setLaborSeconds(null);
     }
-  };
+  }, [ticketId]);
+
+  useEffect(() => {
+    fetchTicket();
+    if (canAssign) { fetchTechnicians(); fetchDrivers(); }
+    if (canUseParts) fetchParts();
+    if (canSeeLabor) fetchLabor();
+    // canAssign/canUseParts/canSeeLabor are derived from the userRole prop, which
+    // doesn't change for a mounted ticket-detail view — the fetch* functions are
+    // the only real dependencies, and they're stable via useCallback above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchTicket, fetchTechnicians, fetchDrivers, fetchParts, fetchLabor]);
 
   const handleUsePart = async () => {
     const qty = parseInt(partQty, 10);
@@ -144,6 +163,21 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
       alert(err.response?.data?.message || "Failed to assign technician");
     } finally {
       setAssignLoading(false);
+    }
+  };
+
+  const handleAssignDriver = async () => {
+    if (!selectedDriver) return;
+    setDriverAssignLoading(true);
+    try {
+      await api.patch(`/api/tickets/${ticketId}/assign-driver`, { driverId: selectedDriver });
+      setSelectedDriver("");
+      await fetchTicket();
+      alert("Driver assigned");
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to assign driver");
+    } finally {
+      setDriverAssignLoading(false);
     }
   };
 
@@ -484,6 +518,45 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                   </button>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* SECTION 4.5: Driver Assignment — explicit hand-off for pickup/delivery,
+              alongside a driver's own implicit self-claim on their dashboard */}
+          {canAssign && (ticket.status === "received" || ticket.status === "ready") && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+              <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <UserPlus size={16} /> Driver
+              </h2>
+              <div className="mb-4">
+                <span className="block text-xs font-bold text-slate-400 mb-1">Currently Assigned</span>
+                <span className="block font-semibold text-slate-900">
+                  {ticket.driverId?.name || <span className="text-slate-400 italic">Unassigned</span>}
+                </span>
+              </div>
+
+              <div className="flex flex-col gap-3">
+                <select
+                  value={selectedDriver}
+                  onChange={e => setSelectedDriver(e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-semibold text-slate-700"
+                >
+                  <option value="">Select Driver...</option>
+                  {drivers.map(d => (
+                    <option key={d._id} value={d._id}>{d.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={handleAssignDriver}
+                  disabled={!selectedDriver || driverAssignLoading}
+                  className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm"
+                >
+                  {driverAssignLoading ? "Assigning..." : "Assign Driver"}
+                </button>
+                {drivers.length === 0 && (
+                  <p className="text-xs text-slate-400 text-center">No driver accounts on this shop yet.</p>
+                )}
+              </div>
             </div>
           )}
 

@@ -110,10 +110,7 @@ function ResetPasswordForm() {
   return (
     <div style={{ minHeight:"100vh", display:"flex", background:BG, fontFamily:"'DM Sans',system-ui,sans-serif" }}>
 
-      {/* Google Fonts */}
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+      {/* Google Fonts now loaded once in app/layout.tsx's <head> instead of here. */}
 
       <style suppressHydrationWarning>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:translateY(0)}}

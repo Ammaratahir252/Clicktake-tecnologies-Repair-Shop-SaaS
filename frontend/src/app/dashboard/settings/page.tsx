@@ -45,7 +45,8 @@ export default function SettingsTestPage() {
     };
 
     resolveTenant();
-  }, []);
+    // router is a stable reference from useRouter() — safe to include, no re-fetch loop risk.
+  }, [router]);
 
   return (
     <DashboardShell requiredRole={['owner', 'manager', 'technician', 'frontdesk', 'customer']}>

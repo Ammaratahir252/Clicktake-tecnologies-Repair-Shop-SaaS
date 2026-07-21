@@ -27,6 +27,9 @@ export default function BlogSection() {
               <h2 style={{ fontSize: "clamp(34px,4.5vw,60px)", fontWeight: 700, color: TEXT, letterSpacing: "-2px", lineHeight: 1.1, fontFamily: "'DM Serif Display',Georgia,serif" }}>
                 Insights for repair<br />shop owners.
               </h2>
+              <p style={{ marginTop: 12, color: MUTED, fontSize: 12.5, fontFamily: "'DM Sans',sans-serif" }}>
+                Illustrative topics — full articles are coming soon.
+              </p>
             </div>
             <button style={{
               display: "inline-flex", alignItems: "center", gap: 8,

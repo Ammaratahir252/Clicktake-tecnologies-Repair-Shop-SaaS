@@ -566,11 +566,14 @@ function SettingsContent({ user }: { user: any }) {
       .finally(() => { setBillingLoading(false); setBillingLoaded(true); });
   }, [tab, billingLoaded]);
 
-  // Auto-run diagnostics the first time that tab is opened
+  // Auto-run diagnostics the first time that tab is opened. The guard clause
+  // below (already-loading / already-loaded) makes it safe to depend on
+  // diagLoading/diagResults.length directly — once either flips true the next
+  // re-run of this effect returns immediately instead of re-triggering.
   useEffect(() => {
     if (tab !== "diagnostics" || diagResults.length > 0 || diagLoading) return;
     runDiagnostics();
-  }, [tab]);
+  }, [tab, diagLoading, diagResults.length]);
 
   // Sessions — lazy load on Security tab
   useEffect(() => {

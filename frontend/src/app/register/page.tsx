@@ -191,7 +191,7 @@ export default function RegisterPage() {
   if (isSuccess) {
     return (
       <div style={{ minHeight:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:BG,padding:24,fontFamily:"'DM Sans',sans-serif" }}>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+        {/* Google Fonts now loaded once in app/layout.tsx's <head> instead of here. */}
         <div style={{ background:"#fff",border:`1.5px solid ${BORDER}`,borderRadius:24,padding:"56px 48px",width:"100%",maxWidth:400,textAlign:"center",boxShadow:"0 40px 80px rgba(28,25,23,0.07)" }}>
           <div style={{ width:72,height:72,borderRadius:"50%",background:"#d1fae5",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 24px" }}>
             <CheckCircle2 size={36} color="#065f46"/>
@@ -206,9 +206,7 @@ export default function RegisterPage() {
 
   return (
     <div style={{ minHeight:"100vh",display:"flex",background:BG,fontFamily:"'DM Sans',system-ui,sans-serif" }}>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous"/>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+      {/* Google Fonts now loaded once in app/layout.tsx's <head> instead of here. */}
 
       <style suppressHydrationWarning>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}

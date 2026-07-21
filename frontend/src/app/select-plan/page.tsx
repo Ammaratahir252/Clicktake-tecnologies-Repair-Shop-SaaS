@@ -118,8 +118,7 @@ export default function SelectPlanPage() {
 
   return (
     <div style={{ minHeight:"100vh",background:BG,fontFamily:"'DM Sans',system-ui,sans-serif",padding:"56px 24px" }}>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+      {/* Google Fonts now loaded once in app/layout.tsx's <head> instead of here. */}
       <style suppressHydrationWarning>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
 
       <div style={{ maxWidth:920,margin:"0 auto" }}>

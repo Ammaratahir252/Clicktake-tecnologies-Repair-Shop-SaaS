@@ -47,10 +47,7 @@ const Wave = ({ fill, flip = false }: { fill: string; flip?: boolean }) => (
 export default function LandingPage() {
   return (
     <>
-      {/* ── Google Fonts ── */}
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+      {/* Google Fonts now loaded once in app/layout.tsx's <head> instead of here. */}
 
       {/* ── Global styles ── */}
       <style suppressHydrationWarning>{GLOBAL_STYLES}</style>

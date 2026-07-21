@@ -46,9 +46,7 @@ export default function ShopsPage() {
 
   return (
     <>
-      <link rel="preconnect" href="https://fonts.googleapis.com" />
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet" />
+      {/* Google Fonts now loaded once in app/layout.tsx's <head> instead of here. */}
       <style suppressHydrationWarning>{GLOBAL_STYLES}</style>
 
       <div style={{ background: "#fdf6ee", color: "#1c1917", overflowX: "hidden", minHeight: "100vh" }}>

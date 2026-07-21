@@ -58,10 +58,6 @@ function LeadsContent({ user }: { user: any }) {
   const [sortKey, setSortKey]           = useState<"createdAt" | "status" | "tenantName">("createdAt");
   const [sortAsc, setSortAsc]           = useState(false);
 
-  useEffect(() => { fetchLeads(); }, []);
-
-  useEffect(() => { applyFilters(); }, [leads, search, statusFilter, sortKey, sortAsc]);
-
   const fetchLeads = async () => {
     setLoading(true);
     setError("");
@@ -113,6 +109,10 @@ function LeadsContent({ user }: { user: any }) {
 
     setFiltered(result);
   }, [leads, search, statusFilter, sortKey, sortAsc]);
+
+  useEffect(() => { fetchLeads(); }, []);
+
+  useEffect(() => { applyFilters(); }, [applyFilters]);
 
   const toggleSort = (key: typeof sortKey) => {
     if (sortKey === key) setSortAsc(!sortAsc);

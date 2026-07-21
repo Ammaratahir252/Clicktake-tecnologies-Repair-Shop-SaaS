@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Loader2, ShieldAlert } from "lucide-react";
@@ -22,17 +22,7 @@ export default function AuditLogsPage() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState("All");
 
-  useEffect(() => {
-    const raw = localStorage.getItem("user");
-    if (!raw) { router.replace("/login"); return; }
-    let user: any;
-    try { user = JSON.parse(raw); } catch { router.replace("/login"); return; }
-    const role = (user?.role ?? '').toString().trim().toLowerCase();
-    if (role !== "owner") { router.replace("/dashboard/owner"); return; }
-    fetchLogs(filter);
-  }, [filter]);
-
-  const fetchLogs = async (currentFilter: string) => {
+  const fetchLogs = useCallback(async (currentFilter: string) => {
     setLoading(true);
     setError("");
     try {
@@ -46,7 +36,17 @@ export default function AuditLogsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("user");
+    if (!raw) { router.replace("/login"); return; }
+    let user: any;
+    try { user = JSON.parse(raw); } catch { router.replace("/login"); return; }
+    const role = (user?.role ?? '').toString().trim().toLowerCase();
+    if (role !== "owner") { router.replace("/dashboard/owner"); return; }
+    fetchLogs(filter);
+  }, [filter, router, fetchLogs]);
 
   const getActionColor = (action: string) => {
     if (action.includes("LOGIN") || action.includes("LOGOUT")) return "bg-blue-100 text-blue-700";

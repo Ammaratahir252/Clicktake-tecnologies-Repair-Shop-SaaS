@@ -74,6 +74,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        {/* DM Sans + DM Serif Display — loaded once, app-wide, instead of the
+            per-page <link> tags this used to have (login/register/forgot-password/
+            reset-password/select-plan/page.tsx/shops all pulled their own copy,
+            which is exactly what Next's no-page-custom-font lint rule warns
+            against: same font re-fetched per navigation instead of shared). */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700;9..40,800;9..40,900&display=swap"
+          rel="stylesheet"
+        />
       </head>
       <body>
         <ThemeProvider

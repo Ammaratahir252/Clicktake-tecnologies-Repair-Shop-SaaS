@@ -26,3 +26,10 @@ Thumbs.db
 .vscode/
 .idea/
 .vercel
+
+# Local backup snapshots — superseded by MongoDB-backed backups (see lib/backup.ts);
+# these only ever existed as local dev artifacts, never a real backup strategy on Vercel.
+backups/
+
+# TypeScript build info
+*.tsbuildinfo
