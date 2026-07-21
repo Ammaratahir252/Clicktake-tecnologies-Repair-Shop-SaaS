@@ -72,8 +72,7 @@ describe('GET /api/delivery/check-zone', () => {
   it('returns 400 when postcode is missing', async () => {
     const res = await app.inject({ method: 'GET', url: '/api/delivery/check-zone' });
     expect(res.statusCode).toBe(400);
-    console.log('BODY1:', JSON.stringify(res.json()));
-});
+  });
 
   it('returns 400 for invalid UK postcode format', async () => {
     const res = await app.inject({
@@ -177,7 +176,6 @@ describe('POST /api/delivery/jobs', () => {
       payload: bad,
     });
     expect(res.statusCode).toBe(400);
-    console.log('BODY2:', JSON.stringify(res.json()));
   });
 
   it('returns 201 and the booked job on valid body', async () => {

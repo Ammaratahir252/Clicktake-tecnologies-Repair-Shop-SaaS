@@ -1,7 +1,17 @@
 // ============================================================
 // DibnowRepairSaaS — API Security Middleware
 // Helmet, CORS, rate limiting, brute-force protection
-// Registered on Fastify app before all routes
+//
+// NOT REGISTERED: registerSecurityPlugins() is never imported or called by
+// src/server.ts — the live Fastify app (which only serves Module 9 delivery
+// routes) doesn't run this. It also depends on @fastify/helmet,
+// @fastify/rate-limit, @fastify/cookie, @fastify/multipart (not installed)
+// and redis helpers (incrementLoginAttempts/resetLoginAttempts/lockAccount/
+// isAccountLocked) that don't exist in ../config/redis. Excluded from
+// backend/tsconfig.json rather than fixed, since wiring it up for real would
+// mean adding four new dependencies to an app that doesn't use this file —
+// a decision for whoever revives Module-9-level Fastify security, not a
+// silent type-check exclusion.
 // ============================================================
 
 import Fastify, { FastifyInstance } from 'fastify';
