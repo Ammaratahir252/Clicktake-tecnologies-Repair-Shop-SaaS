@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import groq, { AI_MODEL } from "@/lib/ai/groq";
+import { getGroqClient, AI_MODEL } from "@/lib/ai/groq";
 import { buildChatbotSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
@@ -85,7 +85,7 @@ Warranty: 30-day warranty on all repairs`;
 
     const langSettings = await PlatformSettings.findOne().select('defaultLanguage').lean() as any;
 
-    const response = await groq.chat.completions.create({
+    const response = await getGroqClient().chat.completions.create({
       model: AI_MODEL,
       max_tokens: 512,
       reasoning_effort: "low" as any,

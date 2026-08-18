@@ -1,10 +1,8 @@
 name: CI
 
-# Quality gate for both apps. This does NOT deploy anything:
-# - Frontend deploys are triggered by Firebase App Hosting's own GitHub
-#   integration on push to main (configure a branch-protection rule requiring
-#   this workflow to pass before merge, so nothing broken ever reaches main).
-# - Backend deploys run in deploy-backend.yml, gated on this workflow passing.
+# Quality gate for both apps. This does NOT deploy anything — deploy-cpanel.yml
+# reuses this workflow as a hard gate before shipping to cPanel. Add a
+# branch-protection rule requiring this to pass before merge to main too.
 on:
   push:
     branches: [main]

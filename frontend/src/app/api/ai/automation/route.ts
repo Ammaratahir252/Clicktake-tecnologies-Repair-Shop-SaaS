@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { groq, AI_MODEL } from "@/lib/ai/groq";
+import { getGroqClient, AI_MODEL } from "@/lib/ai/groq";
 import { buildAutomationSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import AutomationRule from "@/models/automationRule.model";
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     };
 
     try {
-      const aiResponse = await groq.chat.completions.create({
+      const aiResponse = await getGroqClient().chat.completions.create({
         model: AI_MODEL,
         max_tokens: 400,
         reasoning_effort: "low" as any,
