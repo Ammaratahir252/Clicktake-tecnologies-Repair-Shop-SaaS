@@ -2,6 +2,7 @@
 
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useRef } from "react";
+import Image from "next/image";
 import api from "@/lib/api";
 import { usePlatformDateFormat } from "@/lib/clientLocale";
 import SubAdminManager from "@/components/admin/SubAdminManager";
@@ -40,9 +41,9 @@ const AI_PROVIDERS = [
 
 const AI_MODELS: Record<string, { value: string; label: string }[]> = {
   groq: [
-    { value: "llama-3.3-70b-versatile", label: "Llama 3.3 70B Versatile (Recommended)" },
-    { value: "llama-3.1-8b-instant",    label: "Llama 3.1 8B Instant (Fast)" },
-    { value: "mixtral-8x7b-32768",      label: "Mixtral 8x7B" },
+    { value: "openai/gpt-oss-120b", label: "GPT-OSS 120B (Recommended)" },
+    { value: "openai/gpt-oss-20b",  label: "GPT-OSS 20B (Fast)" },
+    { value: "qwen/qwen3.6-27b",    label: "Qwen 3.6 27B" },
   ],
   openai: [
     { value: "gpt-4o",      label: "GPT-4o" },
@@ -50,9 +51,9 @@ const AI_MODELS: Record<string, { value: string; label: string }[]> = {
     { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
   ],
   google: [
-    { value: "gemini-1.5-pro",   label: "Gemini 1.5 Pro" },
-    { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash (Fast)" },
-    { value: "gemini-2.0-flash", label: "Gemini 2.0 Flash (Latest)" },
+    { value: "gemini-2.5-pro",   label: "Gemini 2.5 Pro" },
+    { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash (Fast)" },
+    { value: "gemini-3-flash-preview", label: "Gemini 3 Flash (Latest)" },
   ],
   glm: [
     { value: "glm-4-flash", label: "GLM-4 Flash (GLM 5.2 Fast)" },
@@ -243,8 +244,8 @@ function ImageUploadField({ label, url, onUploaded, uploadField }: {
     <div className="space-y-1.5">
       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-widest">{label}</label>
       <div className="flex items-center gap-3">
-        <div className="w-14 h-14 rounded-xl border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
-          {url ? <img src={url} alt={label} className="w-full h-full object-contain" /> : <Upload size={16} className="text-muted-foreground" />}
+        <div className="relative w-14 h-14 rounded-xl border border-border bg-muted/40 flex items-center justify-center overflow-hidden shrink-0">
+          {url ? <Image src={url} alt={label} fill sizes="56px" className="object-contain" /> : <Upload size={16} className="text-muted-foreground" />}
         </div>
         <button
           onClick={() => inputRef.current?.click()}
@@ -368,7 +369,7 @@ function SettingsContent({ user }: { user: any }) {
 
   // AI Models
   const [aiProvider, setAiProvider] = useState("groq");
-  const [aiModel,    setAiModel]    = useState("llama-3.3-70b-versatile");
+  const [aiModel,    setAiModel]    = useState("openai/gpt-oss-120b");
   const [aiDailyBudgetUsd, setAiDailyBudgetUsd] = useState("0");
   const [aiMonthlyBudgetUsd, setAiMonthlyBudgetUsd] = useState("0");
   const [aiDisabledPlans, setAiDisabledPlans] = useState<string[]>([]);

@@ -4,6 +4,10 @@ import { sendResponse } from '@/utils/apiResponse';
 import Notification from '@/models/notification.model';
 import mongoose from 'mongoose';
 
+// Reads the caller's tenant/role from verified request headers on every call —
+// must never be statically prerendered at build time (no headers exist then).
+export const dynamic = 'force-dynamic';
+
 function getCtx(req: NextRequest) {
   return {
     userId: req.headers.get('x-user-id') ?? '',

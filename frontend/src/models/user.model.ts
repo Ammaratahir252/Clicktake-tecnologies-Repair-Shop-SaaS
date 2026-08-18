@@ -27,6 +27,8 @@ export interface IUser extends Document {
   passwordChangedAt?: Date;
   passwordHistory: string[];
   forcePasswordReset: boolean;
+  forceResetTokenHash?: string;
+  forceResetTokenExpiry?: number;
   // ── GPS (Module: Global GPS) — live location for driver role ─────────────
   currentLocation?: {
     lat: number;
@@ -42,8 +44,11 @@ const userSchema = new Schema<IUser>(
     tenantId: {
       type: Schema.Types.ObjectId,
       ref: 'Tenant',
+      // Platform-level accounts (super_admin, and scoped sub-admins created via
+      // /api/admin/users) aren't tied to any single shop — only tenant-scoped
+      // staff/customer roles require one.
       required: function (this: IUser) {
-        return this.role !== Role.customer && this.role !== Role.super_admin;
+        return this.role !== Role.customer && this.role !== Role.super_admin && this.role !== Role.admin;
       },
     },
     name: { type: String, required: true, trim: true },
@@ -99,6 +104,8 @@ const userSchema = new Schema<IUser>(
     passwordChangedAt: { type: Date, default: Date.now },
     passwordHistory: { type: [String], default: [] },
     forcePasswordReset: { type: Boolean, default: false },
+    forceResetTokenHash: { type: String },
+    forceResetTokenExpiry: { type: Number },
     currentLocation: {
       lat:       { type: Number },
       lng:       { type: Number },

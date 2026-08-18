@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import axios from "axios";
 import Link from "next/link";
 import {
@@ -18,17 +19,14 @@ export default function ForgotPasswordPage() {
   const [isLoading,  setIsLoading]  = useState(false);
   const [error,      setError]      = useState("");
   const [stage,      setStage]      = useState<Stage>("form");
-  const [resetToken, setResetToken] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
     try {
-      const res   = await axios.post("/api/auth/forgot-password", { email });
-      const token = res.data?.data?.resetToken || res.data?.resetToken;
-      if (token) { setResetToken(token); setStage("success"); }
-      else setError("Reset link generated but token missing. Check backend logs.");
+      await axios.post("/api/auth/forgot-password", { email });
+      setStage("success");
     } catch (err: any) {
       setError(err.response?.data?.message || "Something went wrong. Please try again.");
     } finally {
@@ -95,12 +93,12 @@ export default function ForgotPasswordPage() {
         {/* Logo */}
         <div style={{ position:"relative",zIndex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.15)",borderRadius:16,
+            <div style={{ position:"relative",width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.15)",borderRadius:16,
               border:"1px solid rgba(255,255,255,0.2)",
               display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",
               boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
               {branding.logoUrl
-                ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+                ? <Image src={branding.logoUrl} alt={companyName} fill sizes="52px" style={{ objectFit:"contain" }}/>
                 : <Wrench color="#fff" size={22}/>}
             </div>
             <div>
@@ -128,7 +126,7 @@ export default function ForgotPasswordPage() {
           <p style={{ color:"rgba(255,255,255,0.55)",fontSize:16,lineHeight:1.8,maxWidth:340,marginBottom:44 }}>
             {stage === "form"
               ? "No worries — enter your email and we'll send you a secure reset link right away."
-              : "Check your inbox, or continue right now using the button on this screen."}
+              : "Check your inbox for the reset link we just sent."}
           </p>
 
           {/* Feature pills — same style as login */}
@@ -157,9 +155,9 @@ export default function ForgotPasswordPage() {
 
         {/* Mobile logo */}
         <div style={{ display:"none",alignItems:"center",gap:12,marginBottom:32 }} className="lg:hidden mobile-logo">
-          <div style={{ width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
+          <div style={{ position:"relative",width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
             {branding.logoUrl
-              ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+              ? <Image src={branding.logoUrl} alt={companyName} fill sizes="40px" style={{ objectFit:"contain" }}/>
               : <Wrench color="#fff" size={18}/>}
           </div>
           <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>{branding.companyName || "DibnowRepairSaaS"}</p>
@@ -192,7 +190,7 @@ export default function ForgotPasswordPage() {
             <p style={{ color:MUTED,fontSize:15,fontWeight:500,lineHeight:1.6 }}>
               {stage==="form"
                 ? "Enter your email address and we'll send you a reset link."
-                : "We've emailed you a reset link — or continue right now below."}
+                : "We've emailed you a reset link if that address has an account."}
             </p>
           </div>
 
@@ -278,7 +276,7 @@ export default function ForgotPasswordPage() {
                   <Mail size={24} color="#065f46"/>
                 </div>
                 <p style={{ fontWeight:800,color:TEXT,fontSize:16,marginBottom:8,fontFamily:"'DM Serif Display',Georgia,serif" }}>Check your email</p>
-                <p style={{ fontSize:13,color:MUTED,lineHeight:1.6 }}>If an account exists for that address, a reset link is on its way. You can also continue right now below.</p>
+                <p style={{ fontSize:13,color:MUTED,lineHeight:1.6 }}>If an account exists for that address, a reset link is on its way — click it to choose a new password.</p>
               </div>
 
               {/* Notice */}
@@ -286,19 +284,11 @@ export default function ForgotPasswordPage() {
                 <Sparkles size={14} color="#d97706" style={{ flexShrink:0,marginTop:1 }}/>
                 <div>
                   <p style={{ fontSize:12,fontWeight:800,color:"#92400e",marginBottom:4 }}>⏰ Link expires in 1 hour</p>
-                  <p style={{ fontSize:12,color:"#a16207",lineHeight:1.55 }}>Didn't get the email? Use the button below to continue immediately.</p>
+                  <p style={{ fontSize:12,color:"#a16207",lineHeight:1.55 }}>Didn't get it? Check spam, or try again below.</p>
                 </div>
               </div>
 
-              {/* CTA — same button style */}
-              <Link href={`/reset-password?token=${encodeURIComponent(resetToken)}`}
-                style={{ display:"flex",alignItems:"center",justifyContent:"center",gap:10,padding:"16px 24px",borderRadius:14,textDecoration:"none",fontWeight:800,fontSize:15,color:"#fff",fontFamily:"'DM Sans',sans-serif",background:`linear-gradient(135deg,${ACCENT} 0%,${ACCENT2} 100%)`,boxShadow:`0 10px 32px rgba(29,78,216,0.28)`,transition:"all 0.2s" }}
-                onMouseEnter={e=>{ (e.currentTarget as HTMLAnchorElement).style.transform="translateY(-2px)"; (e.currentTarget as HTMLAnchorElement).style.boxShadow=`0 14px 40px rgba(29,78,216,0.35)` }}
-                onMouseLeave={e=>{ (e.currentTarget as HTMLAnchorElement).style.transform="none"; (e.currentTarget as HTMLAnchorElement).style.boxShadow=`0 10px 32px rgba(29,78,216,0.28)` }}>
-                <span>Go to Reset Password</span><ArrowRight size={16}/>
-              </Link>
-
-              <button onClick={() => { setStage("form"); setError(""); setResetToken(""); setEmail(""); }}
+              <button onClick={() => { setStage("form"); setError(""); setEmail(""); }}
                 style={{ background:"none",border:"none",cursor:"pointer",fontSize:13,color:MUTED,fontWeight:700,padding:"8px 0",fontFamily:"'DM Sans',sans-serif" }}
                 onMouseEnter={e=>(e.currentTarget.style.color=TEXT)} onMouseLeave={e=>(e.currentTarget.style.color=MUTED)}>
                 ← Try a different email

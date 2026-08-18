@@ -183,7 +183,7 @@ export const TicketService = {
    * GET ALL TICKETS
    * Always scoped to tenantId. Optional status filter from query params.
    */
-  getTickets: async (tenantId: string, statusFilter?: TicketStatus, customerIds?: string[], technicianId?: string) => {
+  getTickets: async (tenantId: string, statusFilter?: TicketStatus, customerIds?: string[], technicianId?: string, driverId?: string) => {
     const query: Record<string, unknown> = {};
 
     if (tenantId && tenantId.length === 24) {
@@ -199,6 +199,20 @@ export const TicketService = {
 
     if (technicianId && technicianId.length === 24) {
       query.technicianId = new mongoose.Types.ObjectId(technicianId);
+    }
+
+    // A driver only ever sees delivery-relevant tickets: unclaimed jobs open for
+    // pickup/delivery (driverId not yet set), or ones already assigned to them —
+    // never a ticket still mid-repair, and never another driver's completed job.
+    if (driverId && driverId.length === 24) {
+      const DRIVER_RELEVANT_STATUSES = [TicketStatus.received, TicketStatus.ready, TicketStatus.delivered];
+      query.status = statusFilter && DRIVER_RELEVANT_STATUSES.includes(statusFilter)
+        ? statusFilter
+        : { $in: DRIVER_RELEVANT_STATUSES };
+      query.$or = [
+        { driverId: null },
+        { driverId: new mongoose.Types.ObjectId(driverId) },
+      ];
     }
 
     return Ticket.find(query)

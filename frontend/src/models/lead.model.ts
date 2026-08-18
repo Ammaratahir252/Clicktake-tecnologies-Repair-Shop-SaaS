@@ -26,6 +26,12 @@ export interface ILead extends Document {
   claimedAt?: Date;
   convertedTicketId?: mongoose.Types.ObjectId;
   notes: ILeadNote[];
+  // Set when the customer books through the self-serve "Book a Repair" flow
+  // (frontend/src/app/dashboard/customer/book-repair) and chooses doorstep
+  // collection instead of dropping the device off themselves.
+  deliveryType?: 'drop-off' | 'doorstep';
+  deliveryAddress?: string;
+  preferredTime?: string;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +52,9 @@ const leadSchema = new Schema<ILead>(
     claimedByName: { type: String, default: null },
     claimedAt:     { type: Date, default: null },
     convertedTicketId: { type: Schema.Types.ObjectId, ref: 'Ticket' },
+    deliveryType:    { type: String, enum: ['drop-off', 'doorstep'] },
+    deliveryAddress: { type: String, trim: true },
+    preferredTime:   { type: String, trim: true },
     notes: [{
       content:    { type: String, required: true },
       authorId:   { type: String, required: true },

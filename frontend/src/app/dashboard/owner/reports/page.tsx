@@ -3,12 +3,20 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
+import WrittenReports from "@/components/reports/WrittenReports";
 import {
   BarChart3, TrendingUp, Ticket, DollarSign,
   AlertCircle, Users, Download, Printer,
   CheckCircle2, Clock, Wrench, XCircle,
-  ArrowUpRight, Loader2,
+  ArrowUpRight, Loader2, Timer,
 } from "lucide-react";
+
+function formatHours(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+}
 
 const STATUS_COLOR_MAP: Record<string, { label: string; color: string; text: string; bg: string; border: string; icon: any }> = {
   received:      { label: "Received",      color: "bg-slate-500",   text: "text-slate-700",   bg: "bg-slate-100",   border: "border-slate-200",   icon: Clock        },
@@ -76,6 +84,7 @@ export default function OwnerReportsPage() {
 function ReportsContent() {
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { format, formatCompact } = useTenantCurrency();
 
   const fetchAnalytics = useCallback(async () => {
     try {
@@ -159,7 +168,7 @@ function ReportsContent() {
         <KpiCard
           icon={DollarSign}
           label="Total Revenue"
-          value={`PKR ${(totalRevenue / 1000).toFixed(1)}K`}
+          value={formatCompact(totalRevenue)}
           sub="All collected"
           color="bg-emerald-600"
         />
@@ -173,7 +182,7 @@ function ReportsContent() {
         <KpiCard
           icon={TrendingUp}
           label="Avg Repair Value"
-          value={avgRepairValue > 0 ? `PKR ${avgRepairValue.toLocaleString()}` : "—"}
+          value={avgRepairValue > 0 ? format(avgRepairValue) : "—"}
           sub="Per closed ticket"
           color="bg-indigo-600"
         />
@@ -196,7 +205,7 @@ function ReportsContent() {
                 return (
                   <div key={i} className="flex flex-col items-center gap-1.5 shrink-0 flex-1 min-w-[40px] group">
                     <span className="text-[10px] font-bold text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                      PKR {(m.revenue / 1000).toFixed(0)}K
+                      {formatCompact(m.revenue)}
                     </span>
                     <div
                       className="w-full rounded-t-lg bg-primary/30 group-hover:bg-primary transition-all"
@@ -281,7 +290,7 @@ function ReportsContent() {
                     <td className="px-5 py-4 font-bold text-card-foreground">{t.name ?? "Unknown"}</td>
                     <td className="px-5 py-4 font-semibold text-foreground">{t.tickets}</td>
                     <td className="px-5 py-4 font-semibold text-emerald-600">
-                      PKR {(t.revenue ?? 0).toLocaleString("en-PK")}
+                      {format(t.revenue ?? 0)}
                     </td>
                   </tr>
                 ))}
@@ -292,6 +301,36 @@ function ReportsContent() {
           <p className="text-sm text-muted-foreground">No technician data available yet.</p>
         )}
       </Section>
+
+      {/* Technician Working Hours — from the technician's own start/stop timer */}
+      <Section icon={Timer} title="Technician Working Hours" color="bg-cyan-600">
+        {data.technicianHours && data.technicianHours.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-muted border-b border-border text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                  <th className="px-5 py-3">Technician</th>
+                  <th className="px-5 py-3">Hours Logged</th>
+                  <th className="px-5 py-3">Sessions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {data.technicianHours.map((t: any, i: number) => (
+                  <tr key={i} className="hover:bg-muted/50 transition-colors text-sm">
+                    <td className="px-5 py-4 font-bold text-card-foreground">{t.name ?? "Unknown"}</td>
+                    <td className="px-5 py-4 font-semibold text-cyan-600">{formatHours(t.totalSeconds ?? 0)}</td>
+                    <td className="px-5 py-4 font-semibold text-foreground">{t.sessions}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No time-tracking data yet — hours appear here once technicians start/stop the timer on a ticket.</p>
+        )}
+      </Section>
+
+      <WrittenReports />
 
       <div className="flex items-center gap-3 bg-muted/60 border border-border rounded-2xl p-4">
         <Download className="w-4 h-4 text-muted-foreground shrink-0" />

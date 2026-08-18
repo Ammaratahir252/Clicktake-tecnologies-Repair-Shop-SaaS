@@ -3,6 +3,7 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import api from "@/lib/api";
 import StatusBadge from "@/components/StatusBadge";
 import {
@@ -156,8 +157,9 @@ function TicketDetailContent({ ticketId }: { ticketId: string }) {
               <h2 className="text-sm font-bold text-foreground">Photos</h2>
               <div className="grid grid-cols-3 gap-2">
                 {ticket.photos.map((url: string, i: number) => (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img key={i} src={url} alt={`Photo ${i + 1}`} className="rounded-xl border border-border object-cover aspect-square" />
+                  <div key={i} className="relative aspect-square rounded-xl border border-border overflow-hidden">
+                    <Image src={url} alt={`Photo ${i + 1}`} fill sizes="33vw" className="object-cover" />
+                  </div>
                 ))}
               </div>
             </div>

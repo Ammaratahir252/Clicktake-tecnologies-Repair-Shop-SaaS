@@ -4,6 +4,7 @@ import { sendResponse } from '@/utils/apiResponse';
 import { createAuditLog } from '@/services/auditLog.service';
 import { AUDIT_ACTIONS } from '@/models/auditLog.model';
 import { sendEmail, emailAdminNotice, createNotification } from '@/lib/notifications';
+import User from '@/models/user.model';
 
 import { isAdminTier } from '@/lib/adminAccess';
 function isSuperAdmin(req: NextRequest) {
@@ -17,12 +18,21 @@ export async function POST(req: NextRequest) {
   if (!isSuperAdmin(req)) return sendResponse(false, 'Forbidden', null, 403);
   await connectDB();
   try {
-    const { userId, tenantId, email, name, message } = await req.json();
+    let { userId, tenantId, email, name, message } = await req.json();
     if (!email || !message?.trim()) {
       return sendResponse(false, 'email and message are required', null, 400);
     }
 
     await sendEmail(email, 'Notice from Platform Admin', emailAdminNotice(name || 'there', message));
+
+    // The per-tenant "Send Notice" composer (Tenants page) only has a Tenant
+    // record, not the owner's userId — resolve it here so that notice is still
+    // visible in-app to the owner, not just emailed. The per-user composer
+    // (Users page) already passes a concrete userId and skips this lookup.
+    if (!userId && tenantId) {
+      const owner = await User.findOne({ tenantId, role: 'owner' }).select('_id').lean() as any;
+      if (owner) userId = owner._id.toString();
+    }
 
     if (userId && tenantId) {
       await createNotification({

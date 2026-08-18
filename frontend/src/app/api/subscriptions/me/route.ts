@@ -3,6 +3,10 @@ import connectDB from '@/lib/db';
 import Subscription from '@/models/subscription.model';
 import { sendResponse } from '@/utils/apiResponse';
 
+// Reads the caller's tenant from verified request headers on every call —
+// must never be statically prerendered at build time (no headers exist then).
+export const dynamic = 'force-dynamic';
+
 // GET /api/subscriptions/me — the calling tenant's own subscription/billing status.
 export async function GET(req: NextRequest) {
   await connectDB();

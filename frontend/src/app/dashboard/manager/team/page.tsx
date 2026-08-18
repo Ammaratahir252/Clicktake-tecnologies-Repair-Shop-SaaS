@@ -3,18 +3,20 @@
 /**
  * MANAGER — /dashboard/manager/team
  *
- * Read-only team view for managers within their tenant.
- * Managers can see all staff members, their roles, and workload.
- * They CANNOT create, edit, or delete users — that is owner-only.
+ * Team view for managers within their tenant. Whether this is read-only or fully
+ * editable (add/edit/remove staff) depends on the owner-controlled "Edit staff
+ * accounts" toggle (Owner Settings → Manager Permissions). Server-side enforcement
+ * lives in frontend/src/lib/managerPermissions.ts + the /api/users routes — this
+ * client-side check is only what decides which UI to show.
  *
- * Features:
+ * Read-only mode features:
  * - Staff list with roles, email, and status
  * - Filter by role
  * - Search by name or email
- * - Open ticket count per technician (workload indicator)
  */
 
 import DashboardShell from "@/components/DashboardShell";
+import StaffManager from "@/components/staff/StaffManager";
 import { useEffect, useState } from "react";
 import api from "@/lib/api";
 import { ROLE_META } from "@/lib/rbac";
@@ -40,9 +42,43 @@ const ROLE_FILTERS = ["All", "manager", "frontdesk", "technician", "driver"];
 export default function ManagerTeamPage() {
   return (
     <DashboardShell requiredRole="manager">
-      {(user) => <TeamContent manager={user} />}
+      {(user) => <TeamGate manager={user} />}
     </DashboardShell>
   );
+}
+
+function TeamGate({ manager }: { manager: any }) {
+  const [editTeam, setEditTeam] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    api
+      .get("/api/tenant/branding")
+      .then((res) => setEditTeam(res.data?.data?.branding?.managerPermissions?.editTeam ?? false))
+      .catch(() => setEditTeam(false));
+  }, []);
+
+  if (editTeam === null) {
+    return (
+      <div className="flex items-center justify-center py-20 text-muted-foreground">
+        <Loader2 className="animate-spin w-6 h-6 mr-3" />
+        <span className="font-medium">Loading…</span>
+      </div>
+    );
+  }
+
+  if (editTeam) {
+    return (
+      <StaffManager
+        canAdd
+        canEdit
+        canDelete
+        title="Team"
+        subtitle="Your shop owner has enabled full team management for managers."
+      />
+    );
+  }
+
+  return <TeamContent manager={manager} />;
 }
 
 function TeamContent({ manager }: { manager: any }) {
@@ -294,8 +330,9 @@ function TeamContent({ manager }: { manager: any }) {
         <div>
           <p className="text-sm font-bold text-amber-800 dark:text-amber-400">View Only</p>
           <p className="text-xs text-amber-700 dark:text-amber-500 mt-0.5 leading-relaxed">
-            As a manager you can view your team but cannot add, edit, or remove staff accounts.
-            Contact your shop owner to make changes.
+            Your shop owner has not enabled staff account editing for managers, so this view is
+            read-only. Ask them to enable it in Settings → Manager Permissions if you need to
+            add, edit, or remove staff.
           </p>
         </div>
       </div>

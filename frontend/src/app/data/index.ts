@@ -174,44 +174,6 @@ export const ROLES = [
   },
 ];
 
-// ─── TESTIMONIALS ─────────────────────────────────────────────────────────────
-// ILLUSTRATIVE PLACEHOLDER CONTENT — these are not real customers. Names,
-// shops, quotes, and metrics below are examples of the kind of results the
-// product is designed to produce, not testimonials anyone actually gave.
-// Flagged in the 2026-07-20 platform audit (High: "misleading content") —
-// replace with real, consented customer quotes before this ships as genuine
-// social proof, or keep the on-page "illustrative example" label below.
-export const TESTIMONIALS = [
-  {
-    name: "Ahmed Hassan",
-    role: "Owner, TechFix Lahore",
-    text: "DibnowRepairSaaS completely transformed how we operate. Ticket management alone saved us 3 hours daily — and the AI diagnostics blew our technicians away.",
-    stars: 5, initials: "AH", color: "#1d4ed8",
-    metric: "3hrs/day saved",
-  },
-  {
-    name: "Fatima Malik",
-    role: "Manager, QuickRepair Karachi",
-    text: "The AI diagnostics feature is genuinely incredible. Our technicians now solve complex issues 50% faster. The SLA tracking has also made our shop much more accountable.",
-    stars: 5, initials: "FM", color: "#6d28d9",
-    metric: "50% faster repairs",
-  },
-  {
-    name: "Usman Khan",
-    role: "Owner, GadgetDoc Islamabad",
-    text: "The customer portal is a game changer. Clients love tracking their device in real time. Our 5-star reviews doubled in the first month after switching.",
-    stars: 5, initials: "UK", color: "#065f46",
-    metric: "2× 5-star reviews",
-  },
-  {
-    name: "Sara Raza",
-    role: "Front Desk, iCare Faisalabad",
-    text: "I used to dread intake — manual forms, lost tickets, angry customers. Now I create a ticket in under a minute and everything is tracked automatically. Life-changing.",
-    stars: 5, initials: "SR", color: "#be123c",
-    metric: "<60s per intake",
-  },
-];
-
 // ─── PRICING ──────────────────────────────────────────────────────────────────
 export const PRICING = [
   {
@@ -276,18 +238,18 @@ export const TEAM = [
 ];
 
 export const ABOUT_VALUES = [
-  { title: "Built for the field", desc: "We started in a repair shop in Lahore. Every feature solves a real problem we witnessed firsthand.", icon: "Wrench", color: "#1d4ed8", bg: "#dbeafe" },
+  { title: "Built for the field", desc: "Was created to address real operational challenges faced by repair businesses. Every feature is designed around the practical needs of repair shops and their teams.", icon: "Wrench", color: "#1d4ed8", bg: "#dbeafe" },
   { title: "Relentless simplicity", desc: "If a technician has to open a manual, we failed. We iterate until things are obvious.", icon: "Zap", color: "#6d28d9", bg: "#ede9fe" },
-  { title: "Pakistan-first", desc: "Local payment methods, Urdu support, PKR currency, and servers in the region. We belong here.", icon: "Globe", color: "#065f46", bg: "#d1fae5" },
+  { title: "Innovation driven", desc: "We build AI-powered software and digital solutions that help businesses work smarter, scale faster, and stay ready for what’s next.", icon: "Globe", color: "#065f46", bg: "#d1fae5" },
   { title: "Transparent always", desc: "No hidden fees, no vendor lock-in, no dark patterns. We grow only when our customers grow.", icon: "Shield", color: "#c2410c", bg: "#ffedd5" },
 ];
 
 // ─── BLOG ─────────────────────────────────────────────────────────────────────
 // ILLUSTRATIVE PLACEHOLDER CONTENT — no real articles exist behind these teasers
 // yet (BlogSection's "Read article"/"View all posts" buttons are intentionally
-// inert — there's nowhere for them to go). Flagged in the 2026-07-20 audit
-// alongside TESTIMONIALS above; needs either real published posts or an
-// explicit decision to remove this section before it ships as genuine content.
+// inert — there's nowhere for them to go). Flagged in the 2026-07-20 audit;
+// needs either real published posts or an explicit decision to remove this
+// section before it ships as genuine content.
 export const BLOG_POSTS = [
   {
     title: "How AI Diagnostics Speed Up Everyday Repairs",

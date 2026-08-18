@@ -1,18 +1,21 @@
 /**
  * app/api/ai/diagnostic/route.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * NOW USES: Google Gemini (gemini-1.5-flash)
- * WHY: Gemini's 1M-token context window fits all repair history without truncation.
+ * Uses Groq (see lib/ai/providers.ts header for why — "Groq only" product
+ * direction; this previously called Gemini, which broke once gemini-1.5-flash
+ * was retired, so every diagnostic request failed with the same error).
  *
  * RBAC: technician, manager, owner
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { callGemini, parseAIJson } from "@/lib/ai/providers";
+import { callGroq, parseAIJson } from "@/lib/ai/providers";
 import { buildDiagnosticSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
 import { sendResponse } from "@/utils/apiResponse";
+import { getTenantOwnerNotificationSettings } from "@/lib/notifications";
+import { currencySymbol } from "@/lib/currency";
 
 function getCtx(req: NextRequest) {
   return {
@@ -61,17 +64,20 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .limit(30)
       .lean();
 
+    const { currency } = await getTenantOwnerNotificationSettings(tenantId);
+    const curSym = currencySymbol(currency);
+
     const historyContext =
       recentTickets.length > 0
         ? recentTickets
             .map(
               (t, i) =>
-                `${i + 1}. ${t.deviceBrand} ${t.deviceModel} — Issue: "${t.issue}" | Diagnosis: "${(t as any).diagnosisNotes || "not recorded"}" | Estimate: PKR ${(t as any).estimateAmount ?? "N/A"}`
+                `${i + 1}. ${t.deviceBrand} ${t.deviceModel} — Issue: "${t.issue}" | Diagnosis: "${(t as any).diagnosisNotes || "not recorded"}" | Estimate: ${curSym} ${(t as any).estimateAmount ?? "N/A"}`
             )
             .join("\n")
         : "No relevant repair history available yet for this shop.";
 
-    const aiResponse = await callGemini(
+    const aiResponse = await callGroq(
       [
         { role: "system", content: buildDiagnosticSystemPrompt(historyContext) },
         {

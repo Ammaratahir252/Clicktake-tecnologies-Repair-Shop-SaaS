@@ -4,6 +4,7 @@ import { sendResponse } from '@/utils/apiResponse';
 import Lead from '@/models/lead.model';
 import mongoose from 'mongoose';
 import { notifyTenantByRole } from '@/lib/notifications';
+import { canAccess } from '@/lib/adminAccess';
 
 function getCtx(req: NextRequest) {
   return {
@@ -23,13 +24,30 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   await connectDB();
   try {
     const { tenantId, role } = getCtx(req);
-    if (!tenantId) return sendResponse(false, 'Unauthorized', null, 401);
-    if (!['owner', 'manager', 'super_admin'].includes(role)) return sendResponse(false, 'Forbidden', null, 403);
+    if (!['owner', 'manager', 'super_admin', 'admin'].includes(role)) return sendResponse(false, 'Forbidden', null, 403);
+    // Scoped sub-admins (role: 'admin') only get the platform-wide view if they've
+    // actually been granted the 'leads' section — otherwise this bypasses the
+    // per-section permission model every other /api/admin/* route enforces via
+    // canAccess(), letting an admin with zero (or unrelated) sections read every
+    // tenant's lead PII (name, phone, email, device, issue).
+    const isAdminTier = role === 'super_admin' || (role === 'admin' && canAccess(req, 'leads'));
+    // super_admin and scoped sub-admins (role: 'admin') have no tenantId by design
+    // (platform-level accounts) — treating that as "Unauthorized" bounced them
+    // straight to /login the instant they opened the Leads page (see lib/api.ts's
+    // 401 -> logout interceptor). They get a platform-wide view instead.
+    if (!isAdminTier && !tenantId) return sendResponse(false, 'Unauthorized', null, 401);
+    if (role === 'admin' && !isAdminTier) return sendResponse(false, 'Forbidden', null, 403);
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get('status');
+    const filterTenantId = searchParams.get('tenantId');
 
-    const query: Record<string, unknown> = { tenantId: new mongoose.Types.ObjectId(tenantId) };
+    const query: Record<string, unknown> = {};
+    if (isAdminTier) {
+      if (filterTenantId) query.tenantId = new mongoose.Types.ObjectId(filterTenantId);
+    } else {
+      query.tenantId = new mongoose.Types.ObjectId(tenantId);
+    }
     if (status && status !== 'all') query.status = status;
 
     const leadsRaw = await Lead.find(query)

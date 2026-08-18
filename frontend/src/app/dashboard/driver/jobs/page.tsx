@@ -85,10 +85,10 @@ function JobCard({
             </div>
             <span className="text-muted-foreground font-medium">{job.issue}</span>
           </div>
-          {job.notes && (
+          {job.notes?.length > 0 && (
             <div className="flex items-start gap-3 text-sm p-2.5 bg-amber-50 dark:bg-amber-900/10 rounded-lg border border-amber-200 dark:border-amber-700/30">
               <AlertCircle size={15} className="text-amber-500 flex-shrink-0 mt-0.5" />
-              <span className="text-amber-700 dark:text-amber-400 font-medium">{job.notes}</span>
+              <span className="text-amber-700 dark:text-amber-400 font-medium">{job.notes[job.notes.length - 1].content}</span>
             </div>
           )}
         </div>

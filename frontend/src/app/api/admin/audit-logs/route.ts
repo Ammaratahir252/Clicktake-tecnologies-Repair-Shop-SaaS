@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import connectDB from '@/lib/db';
 import { AuditLog } from '@/models/auditLog.model';
+import User from '@/models/user.model';
+import Tenant from '@/models/tenant.model';
 import { sendResponse } from '@/utils/apiResponse';
 
 import { canAccess } from '@/lib/adminAccess';
@@ -24,10 +26,24 @@ export async function GET(req: NextRequest) {
     if (action && action !== 'All') query.action = action;
     if (userId && userId.length === 24) query.userId = userId;
     if (search.trim()) {
-      query.$or = [
-        { entity:    { $regex: search, $options: 'i' } },
-        { ipAddress: { $regex: search, $options: 'i' } },
+      const term = search.trim();
+      const orConditions: any[] = [
+        { entity:    { $regex: term, $options: 'i' } },
+        { ipAddress: { $regex: term, $options: 'i' } },
       ];
+      // The search box is labeled "user ID, entity, tenant, or IP" — actually
+      // honor that by also matching a raw ObjectId, or a user/tenant name/email.
+      if (/^[0-9a-fA-F]{24}$/.test(term)) {
+        orConditions.push({ userId: term }, { tenantId: term }, { entityId: term });
+      }
+      const [matchingUsers, matchingTenants] = await Promise.all([
+        User.find({ $or: [{ name: { $regex: term, $options: 'i' } }, { email: { $regex: term, $options: 'i' } }] })
+          .select('_id').limit(50).lean(),
+        Tenant.find({ name: { $regex: term, $options: 'i' } }).select('_id').limit(50).lean(),
+      ]);
+      if (matchingUsers.length)   orConditions.push({ userId: { $in: matchingUsers.map((u) => u._id) } });
+      if (matchingTenants.length) orConditions.push({ tenantId: { $in: matchingTenants.map((t) => t._id) } });
+      query.$or = orConditions;
     }
 
     const [logsRaw, total] = await Promise.all([

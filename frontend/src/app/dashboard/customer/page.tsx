@@ -21,7 +21,7 @@ import api from "@/lib/api";
 import {
   Ticket, CreditCard, Clock, Truck, MapPin,
   ChevronRight, CheckCircle, AlertCircle, Loader2,
-  Star, Package, MessageCircle
+  Star, Package, MessageCircle, Store
 } from "lucide-react";
 
 // Repair status pipeline per blueprint M2 standard
@@ -36,6 +36,14 @@ const STATUS_STEPS = [
 ];
 
 const MODULES = [
+  {
+    key: "book",
+    icon: Store,
+    title: "Book a Repair",
+    desc: "Find a shop and submit a new repair request",
+    href: "/dashboard/customer/shops",
+    color: "bg-primary",
+  },
   {
     key: "track",
     icon: Ticket,

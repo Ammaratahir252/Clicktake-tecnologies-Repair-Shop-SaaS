@@ -3,6 +3,7 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import { Printer, Search, FileText, Receipt, Package, Eye, X, Loader2 } from "lucide-react";
 
 const PRINT_TYPES = [
@@ -20,6 +21,7 @@ export default function FrontdeskPrintPage() {
 }
 
 function PrintContent() {
+  const { format } = useTenantCurrency();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [shopName, setShopName] = useState("Repair Shop");
@@ -139,7 +141,7 @@ function PrintContent() {
                     {ticket.estimateAmount > 0 && (
                       <>
                         <span className="text-xs text-muted-foreground">·</span>
-                        <span className="text-xs font-bold text-primary">Rs. {ticket.estimateAmount.toLocaleString()}</span>
+                        <span className="text-xs font-bold text-primary">{format(ticket.estimateAmount)}</span>
                       </>
                     )}
                   </div>
@@ -242,7 +244,7 @@ function PrintContent() {
                     {preview.estimateAmount > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-gray-600">Amount:</span>
-                        <span className="font-bold">Rs. {preview.estimateAmount.toLocaleString()}</span>
+                        <span className="font-bold">{format(preview.estimateAmount)}</span>
                       </div>
                     )}
                   </div>

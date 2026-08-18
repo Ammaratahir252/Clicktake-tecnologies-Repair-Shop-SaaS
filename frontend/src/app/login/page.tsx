@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import axios from "axios";
 import { setToken } from "@/lib/auth.helper";
 import { getRoleHome } from "@/lib/rbac";
@@ -22,6 +23,13 @@ export default function LoginPage() {
   // 2FA — set once the password step succeeds and the platform requires a code
   const [otpUserId, setOtpUserId] = useState("");
   const [otpCode,   setOtpCode]   = useState("");
+
+  // Forced password reset — set when login succeeds but the account (created by
+  // an owner/manager with a temporary password) has never set its own password yet.
+  const [forceResetUserId,        setForceResetUserId]        = useState("");
+  const [forceResetToken,         setForceResetToken]         = useState("");
+  const [newPasswordReset,        setNewPasswordReset]        = useState("");
+  const [confirmPasswordReset,    setConfirmPasswordReset]    = useState("");
 
   // Platform branding — falls back to the hardcoded Dibnow look when unset/unreachable.
   const branding = useBranding();
@@ -53,6 +61,11 @@ export default function LoginPage() {
         setOtpUserId(res.data.data.userId);
         return;
       }
+      if (res.data.data?.requiresPasswordReset) {
+        setForceResetUserId(res.data.data.userId);
+        setForceResetToken(res.data.data.resetToken);
+        return;
+      }
       applySession(res);
     } catch (err: any) {
       const status  = err.response?.status;
@@ -79,6 +92,33 @@ export default function LoginPage() {
       const message = err.response?.data?.message;
       if (status === 423) { setIsLocked(true); setErrorMsg(message || "Account locked. Try again later."); }
       else setErrorMsg(message || "Incorrect verification code.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCompletePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg("");
+    if (newPasswordReset !== confirmPasswordReset) {
+      setErrorMsg("Passwords don't match.");
+      return;
+    }
+    setIsLoading(true);
+    setIsLocked(false);
+
+    try {
+      const res = await axios.post("/api/auth/complete-password-reset", {
+        userId: forceResetUserId,
+        resetToken: forceResetToken,
+        newPassword: newPasswordReset,
+      });
+      applySession(res);
+    } catch (err: any) {
+      const status  = err.response?.status;
+      const message = err.response?.data?.message;
+      if (status === 423) { setIsLocked(true); setErrorMsg(message || "Account locked. Try again later."); }
+      else setErrorMsg(message || "Failed to set new password.");
     } finally {
       setIsLoading(false);
     }
@@ -152,12 +192,12 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ position:"relative",zIndex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:14 }}>
-            <div style={{ width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.15)",borderRadius:16,
+            <div style={{ position:"relative",width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.15)",borderRadius:16,
               border:"1px solid rgba(255,255,255,0.2)",
               display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",
               boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
               {branding.logoUrl
-                ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+                ? <Image src={branding.logoUrl} alt={companyName} fill sizes="52px" style={{ objectFit:"contain" }}/>
                 : <Wrench color="#fff" size={22}/>}
             </div>
             <div>
@@ -207,9 +247,9 @@ export default function LoginPage() {
 
         {/* Mobile logo */}
         <div style={{ display:"none",alignItems:"center",gap:12,marginBottom:32 }} className="lg:hidden mobile-logo">
-          <div style={{ width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
+          <div style={{ position:"relative",width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
             {branding.logoUrl
-              ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+              ? <Image src={branding.logoUrl} alt={companyName} fill sizes="40px" style={{ objectFit:"contain" }}/>
               : <Wrench color="#fff" size={18}/>}
           </div>
           <p style={{ color:TEXT,fontWeight:900,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>{branding.companyName || "DibnowRepairSaaS"}</p>
@@ -231,13 +271,17 @@ export default function LoginPage() {
               background:"#dbeafe",border:`1px solid rgba(${ACCENT_RGB},0.2)`,
               borderRadius:999,padding:"7px 16px",marginBottom:18 }}>
               <ShieldCheck size={13} color={ACCENT}/>
-              <span style={{ color:ACCENT,fontSize:11,fontWeight:800,letterSpacing:"0.08em" }}>{otpUserId ? "VERIFICATION" : "SECURE LOGIN"}</span>
+              <span style={{ color:ACCENT,fontSize:11,fontWeight:800,letterSpacing:"0.08em" }}>
+                {forceResetUserId ? "SET NEW PASSWORD" : otpUserId ? "VERIFICATION" : "SECURE LOGIN"}
+              </span>
             </div>
             <h2 style={{ color:TEXT,fontWeight:700,fontSize:"clamp(30px,4vw,44px)",lineHeight:1.1,letterSpacing:"-1.2px",marginBottom:10,fontFamily:"'DM Serif Display',Georgia,serif" }}>
-              {otpUserId ? "Check your email" : "Welcome back"}
+              {forceResetUserId ? "Choose your password" : otpUserId ? "Check your email" : "Welcome back"}
             </h2>
             <p style={{ color:MUTED,fontSize:15,fontWeight:500,lineHeight:1.6 }}>
-              {otpUserId ? "Enter the 6-digit code we just sent you to finish signing in." : "Sign in to your repair shop portal to continue."}
+              {forceResetUserId
+                ? "Your shop owner set a temporary password for you. Choose a new one to continue."
+                : otpUserId ? "Enter the 6-digit code we just sent you to finish signing in." : "Sign in to your repair shop portal to continue."}
             </p>
           </div>
 
@@ -252,6 +296,81 @@ export default function LoginPage() {
             }}>
               {isLocked && "🔒 "}{errorMsg}
             </div>
+          )}
+
+          {/* Forced Password Reset Form */}
+          {forceResetUserId && (
+            <form onSubmit={handleCompletePasswordReset} style={{ display:"flex",flexDirection:"column",gap:20 }}>
+              <div className="fade-up" style={{ animationDelay:"0.1s" }}>
+                <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>
+                  New Password
+                </label>
+                <div style={{ position:"relative" }}>
+                  <Lock size={15} style={{ position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
+                  <input
+                    type={showPw ? "text" : "password"} placeholder="Choose a strong password"
+                    value={newPasswordReset} onChange={e => setNewPasswordReset(e.target.value)} required autoFocus
+                    style={{ width:"100%",paddingLeft:44,paddingRight:48,paddingTop:14,paddingBottom:14,
+                      borderRadius:14,border:`1.5px solid ${BORDER}`,background:"#fff",
+                      color:TEXT,fontSize:14,fontWeight:500,outline:"none",
+                      fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}
+                    onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(${ACCENT_RGB},0.12)` }}
+                    onBlur={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}
+                  />
+                  <button type="button" onClick={() => setShowPw(v => !v)}
+                    style={{ position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:MUTED,padding:4 }}>
+                    {showPw ? <EyeOff size={18}/> : <Eye size={18}/>}
+                  </button>
+                </div>
+              </div>
+
+              <div className="fade-up" style={{ animationDelay:"0.15s" }}>
+                <label style={{ display:"block",fontSize:11,fontWeight:800,color:MUTED,textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:8 }}>
+                  Confirm Password
+                </label>
+                <div style={{ position:"relative" }}>
+                  <Lock size={15} style={{ position:"absolute",left:16,top:"50%",transform:"translateY(-50%)",color:MUTED }}/>
+                  <input
+                    type={showPw ? "text" : "password"} placeholder="Re-enter your new password"
+                    value={confirmPasswordReset} onChange={e => setConfirmPasswordReset(e.target.value)} required
+                    style={{ width:"100%",paddingLeft:44,paddingRight:16,paddingTop:14,paddingBottom:14,
+                      borderRadius:14,border:`1.5px solid ${BORDER}`,background:"#fff",
+                      color:TEXT,fontSize:14,fontWeight:500,outline:"none",
+                      fontFamily:"'DM Sans',sans-serif",transition:"all 0.2s" }}
+                    onFocus={e=>{ e.target.style.borderColor=ACCENT; e.target.style.boxShadow=`0 0 0 3px rgba(${ACCENT_RGB},0.12)` }}
+                    onBlur={e=>{ e.target.style.borderColor=BORDER; e.target.style.boxShadow="none" }}
+                  />
+                </div>
+              </div>
+
+              <div className="fade-up" style={{ animationDelay:"0.2s" }}>
+                <button
+                  type="submit"
+                  disabled={isLoading || isLocked}
+                  style={{
+                    width:"100%",display:"flex",alignItems:"center",justifyContent:"center",gap:10,
+                    padding:"16px 24px",borderRadius:14,border:"none",cursor: isLoading||isLocked ? "not-allowed" : "pointer",
+                    fontWeight:800,fontSize:15,color:"#fff",fontFamily:"'DM Sans',sans-serif",
+                    background: isLoading||isLocked ? "#94a3b8" : `linear-gradient(135deg,${ACCENT} 0%,${ACCENT2} 100%)`,
+                    boxShadow: isLoading||isLocked ? "none" : `0 10px 32px rgba(${ACCENT_RGB},0.28)`,
+                    transition:"all 0.2s",
+                  }}
+                >
+                  {isLoading
+                    ? <><Loader2 size={18} style={{ animation:"spin 1s linear infinite" }}/><span>Saving…</span></>
+                    : <><ShieldCheck size={17}/><span>Set Password &amp; Sign In</span></>
+                  }
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => { setForceResetUserId(""); setNewPasswordReset(""); setConfirmPasswordReset(""); setErrorMsg(""); }}
+                style={{ background:"none",border:"none",color:MUTED,fontSize:13,fontWeight:700,cursor:"pointer",textAlign:"center" }}
+              >
+                <ArrowLeft size={13} style={{ verticalAlign:"-2px",marginRight:6 }}/> Back to login
+              </button>
+            </form>
           )}
 
           {/* OTP Form */}
@@ -303,7 +422,7 @@ export default function LoginPage() {
           )}
 
           {/* Form */}
-          {!otpUserId && (
+          {!otpUserId && !forceResetUserId && (
           <form onSubmit={handleLogin} style={{ display:"flex",flexDirection:"column",gap:20 }}>
 
             {/* Email */}
@@ -382,7 +501,7 @@ export default function LoginPage() {
           )}
 
           {/* Divider */}
-          {!otpUserId && (
+          {!otpUserId && !forceResetUserId && (
           <div className="fade-up" style={{ display:"flex",alignItems:"center",gap:12,margin:"28px 0",animationDelay:"0.25s" }}>
             <div style={{ flex:1,borderTop:`1px solid ${BORDER}` }}/>
             <span style={{ fontSize:11,color:MUTED,fontWeight:700 }}>OR</span>
@@ -391,7 +510,7 @@ export default function LoginPage() {
           )}
 
           {/* Register link */}
-          {!otpUserId && (
+          {!otpUserId && !forceResetUserId && (
           <div className="fade-up" style={{ textAlign:"center",animationDelay:"0.3s" }}>
             <span style={{ color:MUTED,fontSize:14 }}>Don&apos;t have an account? </span>
             <Link href="/register" style={{ color:ACCENT,fontWeight:800,fontSize:14,textDecoration:"none" }}

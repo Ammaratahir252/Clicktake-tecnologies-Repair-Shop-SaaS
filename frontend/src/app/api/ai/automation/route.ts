@@ -107,7 +107,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     try {
       const aiResponse = await groq.chat.completions.create({
         model: AI_MODEL,
-        max_tokens: 256,
+        max_tokens: 400,
+        reasoning_effort: "low" as any,
         messages: [
           {
             role: "system",

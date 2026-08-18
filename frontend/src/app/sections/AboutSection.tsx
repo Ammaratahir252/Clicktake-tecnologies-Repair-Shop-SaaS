@@ -29,10 +29,10 @@ export default function AboutSection() {
               <span style={{ color: ACCENT, fontSize: 12, fontWeight: 700, letterSpacing: "0.06em", fontFamily: "'DM Sans',sans-serif" }}>ABOUT US</span>
             </div>
             <h2 style={{ fontSize: "clamp(36px,5vw,64px)", fontWeight: 700, color: TEXT, letterSpacing: "-2px", lineHeight: 1.08, marginBottom: 20, fontFamily: "'DM Serif Display',Georgia,serif" }}>
-              Built in Pakistan,<br />for repair shops everywhere.
+              Built for<br /> repair shops everywhere.
             </h2>
             <p style={{ color: MUTED, fontSize: 18, maxWidth: 620, margin: "0 auto", lineHeight: 1.9, fontFamily: "'DM Sans',sans-serif" }}>
-              DibnowRepairSaaS started as a frustration. Our founders ran repair shops in Lahore and Karachi and couldn't find software that actually worked for their teams. So they built it.
+              DibNow was created to solve a practical challenge faced by gadget repair businesses as the business grows. Developed by the team behind ClickTake Technologies, DibNow brings these essential workflows together in one dedicated repair management platform.
             </p>
           </div>
         </FadeIn>
@@ -47,18 +47,18 @@ export default function AboutSection() {
                 Our story
               </h3>
               <p style={{ color: MUTED, fontSize: 15, lineHeight: 2, marginBottom: 18, fontFamily: "'DM Sans',sans-serif" }}>
-                In 2022, our co-founder Hamza was managing a repair shop in Lahore using a combination of WhatsApp, Excel, and sticky notes. Technicians missed jobs. Customers called asking for updates. Revenue reports were done by hand every Sunday night.
+                DibNow was developed by the team behind ClickTake Technologies to solve a practical challenge faced by gadget repair businesses: managing repairs, inventory, customers, payments, and day-to-day operations efficiently as the business grows.
               </p>
               <p style={{ color: MUTED, fontSize: 15, lineHeight: 2, marginBottom: 18, fontFamily: "'DM Sans',sans-serif" }}>
-                He and his technical co-founder Ali spent a year building the platform they wished existed — one that understood local payment methods, worked offline, ran on any phone, and was simple enough for front desk staff to learn in an afternoon.
+                The platform brings essential repair-shop operations together in one place, helping businesses manage their workflows more efficiently and deliver a more organized customer experience.
               </p>
               <p style={{ color: MUTED, fontSize: 15, lineHeight: 2, fontFamily: "'DM Sans',sans-serif" }}>
-                Today, DibnowRepairSaaS helps repair shops in Pakistan and beyond run faster, more transparent operations. We grow when our customers grow.
+                DibNow is being developed for repair businesses in the UK and international markets, with a focus on making repair-shop management simpler, smarter, and easier to scale. Its roadmap also includes AI-powered analytics and automation designed specifically for repair businesses.
               </p>
               <div style={{ display: "flex", gap: 16, marginTop: 28, flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <MapPin size={15} color={ACCENT} />
-                  <span style={{ color: MUTED, fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>Lahore, Pakistan</span>
+                  <span style={{ color: MUTED, fontSize: 13, fontWeight: 600, fontFamily: "'DM Sans',sans-serif" }}>UK</span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <Calendar size={15} color={ACCENT} />

@@ -33,6 +33,20 @@ const csp = [
 ].join('; ');
 
 const nextConfig = {
+  // Self-hosted on cPanel (Passenger/Node.js Selector), not Vercel — standalone
+  // output traces only the production node_modules this app actually needs into
+  // .next/standalone, so the shared-hosting box never has to run `npm install`
+  // for the frontend at all (see .github/workflows/deploy-cpanel.yml).
+  output: 'standalone',
+  images: {
+    // Branding logos/favicons/login backgrounds are uploaded to Cloudinary
+    // (see /api/admin/branding/upload and /api/tenant/branding/upload, both
+    // backed by lib/uploads/cloudinary.ts) — this is the only external host
+    // next/image needs to be allowed to fetch and optimize.
+    remotePatterns: [
+      { protocol: 'https', hostname: 'res.cloudinary.com' },
+    ],
+  },
   async headers() {
     return [
       {

@@ -5,6 +5,10 @@ import Ticket from '@/models/ticket.model';
 import User from '@/models/user.model';
 import { getDrivingRoute, haversineMeters } from '@/lib/mapbox';
 
+// Reads the caller's tenant/role from verified request headers on every call —
+// must never be statically prerendered at build time (no headers exist then).
+export const dynamic = 'force-dynamic';
+
 function getCtx(req: NextRequest) {
   return {
     tenantId: req.headers.get('x-tenant-id') ?? '',

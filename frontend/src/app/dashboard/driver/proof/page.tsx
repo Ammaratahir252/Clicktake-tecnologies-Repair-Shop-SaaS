@@ -2,6 +2,7 @@
 
 import DashboardShell from "@/components/DashboardShell";
 import { useState, useRef, useCallback, useEffect } from "react";
+import NextImage from "next/image";
 import api from "@/lib/api";
 import {
   Camera, Upload, CheckCircle, Loader2, X, Image as ImageIcon,
@@ -143,8 +144,8 @@ function ProofContent() {
               <X size={24} className="text-white" />
             </button>
           </div>
-          <div className="flex-1 flex items-center justify-center overflow-hidden">
-            <img src={fullscreenPreview} alt="Proof" className="w-full h-full object-contain" />
+          <div className="relative flex-1 overflow-hidden">
+            <NextImage src={fullscreenPreview} alt="Proof" fill sizes="100vw" className="object-contain" unoptimized />
           </div>
           <div className="flex items-center gap-3 p-4 bg-black/50 backdrop-blur-md border-t border-white/10">
             <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all">
@@ -264,8 +265,8 @@ function ProofContent() {
                 <p className="text-sm font-bold text-muted-foreground uppercase tracking-widest">Proof Photo</p>
 
                 {preview ? (
-                  <div className="relative group">
-                    <img src={preview} alt="Proof" className="w-full h-96 md:h-[500px] object-cover rounded-xl shadow-lg" />
+                  <div className="relative group h-96 md:h-[500px]">
+                    <NextImage src={preview} alt="Proof" fill sizes="(min-width: 1024px) 66vw, 100vw" className="object-cover rounded-xl shadow-lg" unoptimized />
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all rounded-xl flex items-center justify-center gap-3">
                       <button
                         onClick={() => setFullscreenPreview(preview)}

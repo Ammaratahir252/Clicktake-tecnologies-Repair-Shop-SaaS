@@ -9,6 +9,10 @@ import { sendResponse } from '@/utils/apiResponse';
 
 const ALLOWED_ROLES = new Set(['owner', 'manager', 'frontdesk']);
 
+// Reads the caller's tenant/role from verified request headers on every call —
+// must never be statically prerendered at build time (no headers exist then).
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   await connectDB();
   try {

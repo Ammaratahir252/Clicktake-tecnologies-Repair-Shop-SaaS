@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import StockMovementHistory from "@/components/inventory/StockMovementHistory";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import {
   Package, Plus, Search, AlertTriangle, Loader2,
   ChevronRight, Filter, TrendingDown, RefreshCw
@@ -44,14 +45,11 @@ function StockBadge({ qty, limit }: { qty: number; limit: number }) {
   return <span className="inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">✓ {qty}</span>;
 }
 
-function formatPKR(n: number) {
-  return `PKR ${n.toLocaleString("en-PK")}`;
-}
-
 // ─── Main Content ─────────────────────────────────────────────────────────────
 
 function InventoryContent({ rolePath }: { rolePath: string }) {
   const router = useRouter();
+  const { format: formatPKR } = useTenantCurrency();
   const [data, setData]               = useState<PartsData | null>(null);
   const [loading, setLoading]         = useState(true);
   const [error, setError]             = useState("");

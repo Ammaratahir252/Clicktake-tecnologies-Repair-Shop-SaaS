@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import { Package, ArrowLeft, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
 const CATEGORY_SUGGESTIONS = [
@@ -13,6 +14,7 @@ const CATEGORY_SUGGESTIONS = [
 
 function AddPartForm({ returnPath, accentColor }: { returnPath: string; accentColor: string }) {
   const router = useRouter();
+  const { currency } = useTenantCurrency();
 
   const [form, setForm] = useState({
     name: "",
@@ -213,7 +215,7 @@ function AddPartForm({ returnPath, accentColor }: { returnPath: string; accentCo
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-              Cost Price (PKR) <span className="text-red-500">*</span>
+              Cost Price ({currency}) <span className="text-red-500">*</span>
             </label>
             <input
               id="part-cost-price"
@@ -229,7 +231,7 @@ function AddPartForm({ returnPath, accentColor }: { returnPath: string; accentCo
           </div>
           <div>
             <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">
-              Sell Price (PKR) <span className="text-red-500">*</span>
+              Sell Price ({currency}) <span className="text-red-500">*</span>
             </label>
             <input
               id="part-sell-price"

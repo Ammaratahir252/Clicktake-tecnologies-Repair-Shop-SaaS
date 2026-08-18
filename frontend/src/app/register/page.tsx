@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import axios from "axios";
 import {
   Store, User, Globe, Mail, Lock, Loader2, Wrench,
@@ -241,9 +242,9 @@ export default function RegisterPage() {
 
         {/* Logo */}
         <div style={{ position:"relative",zIndex:1,display:"flex",alignItems:"center",gap:14 }}>
-          <div style={{ width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.14)",borderRadius:16,border:"1px solid rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
+          <div style={{ position:"relative",width:52,height:52,background: branding.logoUrl ? "#fff" : "rgba(255,255,255,0.14)",borderRadius:16,border:"1px solid rgba(255,255,255,0.2)",display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",boxShadow:"0 8px 24px rgba(0,0,0,0.2)",transform: branding.logoUrl ? "none" : "rotate(-4deg)" }}>
             {branding.logoUrl
-              ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+              ? <Image src={branding.logoUrl} alt={companyName} fill sizes="52px" style={{ objectFit:"contain" }}/>
               : <Wrench color="#fff" size={22}/>}
           </div>
           <div>
@@ -336,9 +337,9 @@ export default function RegisterPage() {
 
           {/* Mobile logo */}
           <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:36 }} className="lg:hidden">
-            <div style={{ width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
+            <div style={{ position:"relative",width:40,height:40,background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",overflow:"hidden",border: branding.logoUrl ? `1px solid ${BORDER}` : "none" }}>
               {branding.logoUrl
-                ? <img src={branding.logoUrl} alt={companyName} style={{ width:"100%",height:"100%",objectFit:"contain" }}/>
+                ? <Image src={branding.logoUrl} alt={companyName} fill sizes="40px" style={{ objectFit:"contain" }}/>
                 : <Wrench color="#fff" size={18}/>}
             </div>
             <p style={{ color:TEXT,fontWeight:700,fontSize:18,fontFamily:"'DM Serif Display',Georgia,serif" }}>{branding.companyName || "DibnowRepairSaaS"}</p>

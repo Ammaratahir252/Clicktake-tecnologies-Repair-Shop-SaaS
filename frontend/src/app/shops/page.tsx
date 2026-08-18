@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import Image from "next/image";
 import { Store, MapPin, ArrowRight, Search, Loader2 } from "lucide-react";
 import Header from "../sections/Header";
 import { THEME, GLOBAL_STYLES } from "../../components/theme";
@@ -105,11 +106,11 @@ export default function ShopsPage() {
                   }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
                       <div style={{
-                        width: 52, height: 52, borderRadius: 14, background: "#eff6ff", border: `1px solid ${ACCENT}22`,
+                        position: "relative", width: 52, height: 52, borderRadius: 14, background: "#eff6ff", border: `1px solid ${ACCENT}22`,
                         display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden",
                       }}>
                         {shop.logo
-                          ? <img src={shop.logo} alt={shop.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                          ? <Image src={shop.logo} alt={shop.name} fill sizes="52px" style={{ objectFit: "cover" }} />
                           : <Store size={22} color={ACCENT} />}
                       </div>
                       <div style={{ minWidth: 0 }}>

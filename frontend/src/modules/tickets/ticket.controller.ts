@@ -19,6 +19,8 @@ import { TicketStatus } from '@/lib/enums';
 import connectDB from '@/lib/db';
 import Ticket from '@/models/ticket.model';
 import Payment from '@/models/payment.model';
+import User from '@/models/user.model';
+import { getManagerPermissions } from '@/lib/managerPermissions';
 import { fireAutomationTrigger } from '@/lib/automation';
 import {
   notifyTenantByRole,
@@ -28,6 +30,7 @@ import {
   findCustomerByPhone,
   findUserById,
   findTenantName,
+  getTenantOwnerNotificationSettings,
   emailTenantStaff,
   emailTicketCreatedCustomer,
   emailTicketCreatedStaff,
@@ -35,6 +38,8 @@ import {
   emailEstimate,
   emailTechnicianAssigned,
 } from '@/lib/notifications';
+import { sendSms } from '@/lib/sms';
+import { currencySymbol } from '@/lib/currency';
 
 const STATUS_LABELS: Record<string, string> = {
   received:      'Received',
@@ -97,7 +102,10 @@ export async function createTicketHandler(req: NextRequest): Promise<NextRespons
 
     // Fire-and-forget notifications
     void (async () => {
-      const shopName = await findTenantName(tenantId);
+      const [shopName, ownerSettings] = await Promise.all([
+        findTenantName(tenantId),
+        getTenantOwnerNotificationSettings(tenantId),
+      ]);
 
       // In-app notification to owner + manager
       notifyTenantByRole(
@@ -107,12 +115,14 @@ export async function createTicketHandler(req: NextRequest): Promise<NextRespons
         { ticketId: t._id?.toString() }
       );
 
-      // Email to owner + manager
-      await emailTenantStaff(
-        tenantId, ['owner', 'manager'],
-        `New Repair Ticket — ${t.ticketNumber}`,
-        (name) => emailTicketCreatedStaff(name, t.ticketNumber, customerName, deviceBrand, deviceModel, issue, shopName)
-      );
+      // Email to owner + manager — gated by Settings → Notification Preferences → "Email on new repair ticket"
+      if (ownerSettings.prefs.emailOnNewTicket) {
+        await emailTenantStaff(
+          tenantId, ['owner', 'manager'],
+          `New Repair Ticket — ${t.ticketNumber}`,
+          (name) => emailTicketCreatedStaff(name, t.ticketNumber, customerName, deviceBrand, deviceModel, issue, shopName)
+        );
+      }
 
       // Email to customer (if email on record)
       const customer = await findCustomerByPhone(tenantId, customerPhone);
@@ -167,7 +177,18 @@ export async function getTicketsHandler(req: NextRequest): Promise<NextResponse>
       technicianId = techParam;
     }
 
-    const tickets = await TicketService.getTickets(tenantId, statusFilter ?? undefined, customerIds, technicianId);
+    // A driver must only ever see delivery-relevant tickets — either unclaimed
+    // jobs available to pick up, or ones already assigned to them — not every
+    // ticket in the tenant. Without this, a driver's GET /api/tickets fell
+    // through with no scoping at all and returned every ticket (and every
+    // customer's name/phone/email/address) tenant-wide, including tickets
+    // still mid-repair with no delivery task at all.
+    let driverId: string | undefined;
+    if (role === 'driver' && userId) {
+      driverId = userId;
+    }
+
+    const tickets = await TicketService.getTickets(tenantId, statusFilter ?? undefined, customerIds, technicianId, driverId);
     return sendResponse(true, 'Tickets retrieved', tickets);
   } catch (err: any) {
     return sendResponse(false, err.message ?? 'Server error', null, 500);
@@ -181,8 +202,31 @@ export async function getTicketByIdHandler(
 ): Promise<NextResponse> {
   await connectDB();
   try {
-    const { tenantId } = getCtx(req);
+    const { tenantId, userId, role } = getCtx(req);
     const ticket = await TicketService.getTicketById(id, tenantId);
+
+    // Ownership check — tenant-scoping alone isn't enough here: without this,
+    // any customer could view any OTHER customer's ticket (name/phone/email/
+    // address, plus the assigned technician's contact info) in the same tenant
+    // just by knowing or guessing a ticket id, and any driver could view every
+    // ticket tenant-wide, not just their own delivery jobs. Mirrors the same
+    // phone-match pattern already used by the list endpoint and the
+    // delivery-location/driver-location routes.
+    if (role === 'customer' && userId) {
+      const User = (await import('@/models/user.model')).default;
+      const user = await User.findById(userId).select('phone').lean() as any;
+      const ticketCustomerPhone = (ticket as any).customerId?.phone;
+      if (!user?.phone || !ticketCustomerPhone || user.phone !== ticketCustomerPhone) {
+        return sendResponse(false, 'Ticket not found', null, 404);
+      }
+    }
+    if (role === 'driver' && userId) {
+      const assignedDriverId = (ticket as any).driverId?._id?.toString() ?? (ticket as any).driverId?.toString();
+      if (assignedDriverId && assignedDriverId !== userId) {
+        return sendResponse(false, 'Ticket not found', null, 404);
+      }
+    }
+
     return sendResponse(true, 'Ticket retrieved', ticket);
   } catch (err: any) {
     const status = err.message === 'Ticket not found' ? 404 : 500;
@@ -227,7 +271,10 @@ export async function updateStatusHandler(
 
     // Fire-and-forget notifications
     void (async () => {
-      const shopName = await findTenantName(tenantId);
+      const [shopName, ownerSettings] = await Promise.all([
+        findTenantName(tenantId),
+        getTenantOwnerNotificationSettings(tenantId),
+      ]);
 
       // In-app to owner + manager
       notifyTenantByRole(
@@ -244,6 +291,14 @@ export async function updateStatusHandler(
           tenantId, ['owner', 'manager'],
           `Ticket ${t.ticketNumber} — ${statusLabel}`,
           (name) => emailTicketStatus(name, t.ticketNumber, t.deviceBrand ?? '', t.deviceModel ?? '', newStatus, statusLabel, shopName)
+        );
+      }
+
+      // SMS to the shop's own phone — gated by Settings → Notification Preferences → "SMS when device is ready"
+      if (newStatus === 'ready' && ownerSettings.prefs.smsOnReadyForPickup && ownerSettings.phone) {
+        void sendSms(
+          ownerSettings.phone,
+          `${shopName}: Ticket ${t.ticketNumber} (${t.deviceBrand ?? ''} ${t.deviceModel ?? ''}) is now ready for pickup.`
         );
       }
 
@@ -301,18 +356,40 @@ export async function updateStatusHandler(
 }
 
 // ─── PATCH /api/tickets/:id/assign ───────────────────────────────────────────
+// Requester must be shop-floor management to hand off a ticket — mirrors
+// ASSIGN_DRIVER_ROLES below. Previously this handler had NO role check at all.
+const ASSIGN_TECH_ROLES = new Set(['super_admin', 'owner', 'manager']);
+
 export async function assignTechnicianHandler(
   req: NextRequest,
   id: string
 ): Promise<NextResponse> {
   await connectDB();
   try {
-    const { tenantId, userId, userName } = getCtx(req);
+    const { tenantId, userId, userName, role } = getCtx(req);
+
+    if (!ASSIGN_TECH_ROLES.has(role)) {
+      return sendResponse(false, 'Forbidden: only shop management may assign tickets', null, 403);
+    }
+    if (role === 'manager') {
+      const perms = await getManagerPermissions(tenantId);
+      if (!perms.assignWork) {
+        return sendResponse(false, 'Your shop owner has not enabled ticket assignment for managers', null, 403);
+      }
+    }
+
     const body = await req.json();
 
     const parsed = AssignTechnicianSchema.safeParse(body);
     if (!parsed.success) {
       return sendResponse(false, parsed.error.errors[0].message, null, 400);
+    }
+
+    // The assignee must be a real staff member of this tenant — not a customer,
+    // not someone from another shop.
+    const assignee = await User.findOne({ _id: parsed.data.technicianId, tenantId }).select('role');
+    if (!assignee || assignee.role === 'customer') {
+      return sendResponse(false, 'Invalid assignee — must be a staff member of this shop', null, 400);
     }
 
     const ticket = await TicketService.assignTechnician({
@@ -379,6 +456,12 @@ export async function assignDriverHandler(
 
     if (!ASSIGN_DRIVER_ROLES.has(role)) {
       return sendResponse(false, 'Forbidden: only owner/manager may assign a driver', null, 403);
+    }
+    if (role === 'manager') {
+      const perms = await getManagerPermissions(tenantId);
+      if (!perms.assignWork) {
+        return sendResponse(false, 'Your shop owner has not enabled ticket assignment for managers', null, 403);
+      }
     }
 
     const body = await req.json();
@@ -592,12 +675,15 @@ export async function setEstimateHandler(
     });
 
     const t = ticket as any;
-    const amtStr = `Rs. ${(parsed.data.estimateAmount ?? 0).toLocaleString()}`;
 
     // Fire-and-forget notifications
     void (async () => {
-      const shopName = await findTenantName(tenantId);
-      const customer = await findCustomerById(t.customerId?.toString());
+      const [shopName, ownerSettings, customer] = await Promise.all([
+        findTenantName(tenantId),
+        getTenantOwnerNotificationSettings(tenantId),
+        findCustomerById(t.customerId?.toString()),
+      ]);
+      const amtStr = `${currencySymbol(ownerSettings.currency)} ${(parsed.data.estimateAmount ?? 0).toLocaleString()}`;
 
       // In-app to owner + manager
       notifyTenantByRole(
@@ -637,7 +723,7 @@ export async function setEstimateHandler(
           await sendEmail(
             customer.email,
             `Repair Estimate Ready — ${t.ticketNumber}`,
-            emailEstimate(customer.name, t.ticketNumber, t.deviceBrand ?? '', t.deviceModel ?? '', parsed.data.estimateAmount, shopName)
+            emailEstimate(customer.name, t.ticketNumber, t.deviceBrand ?? '', t.deviceModel ?? '', parsed.data.estimateAmount, shopName, ownerSettings.currency)
           );
         }
       }
@@ -660,6 +746,58 @@ export async function setEstimateHandler(
   }
 }
 
+// ─── PATCH /api/tickets/:id/cost ─────────────────────────────────────────────
+// Records the actual cost incurred (parts/labor) on a job — distinct from
+// `estimateAmount` (what the customer is charged/revenue). Owner/manager only,
+// and only once the job is essentially done (ready or delivered) — matches the
+// "after confirming work is done" framing this feature was requested under.
+const SET_COST_ROLES = new Set(['owner', 'manager']);
+const SET_COST_ALLOWED_STATUSES = new Set([TicketStatus.ready, TicketStatus.delivered]);
+
+export async function setActualCostHandler(
+  req: NextRequest,
+  id: string
+): Promise<NextResponse> {
+  await connectDB();
+  try {
+    const { tenantId, userId, userName, role } = getCtx(req);
+
+    if (!SET_COST_ROLES.has(role)) {
+      return sendResponse(false, 'Forbidden: only owner/manager may record job cost', null, 403);
+    }
+    if (role === 'manager') {
+      const perms = await getManagerPermissions(tenantId);
+      if (!perms.recordRevenue) {
+        return sendResponse(false, 'Your shop owner has not enabled cost/revenue recording for managers', null, 403);
+      }
+    }
+
+    const body = await req.json();
+    const actualCost = Number(body.actualCost);
+    if (!Number.isFinite(actualCost) || actualCost < 0) {
+      return sendResponse(false, 'actualCost must be a non-negative number', null, 400);
+    }
+
+    const ticket = await Ticket.findOne({ _id: id, tenantId });
+    if (!ticket) return sendResponse(false, 'Ticket not found', null, 404);
+    if (!SET_COST_ALLOWED_STATUSES.has(ticket.status)) {
+      return sendResponse(false, 'Cost can only be recorded once the job is ready or delivered', null, 400);
+    }
+
+    ticket.actualCost = actualCost;
+    await ticket.save();
+
+    void TicketService.addNote({
+      ticketId: id, tenantId, authorId: userId, authorName: userName,
+      content: `Actual cost recorded: ${actualCost.toLocaleString()}`,
+    }).catch(() => {});
+
+    return sendResponse(true, 'Cost recorded', ticket);
+  } catch (err: any) {
+    return sendResponse(false, err.message ?? 'Server error', null, 500);
+  }
+}
+
 // ─── POST /api/tickets/:id/payment ───────────────────────────────────────────
 // Records an in-person payment (cash/card/mobile-wallet transfer collected directly
 // by staff or a driver) — distinct from the online gateway checkout flows under
@@ -676,6 +814,12 @@ export async function recordPaymentHandler(
 
     if (!RECORD_PAYMENT_ROLES.has(role)) {
       return sendResponse(false, 'Forbidden: only staff or a driver may record a payment', null, 403);
+    }
+    if (role === 'manager') {
+      const perms = await getManagerPermissions(tenantId);
+      if (!perms.recordRevenue) {
+        return sendResponse(false, 'Your shop owner has not enabled cost/revenue recording for managers', null, 403);
+      }
     }
 
     const body = await req.json();
@@ -701,13 +845,15 @@ export async function recordPaymentHandler(
     }
 
     const { method, amountReceived, note } = parsed.data;
+    const ownerSettings = await getTenantOwnerNotificationSettings(tenantId);
+    const cur = currencySymbol(ownerSettings.currency);
 
     const payment = await Payment.create({
       tenantId,
       kind: 'invoice',
       referenceId: ticket._id,
       amount: ticket.estimateAmount,
-      currency: 'PKR',
+      currency: ownerSettings.currency,
       gateway: method,
       environment: 'in-person',
       method: 'in_person',
@@ -715,7 +861,7 @@ export async function recordPaymentHandler(
       gatewayOrderId: `POS-${ticket._id}-${Date.now()}`,
       recordedBy: userId,
       recordedByName: userName,
-      notes: note ?? (amountReceived !== undefined ? `Received: Rs ${amountReceived}` : undefined),
+      notes: note ?? (amountReceived !== undefined ? `Received: ${cur} ${amountReceived}` : undefined),
     });
 
     void TicketService.addNote({
@@ -723,7 +869,7 @@ export async function recordPaymentHandler(
       tenantId,
       authorId: userId,
       authorName: userName,
-      content: `Payment recorded: Rs ${ticket.estimateAmount.toLocaleString()} via ${method}${amountReceived !== undefined ? ` (received Rs ${amountReceived.toLocaleString()})` : ''}`,
+      content: `Payment recorded: ${cur} ${ticket.estimateAmount.toLocaleString()} via ${method}${amountReceived !== undefined ? ` (received ${cur} ${amountReceived.toLocaleString()})` : ''}`,
     }).catch(() => {});
 
     void (async () => {
@@ -731,14 +877,17 @@ export async function recordPaymentHandler(
       notifyTenantByRole(
         tenantId, ['owner', 'manager'], 'payment_recorded',
         `Payment collected — ${ticket.ticketNumber}`,
-        `Rs ${ticket.estimateAmount!.toLocaleString()} via ${method}, recorded by ${userName}`,
+        `${cur} ${ticket.estimateAmount!.toLocaleString()} via ${method}, recorded by ${userName}`,
         { ticketId: ticket._id.toString(), amount: ticket.estimateAmount, method }
       );
-      await emailTenantStaff(
-        tenantId, ['owner', 'manager'],
-        `Payment Collected — ${ticket.ticketNumber}`,
-        (name) => emailTicketStatus(name, ticket.ticketNumber, ticket.deviceBrand ?? '', ticket.deviceModel ?? '', 'payment_recorded', `Payment Collected (${method})`, shopName)
-      );
+      // Email gated by Settings → Notification Preferences → "Email on payment received"
+      if (ownerSettings.prefs.emailOnPayment) {
+        await emailTenantStaff(
+          tenantId, ['owner', 'manager'],
+          `Payment Collected — ${ticket.ticketNumber}`,
+          (name) => emailTicketStatus(name, ticket.ticketNumber, ticket.deviceBrand ?? '', ticket.deviceModel ?? '', 'payment_recorded', `Payment Collected (${method})`, shopName)
+        );
+      }
     })();
 
     return sendResponse(true, 'Payment recorded', payment, 201);

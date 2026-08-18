@@ -1,0 +1,59 @@
+name: CI
+
+# Quality gate for both apps. This does NOT deploy anything:
+# - Frontend deploys are triggered by Firebase App Hosting's own GitHub
+#   integration on push to main (configure a branch-protection rule requiring
+#   this workflow to pass before merge, so nothing broken ever reaches main).
+# - Backend deploys run in deploy-backend.yml, gated on this workflow passing.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call: {} # lets deploy-backend.yml reuse this as its own gate
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test -- --ci
+      - run: npm run build
+        env:
+          # Dummy values so `next build` can statically analyze routes without
+          # real secrets — no external calls happen at build time.
+          MONGODB_URI: mongodb://localhost:27017/ci
+          JWT_SECRET: ci-placeholder-secret-not-for-prod
+          NODE_ENV: production
+
+  backend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test -- --ci
+      - run: npm run build

@@ -3,6 +3,9 @@ import connectDB from '@/lib/db';
 import { sendResponse } from '@/utils/apiResponse';
 import Tenant from '@/models/tenant.model';
 import mongoose from 'mongoose';
+import { forceLogoutTenant } from '@/lib/sessions';
+import { createAuditLog } from '@/services/auditLog.service';
+import { AUDIT_ACTIONS } from '@/models/auditLog.model';
 
 function getCtx(req: NextRequest) {
   return {
@@ -43,7 +46,24 @@ export async function PATCH(req: NextRequest): Promise<NextResponse> {
     if (!['owner', 'super_admin'].includes(role)) return sendResponse(false, 'Forbidden', null, 403);
 
     const body = await req.json();
-    const allowed = ['name', 'tagline', 'description', 'phone', 'address', 'city', 'postcode', 'country',
+
+    // ── Self-deactivate (Danger Zone) ───────────────────────────────────────
+    // Owner-only, irreversible from this side: suspends the shop and force-logs-out
+    // every session on the tenant (including the owner's own). Only a super_admin
+    // can flip isActive back on via the Tenants admin page.
+    if (body.deactivate === true) {
+      if (role !== 'owner') return sendResponse(false, 'Only the shop owner can deactivate the shop', null, 403);
+      await Tenant.findByIdAndUpdate(new mongoose.Types.ObjectId(tenantId), { $set: { isActive: false } });
+      await forceLogoutTenant(tenantId);
+      createAuditLog({
+        tenantId, userId: req.headers.get('x-user-id') ?? '',
+        action: AUDIT_ACTIONS.TENANT_SETTINGS_UPDATED, entity: 'tenant', entityId: tenantId,
+        details: { action: 'ownerSelfDeactivate' },
+      }).catch(() => {});
+      return sendResponse(true, 'Shop deactivated. Contact platform support to reactivate.', null);
+    }
+
+    const allowed = ['name', 'tagline', 'description', 'phone', 'address', 'city', 'postcode', 'country', 'timezone',
                      'acceptedDevices', 'servicesOffered', 'openingHours', 'logo', 'bannerUrl', 'socialLinks',
                      'isPubliclyVisible', 'showReviewsPublicly'];
     const update: Record<string, unknown> = {};

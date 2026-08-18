@@ -64,12 +64,17 @@ export async function createAICompletion(
 
   const s = raw as any;
   let provider: string = s?.aiProvider || "groq";
-  let model: string    = s?.aiModel    || "llama-3.3-70b-versatile";
+  let model: string    = s?.aiModel    || "openai/gpt-oss-120b";
   // Anthropic was removed as a provider — any stale 'anthropic' value in the DB
   // falls back to Groq (the platform default) instead of erroring.
   if (provider === "anthropic") {
     provider = "groq";
-    model = "llama-3.3-70b-versatile";
+    model = "openai/gpt-oss-120b";
+  }
+  // Groq retired llama-3.3-70b-versatile (2026-08) — self-heal any DB document
+  // still holding the old value instead of erroring on every call.
+  if (provider === "groq" && (model === "llama-3.3-70b-versatile" || model === "llama-3.1-8b-instant" || model === "mixtral-8x7b-32768")) {
+    model = "openai/gpt-oss-120b";
   }
 
   await budgetAndPlanCheck(tenantId);
@@ -86,7 +91,12 @@ export async function createAICompletion(
       const apiKey = process.env.GROQ_API_KEY || "";
       if (!apiKey) throw new Error("GROQ_API_KEY is not set in environment variables.");
       const client = new Groq({ apiKey });
-      const res = await client.chat.completions.create({ model, max_tokens: maxTokens, messages: messages as any });
+      const res = await client.chat.completions.create({
+        model, max_tokens: maxTokens, messages: messages as any,
+        // gpt-oss models are reasoning models — keep effort low so maxTokens
+        // isn't consumed by hidden chain-of-thought before the final answer.
+        ...(model.startsWith("openai/gpt-oss") ? { reasoning_effort: "low" as any } : {}),
+      });
       return res.choices[0]?.message?.content ?? "";
     }
 

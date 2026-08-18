@@ -64,6 +64,9 @@ export interface ITicket extends Document {
   dueDate?:       Date | null;
   status:         TicketStatus;
   estimateAmount?: number;
+  /** Actual cost incurred (parts/labor) — distinct from `estimateAmount` (what the
+   * customer is charged). Set by owner/manager once the job is ready/delivered. */
+  actualCost?:    number;
   photos:         ITicketPhoto[];
   notes:          ITicketNote[];
   statusHistory:  ITicketHistoryEntry[];
@@ -201,6 +204,11 @@ const TicketSchema = new Schema<ITicket>(
       required: true,
     },
     estimateAmount: {
+      type: Number,
+      min: 0,
+      default: null,
+    },
+    actualCost: {
       type: Number,
       min: 0,
       default: null,

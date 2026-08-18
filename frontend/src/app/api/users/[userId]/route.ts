@@ -8,6 +8,7 @@ import { permissionMiddleware } from '@/middleware/permissionMiddleware';
 import { ACTION_STRINGS } from '@/lib/permissions';
 import { createAuditLog } from '@/services/auditLog.service';
 import { AUDIT_ACTIONS } from '@/models/auditLog.model';
+import { getManagerPermissions } from '@/lib/managerPermissions';
 
 /**
  * PATCH: Update user status or details
@@ -25,11 +26,31 @@ export async function PATCH(req: NextRequest, { params }: { params: { userId: st
     if (permissionError) return permissionError;
 
     const tenantId = req.headers.get('x-tenant-id');
+    const requesterRole = req.headers.get('x-role');
     const { userId } = params;
     const body = await req.json();
 
+    // Owner-controlled: a manager can only edit staff accounts if the owner has
+    // explicitly enabled it (Owner Settings → Manager Permissions).
+    if (requesterRole === 'manager') {
+      const perms = await getManagerPermissions(tenantId as string);
+      if (!perms.editTeam) {
+        return sendResponse(false, 'Your shop owner has not enabled staff account editing for managers', null, 403);
+      }
+    }
+
     // Ensure the user belongs to the same tenant for security
     const { name, email, role, isActive } = body;
+
+    // Nobody may be promoted to (or edited while holding) 'owner' via this endpoint —
+    // there is exactly one owner per tenant, set at signup.
+    const target = await User.findOne({ _id: userId, tenantId }).select('role');
+    if (!target) {
+      return sendResponse(false, 'User not found or unauthorized', null, 404);
+    }
+    if (target.role === 'owner' || role === 'owner') {
+      return sendResponse(false, 'The shop owner account cannot be edited here', null, 403);
+    }
 
     const updatedUser = await User.findOneAndUpdate(
       { _id: userId, tenantId },
@@ -70,7 +91,20 @@ export async function DELETE(req: NextRequest, { params }: { params: { userId: s
     if (permissionError) return permissionError;
 
     const tenantId = req.headers.get('x-tenant-id');
+    const requesterRole = req.headers.get('x-role');
     const { userId } = params;
+
+    if (requesterRole === 'manager') {
+      const perms = await getManagerPermissions(tenantId as string);
+      if (!perms.editTeam) {
+        return sendResponse(false, 'Your shop owner has not enabled staff account editing for managers', null, 403);
+      }
+    }
+
+    const target = await User.findOne({ _id: userId, tenantId }).select('role');
+    if (target?.role === 'owner') {
+      return sendResponse(false, 'The shop owner account cannot be removed', null, 403);
+    }
 
     const deletedUser = await User.findOneAndDelete({ _id: userId, tenantId });
 

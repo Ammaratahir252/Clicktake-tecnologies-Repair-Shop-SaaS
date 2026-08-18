@@ -13,6 +13,7 @@ import { createBackup, purgeOldBackups } from '@/lib/backup';
 import { getStorageUsageByTenant } from '@/lib/storageUsage';
 import { getPlatformLocale, formatPlatformDate, formatPlatformDateTime } from '@/lib/locale';
 import { TicketStatus } from '@/lib/enums';
+import { sendSms } from '@/lib/sms';
 
 const TICK_MS = 15 * 60 * 1000; // 15 minutes
 
@@ -182,6 +183,35 @@ async function runTicketEscalations(): Promise<void> {
   await SystemLog.create({ category: 'monitor', message: `Escalated ${stuck.length} stuck ticket(s)`, status: 'warning' });
 }
 
+/** Daily "overdue tickets" SMS digest to each shop's own phone — gated per-tenant by
+ * Owner Settings → Notification Preferences → "SMS on overdue tickets". At most one
+ * digest SMS per tenant per calendar day (Tenant.lastOverdueSmsAt). */
+async function runOwnerOverdueSmsDigest(): Promise<void> {
+  const now = new Date();
+  const overdue = await Ticket.find({
+    dueDate: { $ne: null, $lt: now },
+    status: { $nin: [TicketStatus.delivered, TicketStatus.cancelled] },
+  }).select('tenantId ticketNumber').lean() as any[];
+  if (!overdue.length) return;
+
+  const byTenant = new Map<string, number>();
+  for (const t of overdue) {
+    const key = String(t.tenantId);
+    byTenant.set(key, (byTenant.get(key) ?? 0) + 1);
+  }
+
+  const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+  for (const [tenantId, count] of Array.from(byTenant.entries())) {
+    const tenant = await Tenant.findById(tenantId).select('name phone branding lastOverdueSmsAt').lean() as any;
+    if (!tenant?.branding?.notificationPrefs?.smsOnOverdue) continue;
+    if (!tenant.phone) continue;
+    if (tenant.lastOverdueSmsAt && new Date(tenant.lastOverdueSmsAt) >= todayStart) continue;
+
+    void sendSms(tenant.phone, `${tenant.name}: ${count} ticket(s) are past their promised date. Log in to review.`);
+    await Tenant.updateOne({ _id: tenantId }, { $set: { lastOverdueSmsAt: now } });
+  }
+}
+
 /** Daily platform report emailed to super admins — last-24h signups, tickets,
  * payments, and platform totals. Gated by Settings → Notifications → Daily Report. */
 async function runDailyReport(): Promise<void> {
@@ -240,6 +270,7 @@ export async function runSchedulerTick(force = false): Promise<void> {
         runStorageCheck(),
         runSubscriptionExpiryAlerts(),
         runTicketEscalations(),
+        runOwnerOverdueSmsDigest(),
         runDailyReport(),
       ]);
     }

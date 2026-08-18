@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useTheme } from "next-themes";
 import Link from "next/link";
+import Image from "next/image";
 import { getRoleHome, ROLE_META, can } from "@/lib/rbac";
 import api from "@/lib/api";
 import { useBranding } from "@/lib/useBranding";
@@ -13,7 +14,7 @@ import {
   Settings, FileText, MapPin, Truck, Bot, Clock,
   Camera, ShieldCheck, Globe, Menu, X, Bell, Moon, Sun, Monitor,
   Home, Search, User, Store, AlertTriangle, Check,
-  CreditCard, UserCheck,
+  CreditCard, UserCheck, MessageSquare,
 } from "lucide-react";
 
 export interface DashboardUser {
@@ -72,6 +73,7 @@ function getNavItems(role: string): NavItem[] {
       { label: "Inventory",   href: `${base}/owner/inventory`,        icon: Package,    flagKey: "enableInventory" },
       { label: "Leads",       href: `${base}/owner/leads`,            icon: MapPin, badge: "Live" },
       { label: "Reports",     href: `${base}/owner/reports`,          icon: BarChart3,  flagKey: "enableReports" },
+      { label: "Team Chat",   href: `${base}/chat`,                   icon: MessageSquare },
       { label: "Audit Logs",  href: `${base}/owner/audit`,            icon: FileText },
       { label: "Settings",    href: `${base}/owner/settings`,         icon: Settings },
     ],
@@ -82,6 +84,8 @@ function getNavItems(role: string): NavItem[] {
       { label: "Inventory",   href: `${base}/manager/inventory`,      icon: Package,    flagKey: "enableInventory" },
       { label: "Leads",       href: `${base}/manager/leads`,          icon: MapPin, badge: "Live" },
       { label: "Reports",     href: `${base}/manager/reports`,        icon: BarChart3,  flagKey: "enableReports" },
+      { label: "Team Chat",   href: `${base}/chat`,                   icon: MessageSquare },
+      { label: "Settings",    href: `${base}/manager/settings`,       icon: Settings },
     ],
     frontdesk: [
       { label: "Overview",    href: `${base}/frontdesk`,              icon: LayoutDashboard },
@@ -91,6 +95,8 @@ function getNavItems(role: string): NavItem[] {
       { label: "Payments",    href: `${base}/frontdesk/payments`,     icon: BarChart3 },
       { label: "Delivery",    href: `${base}/frontdesk/delivery`,     icon: Truck },
       { label: "Print",       href: `${base}/frontdesk/print`,        icon: FileText },
+      { label: "Team Chat",   href: `${base}/chat`,                   icon: MessageSquare },
+      { label: "Settings",    href: `${base}/frontdesk/settings`,     icon: Settings },
     ],
     technician: [
       { label: "Overview",      href: `${base}/technician`,           icon: LayoutDashboard },
@@ -99,9 +105,12 @@ function getNavItems(role: string): NavItem[] {
       { label: "Inventory",     href: `${base}/technician/inventory`, icon: Package,    flagKey: "enableInventory" },
       { label: "Time Logs",     href: `${base}/technician/time`,      icon: Clock },
       { label: "Photos",        href: `${base}/technician/photos`,    icon: Camera },
+      { label: "Team Chat",     href: `${base}/chat`,                 icon: MessageSquare },
+      { label: "Settings",      href: `${base}/technician/settings`,  icon: Settings },
     ],
     customer: [
       { label: "My Portal",    href: `${base}/customer`,              icon: Home,       flagKey: "enableCustomerPortal" },
+      { label: "Book Repair",  href: `${base}/customer/shops`,        icon: Store,      flagKey: "enableCustomerPortal" },
       { label: "Track Repair", href: `${base}/customer/track`,        icon: Wrench,     flagKey: "enableCustomerPortal" },
       { label: "Estimates",    href: `${base}/customer/estimates`,    icon: FileText,   flagKey: "enableCustomerPortal" },
       { label: "Invoices",     href: `${base}/customer/invoices`,     icon: BarChart3,  flagKey: "enableCustomerPortal" },
@@ -109,6 +118,7 @@ function getNavItems(role: string): NavItem[] {
       { label: "Nearby Shops", href: `${base}/customer/nearby-shops`, icon: MapPin,     flagKey: "enableCustomerPortal" },
       { label: "History",      href: `${base}/customer/history`,      icon: Clock,      flagKey: "enableCustomerPortal" },
       { label: "Review",       href: `${base}/customer/review`,       icon: ShieldCheck, flagKey: "enableCustomerPortal" },
+      { label: "Settings",     href: `${base}/customer/settings`,     icon: Settings },
     ],
     driver: [
       { label: "Overview",  href: `${base}/driver`,          icon: LayoutDashboard },
@@ -116,6 +126,8 @@ function getNavItems(role: string): NavItem[] {
       { label: "Navigate",  href: `${base}/driver/navigate`, icon: MapPin },
       { label: "Payment",   href: `${base}/driver/payment`,  icon: BarChart3 },
       { label: "Proof",     href: `${base}/driver/proof`,    icon: Camera },
+      { label: "Team Chat", href: `${base}/chat`,            icon: MessageSquare },
+      { label: "Settings",  href: `${base}/driver/settings`, icon: Settings },
     ],
   };
 
@@ -319,9 +331,9 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#1D222B" }}>
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center overflow-hidden">
+          <div className="relative w-10 h-10 rounded-2xl bg-blue-600 flex items-center justify-center overflow-hidden">
             {branding.logoUrl
-              ? <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="w-full h-full object-contain" />
+              ? <Image src={branding.logoUrl} alt={branding.companyName || "Logo"} fill sizes="40px" className="object-contain" />
               : <Wrench className="text-white w-5 h-5" />}
           </div>
           <Loader2 className="animate-spin text-slate-400 w-6 h-6" />
@@ -334,9 +346,9 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center overflow-hidden">
+          <div className="relative w-10 h-10 rounded-2xl bg-primary flex items-center justify-center overflow-hidden">
             {branding.logoUrl
-              ? <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="w-full h-full object-contain" />
+              ? <Image src={branding.logoUrl} alt={branding.companyName || "Logo"} fill sizes="40px" className="object-contain" />
               : <Wrench className="text-primary-foreground w-5 h-5" />}
           </div>
           <Loader2 className="animate-spin text-muted-foreground w-6 h-6" />
@@ -412,11 +424,11 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
           {sidebarOpen && (
             <div className="flex items-center gap-2.5 min-w-0">
               <div
-                className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg overflow-hidden"
+                className="relative w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg overflow-hidden"
                 style={{ backgroundColor: branding.logoUrl ? "#fff" : accent }}
               >
                 {branding.logoUrl
-                  ? <img src={branding.logoUrl} alt={branding.companyName || "Logo"} className="w-full h-full object-contain" />
+                  ? <Image src={branding.logoUrl} alt={branding.companyName || "Logo"} fill sizes="32px" className="object-contain" />
                   : <Wrench className="text-white w-4 h-4" />}
               </div>
               <div className="min-w-0">
@@ -672,30 +684,58 @@ export default function DashboardShell({ requiredRole, children }: DashboardShel
                 className="p-2 rounded-xl relative transition-all hover:bg-accent text-muted-foreground hover:text-accent-foreground"
               >
                 <Bell size={18} />
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-destructive" />
+                )}
               </button>
               {notifOpen && (
                 <div className="absolute right-0 top-12 w-80 bg-popover border border-border rounded-2xl shadow-2xl overflow-hidden z-50">
                   <div className="px-4 py-3 border-b border-border flex items-center justify-between">
                     <p className="font-bold text-sm text-popover-foreground">Notifications</p>
-                    <span className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md"
-                          style={{ backgroundColor: accent }}>3 New</span>
+                    {unreadCount > 0 && (
+                      <span className="text-[10px] font-bold text-white px-1.5 py-0.5 rounded-md"
+                            style={{ backgroundColor: accent }}>{unreadCount} New</span>
+                    )}
                   </div>
-                  {[
-                    { t: "New lead routed to your shop",  s: "2 min ago",   dot: "#ef4444" },
-                    { t: "REP-2026-00451 ready for QC",   s: "15 min ago",  dot: "#f59e0b" },
-                    { t: "Low stock: iPhone 15 Screen",   s: "1 hr ago",    dot: "#8b5cf6" },
-                  ].map((n, i) => (
-                    <div key={i} className="px-4 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-accent">
-                      <div className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ backgroundColor: n.dot }} />
-                      <div>
-                        <p className="text-sm font-medium text-popover-foreground">{n.t}</p>
-                        <p className="text-xs text-muted-foreground">{n.s}</p>
+                  <div className="max-h-96 overflow-y-auto scrollbar-thin">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-8 text-center">
+                        <p className="text-xs text-muted-foreground">You're all caught up — no notifications yet.</p>
                       </div>
-                    </div>
-                  ))}
-                  <div className="px-4 py-2.5 border-t border-border text-center">
-                    <button className="text-xs font-bold" style={{ color: accent }}>View all notifications</button>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n._id}
+                          onClick={() => !n.readAt && markOneRead(n._id)}
+                          className={`px-4 py-3 flex items-start gap-3 cursor-pointer transition-colors hover:bg-accent ${!n.readAt ? "" : "opacity-60"}`}
+                        >
+                          <div
+                            className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0"
+                            style={{ backgroundColor: n.readAt ? "transparent" : accent, border: n.readAt ? "1px solid var(--border)" : "none" }}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-popover-foreground truncate">{n.title}</p>
+                            {n.message && <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">{n.message}</p>}
+                            <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                              {new Date(n.createdAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="px-4 py-2.5 border-t border-border flex items-center justify-between gap-3">
+                    {unreadCount > 0 ? (
+                      <button onClick={markAllRead} className="text-xs font-bold" style={{ color: accent }}>Mark all as read</button>
+                    ) : <span />}
+                    <Link
+                      href={user.role === "super_admin" ? "/dashboard/super-admin/notifications" : "/dashboard/notifications"}
+                      onClick={() => setNotifOpen(false)}
+                      className="text-xs font-bold"
+                      style={{ color: accent }}
+                    >
+                      View all
+                    </Link>
                   </div>
                 </div>
               )}

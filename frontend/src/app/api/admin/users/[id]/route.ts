@@ -19,12 +19,28 @@ export async function PATCH(
   await connectDB();
   try {
     const body = await req.json();
+    const requesterId = req.headers.get('x-user-id') ?? '';
+    const isRealSuperAdmin = req.headers.get('x-role') === 'super_admin';
+
+    if (params.id === requesterId) {
+      return sendResponse(false, 'You cannot modify your own account from this panel', null, 403);
+    }
 
     // Granting/editing permissions or the admin/super_admin roles is a privilege-escalation
     // risk — only a real super_admin may do it, even if a scoped admin has 'users' access.
     const touchesPrivilege = 'permissions' in body || body.role === 'admin' || body.role === 'super_admin';
-    if (touchesPrivilege && req.headers.get('x-role') !== 'super_admin') {
+    if (touchesPrivilege && !isRealSuperAdmin) {
       return sendResponse(false, 'Only a super admin can change roles or permissions', null, 403);
+    }
+
+    // A scoped admin (role: 'admin' granted the 'users' section) must never be able to
+    // deactivate/edit another admin or a super_admin — only a real super_admin can touch
+    // privileged accounts. Scoped admins may only manage ordinary tenant users.
+    if (!isRealSuperAdmin) {
+      const target = await User.findById(params.id).select('role').lean() as any;
+      if (target && (target.role === 'admin' || target.role === 'super_admin')) {
+        return sendResponse(false, 'Only a super admin can modify another admin account', null, 403);
+      }
     }
 
     const update: Record<string, any> = { ...body };
@@ -52,6 +68,20 @@ export async function DELETE(
   if (!isSuperAdmin(req)) return sendResponse(false, 'Forbidden', null, 403);
   await connectDB();
   try {
+    const requesterId = req.headers.get('x-user-id') ?? '';
+    const isRealSuperAdmin = req.headers.get('x-role') === 'super_admin';
+
+    if (params.id === requesterId) {
+      return sendResponse(false, 'You cannot delete your own account from this panel', null, 403);
+    }
+
+    if (!isRealSuperAdmin) {
+      const target = await User.findById(params.id).select('role').lean() as any;
+      if (target && (target.role === 'admin' || target.role === 'super_admin')) {
+        return sendResponse(false, 'Only a super admin can delete another admin account', null, 403);
+      }
+    }
+
     const user = await User.findByIdAndDelete(params.id).lean() as any;
     if (!user) return sendResponse(false, 'User not found', null, 404);
 

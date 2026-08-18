@@ -38,5 +38,3 @@ coverage/
 # ─── Runtime data — not source, never committed ──────────────────
 frontend/backups/
 frontend/public/uploads/
-
-.vercel

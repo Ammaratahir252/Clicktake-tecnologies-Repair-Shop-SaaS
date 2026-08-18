@@ -12,6 +12,7 @@ import {
   Download, Smartphone, Info, Loader2, Wallet,
 } from 'lucide-react'
 import api from '@/lib/api'
+import { useTenantCurrency } from '@/lib/useTenantCurrency'
 
 type EstimateStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
@@ -78,6 +79,7 @@ export default function EstimatesPage() {
 }
 
 function EstimatesContent() {
+  const { format } = useTenantCurrency()
   const [estimates, setEstimates] = useState<Estimate[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
@@ -254,7 +256,7 @@ function EstimatesContent() {
                     </div>
                     <div className="text-right">
                       <p className="text-2xl font-bold text-primary">
-                        Rs. {est.amount.toLocaleString()}
+                        {format(est.amount)}
                       </p>
                       <Button size="sm" onClick={() => { setSelected(est); setPayError(''); setPayInfo('') }} className="mt-2">
                         <Info className="w-4 h-4 mr-1" />
@@ -302,7 +304,7 @@ function EstimatesContent() {
                 </div>
                 <div className="col-span-2">
                   <p className="text-xs text-muted-foreground mb-1">Estimate Amount</p>
-                  <p className="text-2xl font-bold text-primary">Rs. {selected.amount.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-primary">{format(selected.amount)}</p>
                 </div>
               </div>
 

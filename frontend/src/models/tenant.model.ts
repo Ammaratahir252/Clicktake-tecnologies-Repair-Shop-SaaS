@@ -26,6 +26,7 @@ export interface ITenant extends Document {
   city?: string;
   postcode?: string;
   country?: string;
+  timezone?: string;
   // ── GPS (Module: Global GPS) ──────────────────────────────────────────────
   // GeoJSON Point — required shape for MongoDB 2dsphere geospatial queries.
   // coordinates are stored as [lng, lat] per GeoJSON spec (NOT [lat, lng]).
@@ -34,6 +35,9 @@ export interface ITenant extends Document {
     coordinates: [number, number]; // [lng, lat]
   };
   locationUpdatedAt?: Date;
+  // Dedup marker for the daily "overdue tickets" SMS digest (Settings → Notification
+  // Preferences → smsOnOverdue) — at most one digest SMS per tenant per calendar day.
+  lastOverdueSmsAt?: Date;
   acceptedDevices: string[];
   servicesOffered: string[];
   openingHours?: string;
@@ -74,6 +78,17 @@ export interface ITenant extends Document {
       emailOnPayment?: boolean;      // Email the owner when a payment is recorded
       smsOnReadyForPickup?: boolean; // SMS the owner when a ticket is marked Ready
       smsOnOverdue?: boolean;        // Daily SMS digest of overdue tickets
+    };
+    // ISO 4217 currency code the owner reports/displays revenue in (e.g. PKR, USD,
+    // GBP) — independent of the platform's own subscription-billing currency.
+    currency?: string;
+    // Owner-controlled extra capabilities granted to the `manager` role, beyond
+    // manager's static baseline permissions. Written only by the owner (enforced
+    // in PATCH /api/tenant/branding) — a manager can never self-grant these.
+    managerPermissions?: {
+      editTeam?: boolean;      // add/edit/remove staff accounts (default false — new, sensitive)
+      assignWork?: boolean;    // assign tickets/leads to any staff member (default true)
+      recordRevenue?: boolean; // set actual cost + record ticket payments (default true)
     };
   };
 }
@@ -122,6 +137,7 @@ const tenantSchema = new Schema<ITenant>(
     city:          { type: String },
     postcode:      { type: String },
     country:       { type: String },
+    timezone:      { type: String, default: 'Asia/Karachi' },
     // NO default on `type` — a default of 'Point' used to stamp every new tenant
     // with `location: { type: 'Point' }` and no coordinates, which breaks 2dsphere
     // key extraction ("Can't extract geo keys ... got type missing") on every
@@ -138,6 +154,7 @@ const tenantSchema = new Schema<ITenant>(
       },
     },
     locationUpdatedAt: { type: Date },
+    lastOverdueSmsAt: { type: Date },
     acceptedDevices: { type: [String], default: [] },
     servicesOffered: { type: [String], default: [] },
     openingHours:  { type: String },
@@ -177,6 +194,12 @@ const tenantSchema = new Schema<ITenant>(
         emailOnPayment:      { type: Boolean, default: true },
         smsOnReadyForPickup: { type: Boolean, default: false },
         smsOnOverdue:        { type: Boolean, default: false },
+      },
+      currency: { type: String, default: 'PKR' },
+      managerPermissions: {
+        editTeam:      { type: Boolean, default: false },
+        assignWork:    { type: Boolean, default: true },
+        recordRevenue: { type: Boolean, default: true },
       },
     },
   },

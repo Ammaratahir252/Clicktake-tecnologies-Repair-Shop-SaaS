@@ -1,19 +1,26 @@
 /**
  * app/api/ai/forecast/route.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * NOW USES: Google Gemini (gemini-1.5-flash)
- * WHY: Inventory context can be very long (many parts). Gemini handles it best.
+ * Uses Groq (see lib/ai/providers.ts header for why — "Groq only" product
+ * direction; this previously called Gemini, which broke once gemini-1.5-flash
+ * was retired, so every forecast request failed with the same error).
  *
  * RBAC: manager, owner
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { callGemini, parseAIJson } from "@/lib/ai/providers";
+import { callGroq, parseAIJson } from "@/lib/ai/providers";
 import { buildForecastSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Part from "@/models/part.model";
 import StockMovement from "@/models/stockMovement.model";
 import { sendResponse } from "@/utils/apiResponse";
+import { getTenantOwnerNotificationSettings } from "@/lib/notifications";
+import { currencySymbol } from "@/lib/currency";
+
+// Reads the caller's tenant/role from verified request headers on every call —
+// must never be statically prerendered at build time (no headers exist then).
+export const dynamic = 'force-dynamic';
 
 function getCtx(req: NextRequest) {
   return {
@@ -70,6 +77,9 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       usageMap[key] = (usageMap[key] ?? 0) + m.quantity;
     }
 
+    const { currency } = await getTenantOwnerNotificationSettings(tenantId);
+    const curSym = currencySymbol(currency);
+
     const inventoryContext = parts
       .map((p) => {
         const usage30d = usageMap[(p as any)._id.toString()] ?? 0;
@@ -84,12 +94,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
           ` | Used (30d): ${usage30d}` +
           ` | Days of stock left: ${daysOfStock ?? "N/A (no recent usage)"}` +
           ` | Low stock: ${isLow ? "YES" : "no"}` +
-          ` | Cost: PKR ${(p as any).costPrice}`
+          ` | Cost: ${curSym} ${(p as any).costPrice}`
         );
       })
       .join("\n");
 
-    const aiResponse = await callGemini(
+    const aiResponse = await callGroq(
       [
         { role: "system", content: buildForecastSystemPrompt(inventoryContext) },
         {

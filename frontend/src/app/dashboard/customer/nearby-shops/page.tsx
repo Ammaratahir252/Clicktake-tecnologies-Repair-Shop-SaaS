@@ -6,7 +6,7 @@ import { useState, useCallback } from "react";
 import api from "@/lib/api";
 import {
   MapPin, Loader2, Navigation, Phone, Star, Search,
-  Satellite, AlertCircle, Smartphone, Clock, ExternalLink,
+  Satellite, AlertCircle, Smartphone, Clock, ExternalLink, List,
 } from "lucide-react";
 
 // ── GPS (Module: Global GPS) ────────────────────────────────────────────
@@ -32,6 +32,7 @@ function NearbyShopsContent() {
   const [radiusKm, setRadiusKm] = useState(50);
   const [manualCity, setManualCity] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [browsingAll, setBrowsingAll] = useState(false);
 
   const fetchNearby = useCallback(async (lat: number, lng: number, radius: number) => {
     setLoadingShops(true);
@@ -54,6 +55,7 @@ function NearbyShopsContent() {
     }
     setLocState("locating");
     setError(null);
+    setBrowsingAll(false);
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
@@ -78,10 +80,12 @@ function NearbyShopsContent() {
     if (!manualCity.trim()) return;
     setLoadingShops(true);
     setError(null);
+    setBrowsingAll(false);
     try {
       const res = await api.get(`/api/shops?city=${encodeURIComponent(manualCity.trim())}`);
       setShops(res.data?.data ?? []);
       setCoords(null);
+      setLocState("done");
     } catch {
       setError("Couldn't search shops. Please try again.");
     } finally {
@@ -92,6 +96,22 @@ function NearbyShopsContent() {
   const changeRadius = (radius: number) => {
     setRadiusKm(radius);
     if (coords) fetchNearby(coords.lat, coords.lng, radius);
+  };
+
+  const browseAll = async () => {
+    setBrowsingAll(true);
+    setCoords(null);
+    setLocState("done");
+    setLoadingShops(true);
+    setError(null);
+    try {
+      const res = await api.get("/api/shops");
+      setShops(res.data?.data ?? []);
+    } catch {
+      setError("Couldn't load shops. Please try again.");
+    } finally {
+      setLoadingShops(false);
+    }
   };
 
   const openInMaps = (shop: any) => {
@@ -129,6 +149,17 @@ function NearbyShopsContent() {
               <Satellite size={18} />
             )}
             {locState === "locating" ? "Finding your location…" : "Use my current location"}
+          </button>
+
+          <button
+            onClick={browseAll}
+            disabled={loadingShops}
+            className={`flex items-center justify-center gap-2 px-5 py-3 font-bold rounded-xl transition-all active:scale-95 disabled:opacity-70 ${
+              browsingAll ? "bg-primary text-white shadow-lg" : "bg-muted hover:bg-muted/70 text-foreground border border-border"
+            }`}
+          >
+            <List size={18} />
+            Browse All Shops
           </button>
 
           {coords && (
@@ -271,7 +302,7 @@ function NearbyShopsContent() {
                   Directions
                 </button>
                 <a
-                  href={`/${shop.subdomain ?? ""}`}
+                  href={`/shop/${shop.subdomain ?? ""}`}
                   target="_blank"
                   rel="noreferrer"
                   className="flex-1 flex items-center justify-center gap-2 py-2 bg-muted hover:bg-muted/70 text-foreground font-bold rounded-lg text-xs transition-all"
@@ -288,7 +319,7 @@ function NearbyShopsContent() {
       {locState === "idle" && shops.length === 0 && !loadingShops && (
         <div className="text-center py-16 text-muted-foreground">
           <Star size={32} className="mx-auto mb-3 opacity-40" />
-          <p className="text-sm font-medium">Tap "Use my current location" to find repair shops near you.</p>
+          <p className="text-sm font-medium">Tap "Use my current location" to find repair shops near you, or "Browse All Shops" to see every shop on the platform.</p>
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import { Search, CheckCircle, Clock, Receipt, Loader2, Banknote, CreditCard, Wallet, X } from "lucide-react";
 
 const METHODS = [
@@ -21,6 +22,7 @@ export default function FrontdeskPaymentsPage() {
 }
 
 function PaymentsContent() {
+  const { format } = useTenantCurrency();
   const [tickets, setTickets] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -131,15 +133,15 @@ function PaymentsContent() {
 
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded-2xl p-4 text-center">
-          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">Rs. {totalPaid.toLocaleString()}</p>
+          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400">{format(totalPaid)}</p>
           <p className="text-xs text-muted-foreground font-medium mt-0.5">Collected</p>
         </div>
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 text-center">
-          <p className="text-xl font-black text-amber-600 dark:text-amber-400">Rs. {totalPending.toLocaleString()}</p>
+          <p className="text-xl font-black text-amber-600 dark:text-amber-400">{format(totalPending)}</p>
           <p className="text-xs text-muted-foreground font-medium mt-0.5">Pending</p>
         </div>
         <div className="bg-card border border-border rounded-2xl p-4 text-center">
-          <p className="text-xl font-black text-foreground">Rs. {(totalPaid + totalPending).toLocaleString()}</p>
+          <p className="text-xl font-black text-foreground">{format(totalPaid + totalPending)}</p>
           <p className="text-xs text-muted-foreground font-medium mt-0.5">Total</p>
         </div>
       </div>
@@ -195,7 +197,7 @@ function PaymentsContent() {
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
                 <div className="text-right">
-                  <p className="font-black text-foreground">Rs. {p.amount.toLocaleString()}</p>
+                  <p className="font-black text-foreground">{format(p.amount)}</p>
                   {p.status === "paid" ? (
                     <p className="text-xs text-emerald-600 font-bold mt-0.5 capitalize">Paid ({p.method})</p>
                   ) : (
@@ -216,7 +218,7 @@ function PaymentsContent() {
             {recordingFor === p._id && (
               <div className="pt-3 border-t border-border space-y-3">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-bold text-muted-foreground uppercase">Collect Rs. {p.amount.toLocaleString()}</p>
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Collect {format(p.amount)}</p>
                   <button onClick={() => setRecordingFor(null)} className="text-muted-foreground hover:text-foreground">
                     <X size={14} />
                   </button>

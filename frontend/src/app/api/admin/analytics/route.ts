@@ -3,6 +3,7 @@ import connectDB from '@/lib/db';
 import Ticket from '@/models/ticket.model';
 import User from '@/models/user.model';
 import Tenant from '@/models/tenant.model';
+import Payment from '@/models/payment.model';
 import { sendResponse } from '@/utils/apiResponse';
 
 import { canAccess } from '@/lib/adminAccess';
@@ -22,17 +23,19 @@ export async function GET(req: NextRequest) {
     else if (period === 'quarter') since.setDate(since.getDate() - 90);
     else                           since.setDate(since.getDate() - 30);
 
-    const [tenants, ticketAgg, userAgg] = await Promise.all([
+    const [tenants, ticketAgg, revenueAgg, userAgg] = await Promise.all([
       Tenant.find().select('name subdomain plan isActive createdAt').lean(),
       Ticket.aggregate([
         { $match: { createdAt: { $gte: since } } },
-        {
-          $group: {
-            _id: '$tenantId',
-            tickets: { $sum: 1 },
-            revenue: { $sum: { $ifNull: ['$estimateAmount', 0] } },
-          },
-        },
+        { $group: { _id: '$tenantId', tickets: { $sum: 1 } } },
+      ]),
+      // Real per-shop revenue: only actually-collected customer payments
+      // (kind: 'invoice', status: 'completed') — NOT a raw sum of every ticket's
+      // quoted estimateAmount, which would include unpaid/cancelled/in-progress
+      // tickets and wildly overstate what a shop actually earned.
+      Payment.aggregate([
+        { $match: { kind: 'invoice', status: 'completed', createdAt: { $gte: since } } },
+        { $group: { _id: '$tenantId', revenue: { $sum: '$amount' } } },
       ]),
       User.aggregate([
         { $match: { role: { $ne: 'super_admin' } } },
@@ -40,9 +43,14 @@ export async function GET(req: NextRequest) {
       ]),
     ]);
 
-    const ticketMap: Record<string, { tickets: number; revenue: number }> = {};
+    const ticketMap: Record<string, number> = {};
     ticketAgg.forEach((t) => {
-      ticketMap[String(t._id)] = { tickets: t.tickets, revenue: t.revenue };
+      ticketMap[String(t._id)] = t.tickets;
+    });
+
+    const revenueMap: Record<string, number> = {};
+    revenueAgg.forEach((r) => {
+      revenueMap[String(r._id)] = r.revenue;
     });
 
     const userMap: Record<string, number> = {};
@@ -58,9 +66,9 @@ export async function GET(req: NextRequest) {
         subdomain: t.subdomain,
         plan:      t.plan,
         isActive:  t.isActive,
-        tickets:   ticketMap[id]?.tickets ?? 0,
-        revenue:   ticketMap[id]?.revenue ?? 0,
-        users:     userMap[id]             ?? 0,
+        tickets:   ticketMap[id]   ?? 0,
+        revenue:   revenueMap[id]  ?? 0,
+        users:     userMap[id]     ?? 0,
         createdAt: t.createdAt,
       };
     });

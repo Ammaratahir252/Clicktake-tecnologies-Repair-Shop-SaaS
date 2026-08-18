@@ -69,8 +69,8 @@ describe('pricing engine', () => {
     pricingModel:  PricingModel.FLAT_POSTCODE,
     baseFeeExVat:  5.00,
     maxDistanceKm: 15,
-    vatRate:       0.20 as 0.20,
-    currency:      'GBP' as 'GBP',
+    vatRate:       0.20 as const,
+    currency:      'GBP' as const,
     operatingHours: { open: '08:00', close: '20:00', timezone: 'Europe/London' },
     operatingDays:  [1,2,3,4,5],
   } as any;

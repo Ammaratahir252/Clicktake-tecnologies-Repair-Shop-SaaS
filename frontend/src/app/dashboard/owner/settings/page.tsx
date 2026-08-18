@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import Image from "next/image";
 import DashboardShell from "@/components/DashboardShell";
 import api from "@/lib/api";
+import { CURRENCIES, formatMoneyCompact } from "@/lib/currency";
 import {
   Settings, Store, Clock, Bell, ShieldAlert,
   Loader2, Save, CheckCircle2, AlertTriangle,
@@ -232,8 +234,8 @@ function ImageUploadField({ label, url, onUploaded, uploadField, hint }: {
     <div className="space-y-2">
       <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">{label}</label>
       <div className="flex items-center gap-3">
-        <div className="w-16 h-16 rounded-xl border border-border/50 bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
-          {url ? <img src={url} alt={label} className="w-full h-full object-cover" /> : <ImageIcon size={18} className="text-muted-foreground" />}
+        <div className="relative w-16 h-16 rounded-xl border border-border/50 bg-muted/30 flex items-center justify-center overflow-hidden shrink-0">
+          {url ? <Image src={url} alt={label} fill sizes="64px" className="object-cover" /> : <ImageIcon size={18} className="text-muted-foreground" />}
         </div>
         <button
           type="button"
@@ -288,6 +290,9 @@ function SettingsContent({ user }: { user: any }) {
   const [savedProfile, setSavedProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
 
+  // ── Revenue Currency (independent of the platform's billing currency) ──
+  const [currency, setCurrency] = useState("PKR");
+
   // ── Business Hours state ──
   const [hours, setHours] = useState<BusinessHours>(DEFAULT_HOURS);
   const [savingHours, setSavingHours] = useState(false);
@@ -327,6 +332,16 @@ function SettingsContent({ user }: { user: any }) {
   });
   const [savingPortal, setSavingPortal] = useState(false);
   const [savedPortal, setSavedPortal] = useState(false);
+
+  // ── Manager Permissions state (owner-controlled extra capabilities) ──
+  const [managerPerms, setManagerPerms] = useState({
+    editTeam: false,
+    assignWork: true,
+    recordRevenue: true,
+  });
+  const [savingManagerPerms, setSavingManagerPerms] = useState(false);
+  const [savedManagerPerms, setSavedManagerPerms] = useState(false);
+  const [managerPermsError, setManagerPermsError] = useState("");
 
   // ── Payment Gateway (EasyPaisa) state ──
   const [pgEnabled, setPgEnabled] = useState(false);
@@ -393,6 +408,7 @@ function SettingsContent({ user }: { user: any }) {
   // ── Danger Zone ──
   const [dangerConfirm, setDangerConfirm] = useState("");
   const [dangerError, setDangerError] = useState("");
+  const [deactivating, setDeactivating] = useState(false);
 
   // ── GPS (Module: Global GPS) — precise shop coordinates for nearby search ──
   const [gpsState, setGpsState] = useState<"idle" | "locating" | "saving" | "done" | "error">("idle");
@@ -420,7 +436,7 @@ function SettingsContent({ user }: { user: any }) {
           setProfile({
             name: shop.name ?? "",
             phone: shop.phone ?? "",
-            timezone: "Asia/Karachi",
+            timezone: shop.timezone ?? "Asia/Karachi",
           });
           setPublicProfile({
             tagline: shop.tagline ?? "",
@@ -477,6 +493,14 @@ function SettingsContent({ user }: { user: any }) {
               emailOnPayment: b.notificationPrefs.emailOnPayment ?? true,
               smsOnReadyForPickup: b.notificationPrefs.smsOnReadyForPickup ?? false,
               smsOnOverdue: b.notificationPrefs.smsOnOverdue ?? false,
+            });
+          }
+          if (b.currency) setCurrency(b.currency);
+          if (b.managerPermissions) {
+            setManagerPerms({
+              editTeam: b.managerPermissions.editTeam ?? false,
+              assignWork: b.managerPermissions.assignWork ?? true,
+              recordRevenue: b.managerPermissions.recordRevenue ?? true,
             });
           }
         }
@@ -537,7 +561,7 @@ function SettingsContent({ user }: { user: any }) {
     : null;
 
   const revenueDisplay = analyticsData
-    ? `PKR ${((analyticsData.totalRevenue ?? 0) / 1000).toFixed(1)}K`
+    ? formatMoneyCompact(analyticsData.totalRevenue ?? 0, currency)
     : null;
 
   // ── Save handlers ──
@@ -583,7 +607,9 @@ function SettingsContent({ user }: { user: any }) {
       await api.patch("/api/shop/profile", {
         name: profile.name,
         phone: profile.phone,
+        timezone: profile.timezone,
       });
+      await api.patch("/api/tenant/branding", { currency });
       setSavedProfile(true);
       setTimeout(() => setSavedProfile(false), 3000);
     } catch (err: any) {
@@ -839,6 +865,41 @@ function SettingsContent({ user }: { user: any }) {
     }
   };
 
+  const saveManagerPerms = async () => {
+    setSavingManagerPerms(true);
+    setManagerPermsError("");
+    try {
+      await api.patch("/api/tenant/branding", { managerPermissions: managerPerms });
+      setSavedManagerPerms(true);
+      setTimeout(() => setSavedManagerPerms(false), 3000);
+    } catch (err: any) {
+      setManagerPermsError(err?.response?.data?.message ?? "Failed to save. Please try again.");
+    } finally {
+      setSavingManagerPerms(false);
+    }
+  };
+
+  const deactivateShop = async () => {
+    if (dangerConfirm !== "DEACTIVATE") {
+      setDangerError("Type DEACTIVATE exactly to proceed.");
+      return;
+    }
+    setDeactivating(true);
+    setDangerError("");
+    try {
+      await api.patch("/api/shop/profile", { deactivate: true });
+      // Deactivation revokes every session on the tenant, including this one —
+      // the stored token is now invalid, so clear it and bounce to login.
+      localStorage.clear();
+      sessionStorage.clear();
+      document.cookie = "token=; Max-Age=0; path=/;";
+      window.location.replace("/login?deactivated=1");
+    } catch (err: any) {
+      setDangerError(err?.response?.data?.message ?? "Failed to deactivate. Please try again.");
+      setDeactivating(false);
+    }
+  };
+
   const updateDay = (day: string, key: keyof DayHours, value: any) => {
     setHours((prev) => ({ ...prev, [day]: { ...prev[day], [key]: value } }));
   };
@@ -996,9 +1057,9 @@ function SettingsContent({ user }: { user: any }) {
                 {team.map((member, i) => (
                   <div key={i} className="p-4 bg-muted/30 rounded-xl border border-border/50 space-y-3">
                     <div className="flex items-start gap-3">
-                      <div className="w-14 h-14 rounded-full border border-border/50 bg-background flex items-center justify-center overflow-hidden shrink-0">
+                      <div className="relative w-14 h-14 rounded-full border border-border/50 bg-background flex items-center justify-center overflow-hidden shrink-0">
                         {member.photoUrl ? (
-                          <img src={member.photoUrl} alt={member.name} className="w-full h-full object-cover" />
+                          <Image src={member.photoUrl} alt={member.name} fill sizes="56px" className="object-cover" />
                         ) : (
                           <ImageIcon size={16} className="text-muted-foreground" />
                         )}
@@ -1091,18 +1152,35 @@ function SettingsContent({ user }: { user: any }) {
                     <SaveBtn loading={savingBio} saved={savedBio} onClick={saveBio} label="Save Bio" />
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">Timezone</label>
-                  <div className="relative group">
-                    <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 transition-colors group-focus-within:text-violet-500 pointer-events-none z-10" />
-                    <select
-                      value={profile.timezone}
-                      onChange={(e) => setProfile((p) => ({ ...p, timezone: e.target.value }))}
-                      className="w-full appearance-none bg-background/50 backdrop-blur-sm border border-border/50 rounded-xl pl-11 pr-10 py-3.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 focus:bg-background transition-all"
-                    >
-                      {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 pointer-events-none" />
+                <div className="grid sm:grid-cols-2 gap-5">
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">Timezone</label>
+                    <div className="relative group">
+                      <Globe className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 transition-colors group-focus-within:text-violet-500 pointer-events-none z-10" />
+                      <select
+                        value={profile.timezone}
+                        onChange={(e) => setProfile((p) => ({ ...p, timezone: e.target.value }))}
+                        className="w-full appearance-none bg-background/50 backdrop-blur-sm border border-border/50 rounded-xl pl-11 pr-10 py-3.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 focus:bg-background transition-all"
+                      >
+                        {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 pointer-events-none" />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-xs font-bold text-muted-foreground uppercase tracking-wider">Revenue Currency</label>
+                    <div className="relative group">
+                      <Wallet className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 transition-colors group-focus-within:text-violet-500 pointer-events-none z-10" />
+                      <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        className="w-full appearance-none bg-background/50 backdrop-blur-sm border border-border/50 rounded-xl pl-11 pr-10 py-3.5 text-sm font-medium text-foreground focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500/50 focus:bg-background transition-all"
+                      >
+                        {CURRENCIES.map((c) => <option key={c.code} value={c.code}>{c.code} — {c.label}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60 pointer-events-none" />
+                    </div>
+                    <p className="text-xs text-muted-foreground/70 pl-0.5">Used everywhere revenue, estimates, and prices are shown to you and your customers</p>
                   </div>
                 </div>
               </div>
@@ -1272,6 +1350,48 @@ function SettingsContent({ user }: { user: any }) {
               </div>
               <div className="pt-6 flex justify-end border-t border-border/50 mt-6">
                 <SaveBtn loading={savingPortal} saved={savedPortal} onClick={saveCustomerPortal} />
+              </div>
+            </div>
+          </Section>
+
+          {/* ── Manager Permissions ──────────────────────────────────────── */}
+          <Section
+            icon={Users}
+            title="Manager Permissions"
+            subtitle="Choose what your managers can do beyond the basics"
+            color="bg-gradient-to-br from-indigo-500 to-blue-600"
+            open={openSection === "managerPerms"}
+            onToggle={() => toggleSection("managerPerms")}
+          >
+            <div className="space-y-2">
+              <div className="bg-muted/30 rounded-xl px-5 border border-border/50">
+                {(
+                  [
+                    { key: "editTeam", label: "Edit staff accounts", desc: "Add, edit, and remove manager/technician/frontdesk/driver accounts (Manager → Team)" },
+                    { key: "assignWork", label: "Assign tickets & leads", desc: "Assign a ticket or lead to any staff member, not just view them" },
+                    { key: "recordRevenue", label: "Record cost & payments", desc: "Set actual job cost and record customer payments on completed tickets" },
+                  ] as { key: keyof typeof managerPerms; label: string; desc: string }[]
+                ).map(({ key, label, desc }) => (
+                  <div key={key} className="flex items-start justify-between gap-4 py-4 border-b border-border/50 last:border-0">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground">{label}</p>
+                      <p className="text-xs text-muted-foreground mt-1">{desc}</p>
+                    </div>
+                    <Toggle
+                      checked={managerPerms[key]}
+                      onChange={(v) => setManagerPerms((p) => ({ ...p, [key]: v }))}
+                    />
+                  </div>
+                ))}
+              </div>
+              {managerPermsError && (
+                <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-lg px-3 py-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500 shrink-0" />
+                  <p className="text-xs font-semibold text-red-500">{managerPermsError}</p>
+                </div>
+              )}
+              <div className="pt-6 flex justify-end border-t border-border/50 mt-6">
+                <SaveBtn loading={savingManagerPerms} saved={savedManagerPerms} onClick={saveManagerPerms} />
               </div>
             </div>
           </Section>
@@ -1599,8 +1719,9 @@ function SettingsContent({ user }: { user: any }) {
                 <div>
                   <p className="text-base font-bold text-red-500">Deactivate Shop</p>
                   <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                    This will suspend all access for your staff and customers. Data is retained but the
-                    shop will be unreachable until reactivated by support.
+                    This immediately signs out every staff member and customer, including you, and blocks all
+                    logins to this shop. Data is retained but the shop stays unreachable until platform support
+                    reactivates it — this cannot be undone from here.
                   </p>
                 </div>
               </div>
@@ -1617,17 +1738,12 @@ function SettingsContent({ user }: { user: any }) {
                     className="flex-1 bg-background/50 border-2 border-red-500/30 rounded-xl px-4 py-3 text-sm font-mono font-bold text-foreground focus:outline-none focus:ring-2 focus:ring-red-500/30 placeholder-muted-foreground/40"
                   />
                   <button
-                    disabled={dangerConfirm !== "DEACTIVATE"}
-                    onClick={() => {
-                      if (dangerConfirm !== "DEACTIVATE") {
-                        setDangerError("Type DEACTIVATE exactly to proceed.");
-                        return;
-                      }
-                      setDangerError("⚠ This feature requires backend support. Contact admin.");
-                    }}
-                    className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold rounded-xl disabled:opacity-40 hover:shadow-red-500/40 shadow-lg transition-all active:scale-[0.96] shrink-0"
+                    disabled={dangerConfirm !== "DEACTIVATE" || deactivating}
+                    onClick={deactivateShop}
+                    className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white text-sm font-bold rounded-xl disabled:opacity-40 hover:shadow-red-500/40 shadow-lg transition-all active:scale-[0.96] shrink-0 flex items-center gap-2"
                   >
-                    Deactivate
+                    {deactivating && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {deactivating ? "Deactivating…" : "Deactivate"}
                   </button>
                 </div>
                 {dangerError && (

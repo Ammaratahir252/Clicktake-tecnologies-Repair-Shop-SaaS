@@ -476,21 +476,30 @@ function TenantsContent() {
                 )}
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <button
-                    onClick={() => runAction(selected._id, "forcePasswordReset", undefined, "All accounts must reset their password.")}
+                    onClick={() => {
+                      if (!window.confirm(`Force every user at "${selected.name}" to reset their password on next login? Everyone will also be logged out immediately.`)) return;
+                      runAction(selected._id, "forcePasswordReset", undefined, "All accounts must reset their password.");
+                    }}
                     disabled={acting}
                     className="py-2 bg-muted text-foreground font-bold rounded-lg text-xs hover:bg-muted/70 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
                   >
                     <Key size={12} /> Force Pwd Reset
                   </button>
                   <button
-                    onClick={() => runAction(selected._id, "freezeSubscription", undefined, "Subscription frozen.")}
+                    onClick={() => {
+                      if (!window.confirm(`Freeze "${selected.name}"'s subscription and suspend the shop? They will lose access until reactivated.`)) return;
+                      runAction(selected._id, "freezeSubscription", undefined, "Subscription frozen.");
+                    }}
                     disabled={acting}
                     className="py-2 bg-muted text-foreground font-bold rounded-lg text-xs hover:bg-muted/70 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
                   >
                     <Snowflake size={12} /> Freeze Sub
                   </button>
                   <button
-                    onClick={() => runAction(selected._id, "forceTrialEnd", undefined, "Trial ended — moved to free plan.")}
+                    onClick={() => {
+                      if (!window.confirm(`End "${selected.name}"'s trial now and move them to the free plan?`)) return;
+                      runAction(selected._id, "forceTrialEnd", undefined, "Trial ended — moved to free plan.");
+                    }}
                     disabled={acting}
                     className="py-2 bg-muted text-foreground font-bold rounded-lg text-xs hover:bg-muted/70 transition-all disabled:opacity-60 flex items-center justify-center gap-1.5"
                   >

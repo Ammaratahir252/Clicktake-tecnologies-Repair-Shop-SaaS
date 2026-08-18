@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import api from "@/lib/api";
-import { Loader2, ArrowLeft, Clock, Save, UserPlus, MessageSquare, Images, DollarSign, Package, Timer } from "lucide-react";
+import { Loader2, ArrowLeft, Clock, Save, UserPlus, MessageSquare, Images, DollarSign, Package, Timer, Receipt } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import { TICKET_STATUS_TRANSITIONS, TicketStatus } from "@/lib/enums";
 
@@ -54,6 +55,15 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
   const [laborSeconds, setLaborSeconds] = useState<number | null>(null);
   const [laborSessions, setLaborSessions] = useState(0);
 
+  // Job Completion — Cost & Revenue (owner/manager, once ready/delivered)
+  const [actualCostInput, setActualCostInput] = useState("");
+  const [costLoading, setCostLoading] = useState(false);
+  const [payment, setPayment] = useState<any>(null);
+  const [payMethod, setPayMethod] = useState<"cash" | "card" | "easypaisa" | "jazzcash">("cash");
+  const [amountReceivedInput, setAmountReceivedInput] = useState("");
+  const [recordingPayment, setRecordingPayment] = useState(false);
+  const [canRecordRevenue, setCanRecordRevenue] = useState(true);
+
   const canAssign = userRole === "owner" || userRole === "manager";
   const canSetEstimate = userRole === "owner" || userRole === "manager" || userRole === "technician";
   const canUseParts = ["owner", "manager", "technician"].includes(userRole);
@@ -70,10 +80,13 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
     }
   }, [ticketId]);
 
+  // "Assign To" — any staff member (technician, frontdesk, manager, driver), not
+  // just technicians, so a manager can hand a ticket to whoever should own it.
   const fetchTechnicians = useCallback(async () => {
     try {
-      const res = await api.get("/api/users?role=technician");
-      setTechnicians(res.data.data || []);
+      const res = await api.get("/api/users");
+      const staff = (res.data.data || []).filter((u: any) => u.role !== "customer");
+      setTechnicians(staff);
     } catch {
       // silent fail for tech fetch
     }
@@ -108,16 +121,33 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
     }
   }, [ticketId]);
 
+  const fetchPayment = useCallback(async () => {
+    try {
+      const res = await api.get(`/api/payments?ticketId=${ticketId}`);
+      const payments: any[] = res.data.data || [];
+      setPayment(payments.find((p) => p.status === "completed") ?? null);
+    } catch {
+      // silent fail — revenue card just shows the "record payment" form
+    }
+  }, [ticketId]);
+
   useEffect(() => {
     fetchTicket();
     if (canAssign) { fetchTechnicians(); fetchDrivers(); }
     if (canUseParts) fetchParts();
     if (canSeeLabor) fetchLabor();
-    // canAssign/canUseParts/canSeeLabor are derived from the userRole prop, which
-    // doesn't change for a mounted ticket-detail view — the fetch* functions are
-    // the only real dependencies, and they're stable via useCallback above.
+    if (canAssign) fetchPayment();
+    if (userRole === "manager") {
+      api
+        .get("/api/tenant/branding")
+        .then((res) => setCanRecordRevenue(res.data?.data?.branding?.managerPermissions?.recordRevenue ?? true))
+        .catch(() => setCanRecordRevenue(true));
+    }
+    // canAssign/canUseParts/canSeeLabor/userRole are derived from the userRole prop,
+    // which doesn't change for a mounted ticket-detail view — the fetch* functions
+    // are the only real dependencies, and they're stable via useCallback above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchTicket, fetchTechnicians, fetchDrivers, fetchParts, fetchLabor]);
+  }, [fetchTicket, fetchTechnicians, fetchDrivers, fetchParts, fetchLabor, fetchPayment]);
 
   const handleUsePart = async () => {
     const qty = parseInt(partQty, 10);
@@ -194,6 +224,35 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
       alert(err.response?.data?.message || "Failed to set estimate");
     } finally {
       setEstimateLoading(false);
+    }
+  };
+
+  const handleSetActualCost = async () => {
+    const amount = Number(actualCostInput);
+    if (!actualCostInput || Number.isNaN(amount) || amount < 0) return;
+    setCostLoading(true);
+    try {
+      await api.patch(`/api/tickets/${ticketId}/cost`, { actualCost: amount });
+      setActualCostInput("");
+      await fetchTicket();
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to record cost");
+    } finally {
+      setCostLoading(false);
+    }
+  };
+
+  const handleRecordPayment = async () => {
+    setRecordingPayment(true);
+    try {
+      const amountReceived = amountReceivedInput ? Number(amountReceivedInput) : undefined;
+      await api.post(`/api/tickets/${ticketId}/payment`, { method: payMethod, amountReceived });
+      setAmountReceivedInput("");
+      await Promise.all([fetchTicket(), fetchPayment()]);
+    } catch (err: any) {
+      alert(err.response?.data?.message || "Failed to record payment");
+    } finally {
+      setRecordingPayment(false);
     }
   };
 
@@ -312,9 +371,15 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                     href={photo.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="block relative rounded-xl overflow-hidden border border-slate-100 group"
+                    className="block relative h-28 rounded-xl overflow-hidden border border-slate-100 group"
                   >
-                    <img src={photo.url} alt={photo.type} className="w-full h-28 object-cover group-hover:scale-105 transition-transform" />
+                    <Image
+                      src={photo.url}
+                      alt={photo.type}
+                      fill
+                      sizes="(min-width: 640px) 33vw, 50vw"
+                      className="object-cover group-hover:scale-105 transition-transform"
+                    />
                     <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
                       <p className="text-white text-[10px] font-bold capitalize">{photo.type} · {photo.uploadedByName}</p>
                     </div>
@@ -484,7 +549,7 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
             </div>
           )}
 
-          {/* SECTION 4: Technician Assignment */}
+          {/* SECTION 4: Assignment — any staff member (technician/frontdesk/manager/driver) */}
           {canAssign && (
             <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
               <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -504,9 +569,9 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                     onChange={e => setSelectedTech(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-semibold text-slate-700"
                   >
-                    <option value="">Select Technician...</option>
+                    <option value="">Select staff member...</option>
                     {technicians.map(t => (
-                      <option key={t._id} value={t._id}>{t.name}</option>
+                      <option key={t._id} value={t._id}>{t.name} ({t.role})</option>
                     ))}
                   </select>
                   <button
@@ -514,7 +579,7 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                     disabled={!selectedTech || assignLoading}
                     className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm"
                   >
-                    {assignLoading ? "Assigning..." : "Assign Technician"}
+                    {assignLoading ? "Assigning..." : "Assign"}
                   </button>
                 </div>
               )}
@@ -557,6 +622,113 @@ export default function TicketDetail({ ticketId, rolePath, userRole }: TicketDet
                   <p className="text-xs text-slate-400 text-center">No driver accounts on this shop yet.</p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* SECTION 5.7: Job Completion — Cost & Revenue */}
+          {canAssign && (ticket.status === "ready" || ticket.status === "delivered") && (
+            <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm">
+              <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                <Receipt size={16} /> Job Completion — Cost &amp; Revenue
+              </h2>
+
+              {!canRecordRevenue ? (
+                <p className="text-xs text-slate-400 italic">
+                  Your shop owner has not enabled cost/revenue recording for managers.
+                </p>
+              ) : (
+                <div className="space-y-5">
+                  {/* Actual Cost */}
+                  <div>
+                    <span className="block text-xs font-bold text-slate-400 mb-1.5">Actual Cost (parts + labor)</span>
+                    {ticket.actualCost != null ? (
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold text-slate-900">{ticket.actualCost.toLocaleString()}</span>
+                        <button
+                          onClick={() => setActualCostInput(String(ticket.actualCost))}
+                          className="text-xs font-bold text-blue-600 hover:text-blue-700"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    ) : null}
+                    {(ticket.actualCost == null || actualCostInput !== "") && (
+                      <div className="flex gap-2 mt-1.5">
+                        <input
+                          type="number"
+                          min="0"
+                          value={actualCostInput}
+                          onChange={(e) => setActualCostInput(e.target.value)}
+                          placeholder="Enter actual cost"
+                          className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-semibold text-slate-700"
+                        />
+                        <button
+                          onClick={handleSetActualCost}
+                          disabled={!actualCostInput || costLoading}
+                          className="bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm shrink-0"
+                        >
+                          {costLoading ? "Saving..." : "Save"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Revenue / Payment */}
+                  <div>
+                    <span className="block text-xs font-bold text-slate-400 mb-1.5">Revenue (customer payment)</span>
+                    {payment ? (
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl px-4 py-3">
+                        <p className="text-sm font-bold text-emerald-700">
+                          Paid {payment.amount?.toLocaleString()} via {payment.gateway}
+                        </p>
+                      </div>
+                    ) : !ticket.estimateAmount ? (
+                      <p className="text-xs text-slate-400 italic">This ticket has no estimate to collect payment against.</p>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-4 gap-2">
+                          {(["cash", "card", "easypaisa", "jazzcash"] as const).map((m) => (
+                            <button
+                              key={m}
+                              onClick={() => setPayMethod(m)}
+                              className={`px-2 py-2 rounded-lg text-xs font-bold capitalize transition-all ${
+                                payMethod === m ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                              }`}
+                            >
+                              {m}
+                            </button>
+                          ))}
+                        </div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={amountReceivedInput}
+                          onChange={(e) => setAmountReceivedInput(e.target.value)}
+                          placeholder={`Amount received (optional, est. ${ticket.estimateAmount.toLocaleString()})`}
+                          className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm font-semibold text-slate-700"
+                        />
+                        <button
+                          onClick={handleRecordPayment}
+                          disabled={recordingPayment}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm"
+                        >
+                          {recordingPayment ? "Recording..." : "Record Payment"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Profit readout */}
+                  {ticket.actualCost != null && payment && (
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Profit</span>
+                      <span className="font-black text-slate-900">
+                        {(payment.amount - ticket.actualCost).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

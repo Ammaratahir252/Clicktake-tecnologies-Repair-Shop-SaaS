@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Wrench, Menu, X, ChevronDown } from "lucide-react";
 import { NAV_LINKS } from "../data";
 import { THEME } from "../../components/theme";
@@ -43,7 +44,7 @@ export default function Header() {
         {/* ── Logo ── */}
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none" }}>
           <div style={{
-            width: 46, height: 46,
+            position: "relative", width: 46, height: 46,
             background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
             border: branding.logoUrl ? `1px solid ${BORDER}` : "none",
             borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center",
@@ -51,7 +52,7 @@ export default function Header() {
             flexShrink: 0, overflow: "hidden",
           }}>
             {branding.logoUrl
-              ? <img src={branding.logoUrl} alt={companyName} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+              ? <Image src={branding.logoUrl} alt={companyName} fill sizes="46px" style={{ objectFit: "contain" }} />
               : <Wrench size={20} color="#fff" />}
           </div>
           <div>

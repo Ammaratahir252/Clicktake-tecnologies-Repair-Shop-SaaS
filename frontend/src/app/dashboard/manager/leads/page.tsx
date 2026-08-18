@@ -3,7 +3,7 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
-import { Plus, Search, Phone, Mail, User, ChevronRight, Target, Clock, Loader2, X } from "lucide-react";
+import { Plus, Search, Phone, Mail, User, ChevronRight, Target, Clock, Loader2, X, UserPlus, ChevronDown } from "lucide-react";
 
 const LEAD_STATUSES = [
   { key: "new",       label: "New",       color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"         },
@@ -41,6 +41,12 @@ function LeadsContent() {
   const [saving, setSaving]     = useState(false);
   const [updating, setUpdating] = useState<string | null>(null);
 
+  // Assignment (owner-controlled via Manager Permissions → "Assign tickets & leads")
+  const [team, setTeam]           = useState<any[]>([]);
+  const [canAssign, setCanAssign] = useState<boolean | null>(null);
+  const [assignTo, setAssignTo]   = useState("");
+  const [assigning, setAssigning] = useState(false);
+
   const fetchLeads = useCallback(async () => {
     try {
       const res = await api.get("/api/leads");
@@ -52,7 +58,41 @@ function LeadsContent() {
     }
   }, []);
 
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+  const fetchTeam = useCallback(async () => {
+    try {
+      const res = await api.get("/api/users");
+      setTeam(res.data?.data ?? []);
+    } catch {
+      setTeam([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLeads();
+    fetchTeam();
+    api
+      .get("/api/tenant/branding")
+      .then((res) => setCanAssign(res.data?.data?.branding?.managerPermissions?.assignWork ?? true))
+      .catch(() => setCanAssign(true));
+  }, [fetchLeads, fetchTeam]);
+
+  useEffect(() => {
+    setAssignTo(selected?.assignedTo ?? "");
+  }, [selected]);
+
+  const handleAssign = async () => {
+    if (!selected) return;
+    setAssigning(true);
+    try {
+      const res = await api.patch(`/api/leads/${selected._id}`, { assignedTo: assignTo || undefined });
+      setLeads((prev) => prev.map((l) => (l._id === selected._id ? { ...l, assignedTo: assignTo } : l)));
+      setSelected((s: any) => (s ? { ...s, assignedTo: assignTo } : s));
+    } catch {
+      // silently fail — form just stays as-is
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const handleAddLead = async () => {
     if (!form.name || !form.phone || !form.device || !form.issue || !form.source) return;
@@ -225,12 +265,51 @@ function LeadsContent() {
                   </span>
                 </div>
               </div>
+              {selected.deliveryType === "doorstep" && (
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 space-y-1">
+                  <p className="text-xs font-black text-rose-600 uppercase tracking-wide">Doorstep Pickup Requested</p>
+                  <p className="text-sm font-semibold text-foreground">{selected.deliveryAddress}</p>
+                  {selected.preferredTime && (
+                    <p className="text-xs text-muted-foreground">Preferred time: {selected.preferredTime}</p>
+                  )}
+                </div>
+              )}
               <div className="bg-muted rounded-xl p-3 space-y-1 text-sm">
                 <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide">Device</p>
                 <p className="font-bold text-foreground">{selected.device}</p>
                 <p className="text-muted-foreground">{selected.issue}</p>
                 <p className="text-xs text-muted-foreground mt-1">Source: {selected.source}</p>
               </div>
+
+              {canAssign && (
+                <div>
+                  <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                    <UserPlus size={12} /> Assign To
+                  </p>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <select
+                        value={assignTo}
+                        onChange={(e) => setAssignTo(e.target.value)}
+                        className="w-full pl-3 pr-8 py-2 bg-muted border border-border rounded-lg text-xs font-semibold text-foreground focus:outline-none focus:ring-2 focus:ring-primary appearance-none"
+                      >
+                        <option value="">Unassigned</option>
+                        {team.map((m) => (
+                          <option key={m.id ?? m._id} value={m.id ?? m._id}>{m.name} ({m.role})</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    </div>
+                    <button
+                      onClick={handleAssign}
+                      disabled={assigning}
+                      className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-xs font-bold hover:opacity-90 disabled:opacity-60 transition-all"
+                    >
+                      {assigning ? "…" : "Save"}
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide mb-2">Update Status</p>

@@ -1,0 +1,154 @@
+name: Deploy to cPanel
+
+# Shared cPanel hosting, no Docker/root — both apps run under cPanel's
+# "Setup Node.js App" (Phusion Passenger). This workflow builds both apps here
+# (so the resource-capped shared box never runs `npm install`/`next build`
+# itself), ships only the built artifacts over SSH, writes runtime secrets
+# into a .env file next to each app (Next's standalone server and the
+# backend's own dotenv.config() both auto-load .env at process start), then
+# restarts each app the standard Passenger way: touching tmp/restart.txt.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-cpanel-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    env:
+      # ── Frontend runtime/build secrets ──────────────────────────────────
+      MONGODB_URI: ${{ secrets.MONGODB_URI }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+      JWT_EXPIRES_IN: ${{ vars.JWT_EXPIRES_IN || '1h' }}
+      SESSION_INACTIVITY_TIMEOUT: ${{ vars.SESSION_INACTIVITY_TIMEOUT || '900' }}
+      ENCRYPTION_KEY: ${{ secrets.ENCRYPTION_KEY }}
+      ENCRYPTION_IV: ${{ secrets.ENCRYPTION_IV }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+      CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+      CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+      NEXT_PUBLIC_MAPBOX_TOKEN: ${{ secrets.MAPBOX_TOKEN }}
+      STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+      STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+      STRIPE_WEBHOOK_SECRET: ${{ secrets.STRIPE_WEBHOOK_SECRET }}
+      STRIPE_PRICE_STARTER: ${{ vars.STRIPE_PRICE_STARTER }}
+      STRIPE_PRICE_PRO: ${{ vars.STRIPE_PRICE_PRO }}
+      STRIPE_PRICE_BUSINESS: ${{ vars.STRIPE_PRICE_BUSINESS }}
+      STRIPE_PRICE_ENTERPRISE: ${{ vars.STRIPE_PRICE_ENTERPRISE }}
+      PAYPAL_CLIENT_ID: ${{ secrets.PAYPAL_CLIENT_ID }}
+      PAYPAL_CLIENT_SECRET: ${{ secrets.PAYPAL_CLIENT_SECRET }}
+      PAYPAL_MODE: ${{ vars.PAYPAL_MODE || 'live' }}
+      JAZZCASH_MERCHANT_ID: ${{ secrets.JAZZCASH_MERCHANT_ID }}
+      JAZZCASH_PASSWORD: ${{ secrets.JAZZCASH_PASSWORD }}
+      JAZZCASH_INTEGRITY_SALT: ${{ secrets.JAZZCASH_INTEGRITY_SALT }}
+      JAZZCASH_ENVIRONMENT: ${{ vars.JAZZCASH_ENVIRONMENT || 'production' }}
+      EASYPAISA_STORE_ID: ${{ secrets.EASYPAISA_STORE_ID }}
+      EASYPAISA_USERNAME: ${{ secrets.EASYPAISA_USERNAME }}
+      EASYPAISA_PASSWORD: ${{ secrets.EASYPAISA_PASSWORD }}
+      EASYPAISA_HASH_KEY: ${{ secrets.EASYPAISA_HASH_KEY }}
+      EASYPAISA_ENVIRONMENT: ${{ vars.EASYPAISA_ENVIRONMENT || 'production' }}
+      BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+      RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+      MAILERSEND_API_KEY: ${{ secrets.MAILERSEND_API_KEY }}
+      MAILTRAP_API_KEY: ${{ secrets.MAILTRAP_API_KEY }}
+      MAILTRAP_INBOX_ID: ${{ secrets.MAILTRAP_INBOX_ID }}
+      EMAIL_PROVIDER_ORDER: ${{ vars.EMAIL_PROVIDER_ORDER || 'brevo,resend,mailersend,mailtrap' }}
+      NOTIFICATION_FROM_EMAIL: ${{ vars.NOTIFICATION_FROM_EMAIL }}
+      NOTIFICATION_FROM_NAME: ${{ vars.NOTIFICATION_FROM_NAME }}
+      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+      APP_URL: ${{ vars.APP_URL }}
+      BACKEND_URL: ${{ vars.BACKEND_URL }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
+      SHOP_POSTCODE: ${{ vars.SHOP_POSTCODE }}
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ── Build frontend (standalone output — see next.config.js) ──────────
+      - name: Install & build frontend
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Assemble frontend deploy bundle
+        working-directory: frontend
+        run: |
+          cp -r .next/static .next/standalone/.next/static
+          cp -r public .next/standalone/public
+          # Runtime secrets — @next/env auto-loads this from the standalone
+          # server's own directory on process start; never committed to git.
+          node -e "
+            const keys = ['MONGODB_URI','JWT_SECRET','JWT_REFRESH_SECRET','JWT_EXPIRES_IN','SESSION_INACTIVITY_TIMEOUT','ENCRYPTION_KEY','ENCRYPTION_IV','CRON_SECRET','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','GROQ_API_KEY','MAPBOX_TOKEN','NEXT_PUBLIC_MAPBOX_TOKEN','STRIPE_SECRET_KEY','STRIPE_PUBLISHABLE_KEY','STRIPE_WEBHOOK_SECRET','STRIPE_PRICE_STARTER','STRIPE_PRICE_PRO','STRIPE_PRICE_BUSINESS','STRIPE_PRICE_ENTERPRISE','PAYPAL_CLIENT_ID','PAYPAL_CLIENT_SECRET','PAYPAL_MODE','JAZZCASH_MERCHANT_ID','JAZZCASH_PASSWORD','JAZZCASH_INTEGRITY_SALT','JAZZCASH_ENVIRONMENT','EASYPAISA_STORE_ID','EASYPAISA_USERNAME','EASYPAISA_PASSWORD','EASYPAISA_HASH_KEY','EASYPAISA_ENVIRONMENT','BREVO_API_KEY','RESEND_API_KEY','MAILERSEND_API_KEY','MAILTRAP_API_KEY','MAILTRAP_INBOX_ID','EMAIL_PROVIDER_ORDER','NOTIFICATION_FROM_EMAIL','NOTIFICATION_FROM_NAME','SENTRY_DSN','APP_URL','BACKEND_URL','SHOP_POSTCODE','NODE_ENV'];
+            const fs = require('fs');
+            fs.writeFileSync('.next/standalone/.env.production', keys.map(k => k + '=' + (process.env[k] || '')).join('\n'));
+          "
+
+      # ── Build backend (plain tsc — no Docker on shared hosting) ──────────
+      - name: Install & build backend
+        working-directory: backend
+        run: |
+          npm ci
+          npm run build
+          npm ci --omit=dev
+
+      - name: Write backend runtime .env
+        working-directory: backend
+        run: |
+          node -e "
+            const keys = ['MONGODB_URI','REDIS_URL','CLOUDINARY_CLOUD_NAME','CLOUDINARY_API_KEY','CLOUDINARY_API_SECRET','NODE_ENV'];
+            const fs = require('fs');
+            fs.writeFileSync('.env', keys.map(k => k + '=' + (process.env[k] || '')).join('\n') + '\nALLOWED_ORIGINS=' + (process.env.APP_URL || ''));
+          "
+
+      # ── Ship to cPanel over SSH ───────────────────────────────────────────
+      - name: Add SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.CPANEL_SSH_KEY }}
+
+      - name: Trust host key
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Rsync frontend
+        run: |
+          rsync -az --delete -e "ssh -p ${{ secrets.CPANEL_SSH_PORT }}" \
+            frontend/.next/standalone/ \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_HOST }}:${{ secrets.CPANEL_FRONTEND_APP_ROOT }}/"
+
+      - name: Rsync backend
+        run: |
+          rsync -az --delete -e "ssh -p ${{ secrets.CPANEL_SSH_PORT }}" \
+            backend/dist backend/node_modules backend/package.json backend/package-lock.json backend/.env \
+            "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_HOST }}:${{ secrets.CPANEL_BACKEND_APP_ROOT }}/"
+
+      - name: Restart both Passenger apps
+        run: |
+          ssh -p "${{ secrets.CPANEL_SSH_PORT }}" "${{ secrets.CPANEL_SSH_USER }}@${{ secrets.CPANEL_HOST }}" "
+            mkdir -p '${{ secrets.CPANEL_FRONTEND_APP_ROOT }}/tmp' '${{ secrets.CPANEL_BACKEND_APP_ROOT }}/tmp' &&
+            touch '${{ secrets.CPANEL_FRONTEND_APP_ROOT }}/tmp/restart.txt' &&
+            touch '${{ secrets.CPANEL_BACKEND_APP_ROOT }}/tmp/restart.txt'
+          "
+
+      - name: Smoke test
+        run: |
+          sleep 15
+          curl --fail --retry 5 --retry-delay 5 "${{ vars.APP_URL }}/api/health"
+          curl --fail --retry 5 --retry-delay 5 "${{ vars.BACKEND_URL }}/health"

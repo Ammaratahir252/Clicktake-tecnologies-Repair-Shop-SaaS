@@ -181,7 +181,7 @@ const schema = new Schema<IPlatformSettings>(
     },
 
     aiProvider: { type: String, default: 'groq' },
-    aiModel:    { type: String, default: 'llama-3.3-70b-versatile' },
+    aiModel:    { type: String, default: 'openai/gpt-oss-120b' },
     aiDailyBudgetUsd: { type: Number, default: 0 },
     aiMonthlyBudgetUsd: { type: Number, default: 0 },
     aiDisabledPlans: { type: [String], default: [] },

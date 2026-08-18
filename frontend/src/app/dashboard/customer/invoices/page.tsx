@@ -12,6 +12,7 @@ import {
   Smartphone, Info, Printer, DollarSign, AlertTriangle, X, Loader2,
 } from 'lucide-react'
 import api from '@/lib/api'
+import { useTenantCurrency } from '@/lib/useTenantCurrency'
 
 type PaymentStatus = 'paid' | 'unpaid' | 'partial'
 
@@ -61,6 +62,7 @@ export default function InvoicesPage() {
 }
 
 function InvoicesContent() {
+  const { format, formatCompact } = useTenantCurrency()
   const [invoices, setInvoices]   = useState<Invoice[]>([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
@@ -132,21 +134,21 @@ function InvoicesContent() {
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground mb-1">Total Invoiced</p>
-            <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400">Rs. {(totalInvoiced / 1000).toFixed(1)}k</h3>
+            <h3 className="text-2xl font-bold text-blue-600 dark:text-blue-400">{formatCompact(totalInvoiced)}</h3>
             <Progress value={100} className="mt-2 h-1" />
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-green-500">
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground mb-1">Total Paid</p>
-            <h3 className="text-2xl font-bold text-green-600 dark:text-green-400">Rs. {(totalPaid / 1000).toFixed(1)}k</h3>
+            <h3 className="text-2xl font-bold text-green-600 dark:text-green-400">{formatCompact(totalPaid)}</h3>
             <Progress value={totalInvoiced ? Math.round((totalPaid / totalInvoiced) * 100) : 0} className="mt-2 h-1" />
           </CardContent>
         </Card>
         <Card className="border-l-4 border-l-red-500">
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground mb-1">Balance Due</p>
-            <h3 className="text-2xl font-bold text-red-600 dark:text-red-400">Rs. {(totalPending / 1000).toFixed(1)}k</h3>
+            <h3 className="text-2xl font-bold text-red-600 dark:text-red-400">{formatCompact(totalPending)}</h3>
             <Progress value={totalInvoiced ? Math.round((totalPending / totalInvoiced) * 100) : 0} className="mt-2 h-1" />
           </CardContent>
         </Card>
@@ -233,7 +235,7 @@ function InvoicesContent() {
                         </td>
                         <td className="px-4 py-3 text-sm">{inv.issuedDate}</td>
                         <td className="px-4 py-3 font-semibold text-sm">
-                          {inv.amount ? `Rs. ${inv.amount.toLocaleString()}` : '—'}
+                          {inv.amount ? format(inv.amount) : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <Button variant="ghost" size="sm" onClick={() => setSelected(inv)}>
@@ -300,7 +302,7 @@ function InvoicesContent() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Amount</p>
-                  <p className="text-2xl font-bold text-primary">Rs. {selected.amount.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-primary">{format(selected.amount)}</p>
                 </div>
               </div>
 

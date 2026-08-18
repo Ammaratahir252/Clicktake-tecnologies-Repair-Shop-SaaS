@@ -109,7 +109,7 @@ function ForecastContent() {
             <BarChart2 size={22} className="text-primary" /> Demand Forecaster
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            AI analyses your real inventory &amp; usage data · Powered by Claude
+            AI analyses your real inventory &amp; usage data · Powered by Groq
           </p>
         </div>
         <button

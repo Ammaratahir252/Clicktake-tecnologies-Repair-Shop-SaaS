@@ -3,6 +3,10 @@ import connectDB from '@/lib/db';
 import { sendResponse } from '@/utils/apiResponse';
 import Tenant from '@/models/tenant.model';
 
+// Queries live tenant data per-request (search params, DB) — must never be
+// statically prerendered at build time (no DB access should happen then).
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/shops
  * Public endpoint — no auth required.

@@ -41,6 +41,9 @@ interface Lead {
   assignedTo?: string;
   assignedName?: string;
   notes?: string;
+  deliveryType?: "drop-off" | "doorstep";
+  deliveryAddress?: string;
+  preferredTime?: string;
   createdAt: string;
 }
 
@@ -408,6 +411,17 @@ function LeadsContent({ owner }: { owner: any }) {
             </div>
 
             <div className="p-6 space-y-4">
+              {/* Doorstep pickup requested via self-serve booking */}
+              {editingLead.deliveryType === "doorstep" && (
+                <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 space-y-1">
+                  <p className="text-xs font-black text-rose-600 uppercase tracking-wide">Doorstep Pickup Requested</p>
+                  <p className="text-sm font-semibold text-foreground">{editingLead.deliveryAddress}</p>
+                  {editingLead.preferredTime && (
+                    <p className="text-xs text-muted-foreground">Preferred time: {editingLead.preferredTime}</p>
+                  )}
+                </div>
+              )}
+
               {/* Status */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Status</label>

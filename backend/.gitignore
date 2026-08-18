@@ -7,4 +7,3 @@ logs/
 coverage/
 
 .env
-.vercel

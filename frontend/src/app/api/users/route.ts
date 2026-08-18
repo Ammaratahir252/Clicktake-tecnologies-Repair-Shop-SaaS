@@ -9,7 +9,10 @@ import jwt from 'jsonwebtoken'; // ✅ Added to securely extract the role if req
 import { permissionMiddleware } from '@/middleware/permissionMiddleware';
 import { ACTION_STRINGS } from '@/lib/permissions';
 import { createAuditLog } from '@/services/auditLog.service';
-import { AUDIT_ACTIONS } from '@/models/auditLog.model'; 
+import { AUDIT_ACTIONS } from '@/models/auditLog.model';
+import { getManagerPermissions } from '@/lib/managerPermissions';
+
+const CREATABLE_STAFF_ROLES = new Set(['manager', 'frontdesk', 'technician', 'driver']);
 
 /**
  * Helper function to safely inject user context from Bearer token into req object
@@ -82,8 +85,23 @@ export async function POST(req: NextRequest) {
     if (permissionError) return permissionError;
 
     const tenantId = req.headers.get('x-tenant-id');
+    const requesterRole = req.headers.get('x-role');
+
+    // Owner-controlled: a manager can only create staff accounts if the owner has
+    // explicitly enabled it (Owner Settings → Manager Permissions).
+    if (requesterRole === 'manager') {
+      const perms = await getManagerPermissions(tenantId as string);
+      if (!perms.editTeam) {
+        return sendResponse(false, 'Your shop owner has not enabled staff account creation for managers', null, 403);
+      }
+    }
+
     const body = await req.json();
     const { name, email, password, role } = body;
+
+    if (!CREATABLE_STAFF_ROLES.has(role)) {
+      return sendResponse(false, 'Invalid role for a staff account', null, 400);
+    }
 
     // Security: Check if a user with the same email already exists in this tenant
     const existingUser = await User.findOne({ email, tenantId });
@@ -100,6 +118,9 @@ export async function POST(req: NextRequest) {
       email,
       password: hashedPassword,
       role,
+      // The form labels this a "Temporary Password" — actually enforce that by
+      // requiring the new hire to set their own password on first login.
+      forcePasswordReset: true,
     });
 
     /**

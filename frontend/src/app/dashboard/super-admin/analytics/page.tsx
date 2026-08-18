@@ -317,10 +317,11 @@ function AnalyticsContent() {
               </div>
             ) : shopStats ? (
               <>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                   {[
                     { label: "Tickets", value: shopStats.totalTickets },
-                    { label: "Revenue", value: `Rs. ${(shopStats.totalRevenue / 1000).toFixed(1)}K` },
+                    { label: "Collected", value: `Rs. ${(shopStats.collectedRevenue / 1000).toFixed(1)}K` },
+                    { label: "Quoted", value: `Rs. ${(shopStats.totalRevenue / 1000).toFixed(1)}K` },
                     { label: "Staff", value: shopStats.staffCount },
                     { label: "Customers", value: shopStats.customerCount },
                   ].map(({ label, value }) => (

@@ -10,10 +10,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   await connectDB();
   try {
     const body = await req.json();
-    const { subdomain, name, phone, email, device, issue, source = 'website' } = body;
+    const {
+      subdomain, name, phone, email, device, issue, source = 'website',
+      deliveryType, deliveryAddress, preferredTime,
+    } = body;
 
     if (!subdomain || !name || !phone || !device || !issue) {
       return sendResponse(false, 'subdomain, name, phone, device, issue are required', null, 400);
+    }
+    if (deliveryType === 'doorstep' && !deliveryAddress) {
+      return sendResponse(false, 'deliveryAddress is required for doorstep collection', null, 400);
     }
 
     const tenant = await Tenant.findOne({ subdomain, isActive: true });
@@ -27,11 +33,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       leadNumber,
       name, phone, email, device, issue, source,
       status: 'new',
+      ...(deliveryType ? { deliveryType, deliveryAddress, preferredTime } : {}),
     });
 
     return sendResponse(true, 'Repair request submitted successfully. The shop will contact you shortly.', {
       leadNumber: lead.leadNumber,
       shopName: tenant.name,
+      deliveryType: lead.deliveryType ?? 'drop-off',
     }, 201);
   } catch (err: any) {
     return sendResponse(false, err.message ?? 'Server error', null, 500);

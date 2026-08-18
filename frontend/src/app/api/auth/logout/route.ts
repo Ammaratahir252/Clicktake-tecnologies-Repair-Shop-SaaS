@@ -34,8 +34,14 @@ export async function POST(req: NextRequest) {
       if (user) {
         const logoutIp = req.headers.get('x-forwarded-for') || 'unknown';
 
-        user.tokenVersion = (user.tokenVersion || 0) + 1;
-        await user.save();
+        // Deliberately NOT bumping tokenVersion here — it's a single counter
+        // shared by every device's JWT for this user, so bumping it on an
+        // ordinary single-device logout would silently kick every OTHER
+        // device (e.g. a technician's phone logging out would also log the
+        // front-desk computer out). The cookie clear above already ends this
+        // device's session; tokenVersion stays reserved for real security
+        // actions (password change, permission edit, admin force-logout) that
+        // are genuinely meant to invalidate every session at once.
 
         createAuditLog({
           tenantId: user.tenantId ? user.tenantId.toString() : undefined,

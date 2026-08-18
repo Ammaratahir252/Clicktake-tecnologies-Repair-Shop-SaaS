@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Wrench, X, Mail, Phone } from "lucide-react";
+import Image from "next/image";
+import { Wrench, Mail, Phone } from "lucide-react";
 import { THEME } from "../../components/theme";
 import DemoRequestModal from "../../components/DemoRequestModal";
 import { useBranding } from "@/lib/useBranding";
@@ -55,10 +56,7 @@ const FOOTER_COLS: { heading: string; links: FooterLink[] }[] = [
   },
 ];
 
-const SOCIAL = [
-  { icon: X,         label: "Twitter / X" },
 
-];
 
 export default function Footer() {
   const [demoOpen, setDemoOpen] = useState(false);
@@ -94,14 +92,14 @@ export default function Footer() {
           <div>
             <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12, textDecoration: "none", marginBottom: 20 }}>
               <div style={{
-                width: 46, height: 46,
+                position: "relative", width: 46, height: 46,
                 background: branding.logoUrl ? "#fff" : `linear-gradient(135deg,${ACCENT},${ACCENT2})`,
                 border: branding.logoUrl ? "1px solid rgba(255,255,255,0.15)" : "none",
                 borderRadius: 13, display: "flex", alignItems: "center", justifyContent: "center",
                 boxShadow: `0 6px 18px rgba(29,78,216,0.28)`, flexShrink: 0, overflow: "hidden",
               }}>
                 {branding.logoUrl
-                  ? <img src={branding.logoUrl} alt={companyName} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                  ? <Image src={branding.logoUrl} alt={companyName} fill sizes="46px" style={{ objectFit: "contain" }} />
                   : <Wrench size={20} color="#fff" />}
               </div>
               <div>
@@ -127,29 +125,7 @@ export default function Footer() {
             </div>
 
             {/* Socials */}
-            <div style={{ display: "flex", gap: 9 }}>
-              {SOCIAL.map(({ icon: Icon, label }) => (
-                <button key={label} aria-label={label} style={{
-                  width: 36, height: 36, borderRadius: 10,
-                  background: "rgba(255,255,255,0.05)",
-                  border: "1px solid rgba(255,255,255,0.08)",
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", color: "#57534e",
-                  transition: "all 0.2s",
-                }}
-                  onMouseEnter={e => {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.12)";
-                    (e.currentTarget as HTMLElement).style.color = "#d6cdc4";
-                  }}
-                  onMouseLeave={e => {
-                    (e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.05)";
-                    (e.currentTarget as HTMLElement).style.color = "#57534e";
-                  }}
-                >
-                  <Icon size={15} />
-                </button>
-              ))}
-            </div>
+            
           </div>
 
           {/* Link cols */}

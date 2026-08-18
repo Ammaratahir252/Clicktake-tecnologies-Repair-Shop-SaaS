@@ -5,6 +5,8 @@ import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
 import PlatformSettings from "@/models/platformSettings.model";
 import { sendResponse } from "@/utils/apiResponse";
+import { getTenantOwnerNotificationSettings } from "@/lib/notifications";
+import { currencySymbol } from "@/lib/currency";
 
 function getTenantId(req: NextRequest): string {
   return req.headers.get("x-tenant-id") ?? "";
@@ -55,12 +57,13 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         .lean();
 
       if (ticket) {
+        const { currency } = await getTenantOwnerNotificationSettings(tenantId);
         ticketContext = `Ticket found:
 - Number: ${(ticket as any).ticketNumber}
 - Device: ${(ticket as any).deviceBrand} ${(ticket as any).deviceModel}
 - Issue: ${(ticket as any).issue}
 - Current Status: ${(ticket as any).status}
-- Estimate: PKR ${(ticket as any).estimateAmount ?? "Pending"}
+- Estimate: ${(ticket as any).estimateAmount != null ? `${currencySymbol(currency)} ${(ticket as any).estimateAmount}` : "Pending"}
 - Created: ${new Date((ticket as any).createdAt).toLocaleDateString()}`;
       } else {
         ticketContext = `No ticket found with number ${ticketNumber} for this shop.`;
@@ -85,6 +88,7 @@ Warranty: 30-day warranty on all repairs`;
     const response = await groq.chat.completions.create({
       model: AI_MODEL,
       max_tokens: 512,
+      reasoning_effort: "low" as any,
       messages: [
         {
           role: "system",

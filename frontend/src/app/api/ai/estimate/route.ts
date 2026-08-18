@@ -1,19 +1,21 @@
 /**
  * app/api/ai/estimate/route.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * NOW USES: OpenAI GPT-4o-mini (ChatGPT)
- * WHY: GPT-4o-mini produces the most reliable cost number ranges in JSON.
- *      Cost: ~$0.0001 per call — practically free for a repair shop.
+ * Uses Groq (see lib/ai/providers.ts header for why — "Groq only" product
+ * direction; this previously called OpenAI, which broke once that API key's
+ * quota ran out, so every estimate request failed with the same error).
  *
  * RBAC: technician, manager, owner
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { callOpenAI, parseAIJson } from "@/lib/ai/providers";
+import { callGroq, parseAIJson } from "@/lib/ai/providers";
 import { buildEstimateSystemPrompt } from "@/lib/ai/prompts";
 import connectDB from "@/lib/db";
 import Ticket from "@/models/ticket.model";
 import { sendResponse } from "@/utils/apiResponse";
+import { getTenantOwnerNotificationSettings } from "@/lib/notifications";
+import { currencySymbol } from "@/lib/currency";
 
 function getCtx(req: NextRequest) {
   return {
@@ -62,12 +64,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       .limit(50)
       .lean();
 
+    const { currency } = await getTenantOwnerNotificationSettings(tenantId);
+    const curSym = currencySymbol(currency);
+
     const historicalContext =
       historicalTickets.length > 0
         ? historicalTickets
             .map(
               (t) =>
-                `${t.deviceBrand} ${t.deviceModel}: "${t.issue}" → PKR ${(t as any).estimateAmount} | Parts: ${
+                `${t.deviceBrand} ${t.deviceModel}: "${t.issue}" → ${curSym} ${(t as any).estimateAmount} | Parts: ${
                   ((t as any).partsUsed as any[])?.length > 0
                     ? ((t as any).partsUsed as any[]).map((p: any) => p.name).join(", ")
                     : "none"
@@ -76,7 +81,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             .join("\n")
         : "No historical estimate data available for this shop yet.";
 
-    const aiResponse = await callOpenAI(
+    const aiResponse = await callGroq(
       [
         { role: "system", content: buildEstimateSystemPrompt(historicalContext) },
         {

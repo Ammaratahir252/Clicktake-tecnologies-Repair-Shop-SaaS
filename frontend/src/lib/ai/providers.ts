@@ -1,17 +1,20 @@
 /**
  * lib/ai/providers.ts
  * ─────────────────────────────────────────────────────────────────────────────
- * Unified AI Provider — Groq + OpenAI (ChatGPT) + Google Gemini
- *
- * PURPOSE MAP:
- *   🟣 Groq  (llama-3.3-70b)   — chat, automation validation  (fastest, free)
- *   🟢 Gemini (gemini-1.5-flash) — diagnostic, forecast       (huge context)
- *   🔵 OpenAI (gpt-4o-mini)    — estimate                     (best numbers)
+ * AI Provider helpers. Per explicit product direction ("no Anthropic, Groq
+ * only" — see project memory 2026-07-14), every shop-facing AI feature (chat,
+ * diagnostic, estimate, forecast, automation validation) runs on Groq.
+ * callOpenAI/callGemini remain available below for the platform-level,
+ * admin-configurable AI report feature (lib/ai/client.ts) — they are NOT used
+ * by any shop-facing route, and were previously mis-wired into diagnostic/
+ * estimate/forecast, which broke those features entirely once Gemini retired
+ * gemini-1.5-flash and the configured OpenAI key ran out of quota. Fixed
+ * 2026-08-17: diagnostic/estimate/forecast now all call Groq, matching chat.
  *
  * ENV VARS REQUIRED in frontend/.env.local:
- *   GROQ_API_KEY=gsk_...
- *   OPENAI_API_KEY=sk-proj-...
- *   GEMINI_API_KEY=AIzaSy...
+ *   GROQ_API_KEY=gsk_...      (required — every shop-facing AI feature)
+ *   OPENAI_API_KEY=sk-proj... (optional — only for the super-admin AI report)
+ *   GEMINI_API_KEY=AIzaSy...  (optional — only for the super-admin AI report)
  */
 
 import "server-only";
@@ -27,9 +30,9 @@ export type AIResponse = {
   model: string;
 };
 
-// ─── GROQ — Ultra-fast Llama 3.3 70B ─────────────────────────────────────────
+// ─── GROQ — gpt-oss-120b (llama-3.3-70b-versatile was retired 2026-08) ───────
 
-export const GROQ_MODEL = "llama-3.3-70b-versatile";
+export const GROQ_MODEL = "openai/gpt-oss-120b";
 
 export async function callGroq(
   messages: AIMessage[],
@@ -41,9 +44,13 @@ export async function callGroq(
   const Groq = (await import("groq-sdk")).default;
   const client = new Groq({ apiKey });
 
+  // gpt-oss-120b is a reasoning model — reasoning_effort keeps its hidden
+  // chain-of-thought short so maxTokens isn't consumed before the final JSON
+  // answer is emitted (otherwise content comes back empty, finish_reason "length").
   const res = await client.chat.completions.create({
     model: GROQ_MODEL,
     max_tokens: maxTokens,
+    reasoning_effort: "low" as any,
     messages: messages as any,
   });
 

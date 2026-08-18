@@ -4,6 +4,7 @@ import Notification from '@/models/notification.model';
 import User from '@/models/user.model';
 import mongoose from 'mongoose';
 import { sendPlatformEmail } from '@/lib/email/send';
+import { currencySymbol } from '@/lib/currency';
 
 // ─── In-App Notification ──────────────────────────────────────────────────────
 
@@ -160,6 +161,49 @@ export async function findTenantName(tenantId: string): Promise<string> {
     return tenant?.name || 'Your Repair Shop';
   } catch {
     return 'Your Repair Shop';
+  }
+}
+
+export interface TenantOwnerNotificationSettings {
+  name: string;
+  phone: string;
+  currency: string;
+  prefs: {
+    emailOnNewTicket: boolean;
+    emailOnPayment: boolean;
+    smsOnReadyForPickup: boolean;
+    smsOnOverdue: boolean;
+  };
+}
+
+const DEFAULT_NOTIF_PREFS = {
+  emailOnNewTicket: true,
+  emailOnPayment: true,
+  smsOnReadyForPickup: false,
+  smsOnOverdue: false,
+};
+
+/** Single lookup for a tenant's owner-configured notification toggles (Settings →
+ * Notification Preferences) plus its revenue currency and shop phone — used by every
+ * handler that decides whether/how to notify the owner about a ticket event. */
+export async function getTenantOwnerNotificationSettings(tenantId: string): Promise<TenantOwnerNotificationSettings> {
+  const fallback: TenantOwnerNotificationSettings = {
+    name: 'Your Repair Shop', phone: '', currency: 'PKR', prefs: { ...DEFAULT_NOTIF_PREFS },
+  };
+  try {
+    if (!tenantId || tenantId.length !== 24) return fallback;
+    await connectDB();
+    const Tenant = (await import('@/models/tenant.model')).default;
+    const tenant = await Tenant.findById(tenantId).select('name phone branding').lean() as any;
+    if (!tenant) return fallback;
+    return {
+      name: tenant.name || fallback.name,
+      phone: tenant.phone || '',
+      currency: tenant.branding?.currency || 'PKR',
+      prefs: { ...DEFAULT_NOTIF_PREFS, ...(tenant.branding?.notificationPrefs ?? {}) },
+    };
+  } catch {
+    return fallback;
   }
 }
 
@@ -333,9 +377,10 @@ export function emailEstimate(
   deviceBrand:  string,
   deviceModel:  string,
   amount:       number,
-  shopName:     string
+  shopName:     string,
+  currency:     string = 'PKR'
 ): string {
-  const formatted = `Rs. ${amount.toLocaleString()}`;
+  const formatted = `${currencySymbol(currency)} ${amount.toLocaleString()}`;
   return wrap(`
 <h2 style="margin:0 0 16px;color:#1a1a2e;font-size:20px;">Repair estimate ready</h2>
 <p style="margin:0 0 16px;color:#374151;font-size:15px;">Hi <strong>${customerName}</strong>, your repair estimate is ready.</p>

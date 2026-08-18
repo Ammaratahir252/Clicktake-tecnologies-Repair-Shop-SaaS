@@ -4,6 +4,10 @@ import { sendResponse } from '@/utils/apiResponse';
 import Ticket from '@/models/ticket.model';
 import mongoose from 'mongoose';
 
+// Reads the caller's tenant/role from verified request headers on every call —
+// must never be statically prerendered at build time (no headers exist then).
+export const dynamic = 'force-dynamic';
+
 // This route is protected by middleware.ts's default-deny API auth model —
 // the headers below are the verified values middleware sets from the caller's
 // JWT after stripping whatever the client sent, never raw client headers.

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,6 +182,7 @@ function EstimatePanel({
   deviceModel: string;
   issue: string;
 }) {
+  const { format, currency } = useTenantCurrency();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EstimateResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -223,7 +225,7 @@ function EstimatePanel({
       <div className="px-5 py-3 bg-emerald-500/10 border-b border-emerald-500/20 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <DollarSign size={14} className="text-emerald-600" />
-          <span className="text-sm font-bold text-emerald-700">Estimated Cost (PKR)</span>
+          <span className="text-sm font-bold text-emerald-700">Estimated Cost ({currency})</span>
           <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
             {result.samplesUsed} samples · {result.confidence}% confidence
           </span>
@@ -232,7 +234,7 @@ function EstimatePanel({
       <div className="px-5 py-4 space-y-3">
         <div className="flex items-baseline gap-2">
           <span className="text-2xl font-black text-foreground">
-            PKR {result.totalMin.toLocaleString()}
+            {format(result.totalMin)}
           </span>
           <span className="text-sm text-muted-foreground">–</span>
           <span className="text-2xl font-black text-foreground">
@@ -244,7 +246,7 @@ function EstimatePanel({
             <div key={i} className="flex items-center justify-between text-sm">
               <span className="text-muted-foreground">{b.item}</span>
               <span className="font-semibold text-foreground">
-                PKR {b.estimatedCost.toLocaleString()}
+                {format(b.estimatedCost)}
               </span>
             </div>
           ))}
@@ -368,7 +370,7 @@ export default function TechnicianAIPage() {
                   AI Diagnostic Assistant
                 </h1>
                 <p className="text-xs text-muted-foreground font-medium">
-                  Powered by Claude · Uses your shop's real repair history
+                  Powered by Groq · Uses your shop's real repair history
                 </p>
               </div>
             </div>
@@ -411,7 +413,7 @@ export default function TechnicianAIPage() {
                       What needs diagnosing?
                     </h2>
                     <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
-                      Describe the device and symptoms. Claude analyses your shop's real repair
+                      Describe the device and symptoms. Our AI analyses your shop's real repair
                       history to give you accurate probable causes and steps.
                     </p>
                   </div>

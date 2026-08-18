@@ -2,6 +2,7 @@
 
 import DashboardShell from "@/components/DashboardShell";
 import { useState, useRef, useEffect, useCallback } from "react";
+import Image from "next/image";
 import api from "@/lib/api";
 import {
   Camera, Upload, Loader2, CheckCircle, ImageIcon, Search,
@@ -345,11 +346,13 @@ function PhotosContent() {
                     const TypeIcon = typeInfo?.Icon ?? ImageIcon;
                     return (
                       <div key={photo.id} className="relative group">
-                        <div className="relative overflow-hidden rounded-2xl border border-border hover:border-primary transition-all shadow-sm hover:shadow-xl">
-                          <img
+                        <div className="relative h-36 overflow-hidden rounded-2xl border border-border hover:border-primary transition-all shadow-sm hover:shadow-xl">
+                          <Image
                             src={photo.url}
                             alt={photo.label}
-                            className="w-full h-36 object-cover transition-transform group-hover:scale-110 cursor-pointer"
+                            fill
+                            sizes="(min-width: 640px) 33vw, 50vw"
+                            className="object-cover transition-transform group-hover:scale-110 cursor-pointer"
                             onClick={() => setViewPhoto(photo)}
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
@@ -406,6 +409,10 @@ function PhotosContent() {
                 >
                   <X size={20} className="text-white" />
                 </button>
+                {/* next/image needs a known width/height (or a fixed-size ancestor for `fill`) —
+                    this modal shows arbitrary user-uploaded photos at their natural aspect
+                    ratio with no upfront dimensions, which is exactly the case it can't model. */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={viewPhoto.url} alt={viewPhoto.label} className="w-full max-h-[70vh] object-contain rounded-2xl" />
                 <div className="mt-4 bg-card border border-border rounded-2xl p-4 shadow-xl">
                   <div className="flex items-start justify-between gap-4 flex-wrap">

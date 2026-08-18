@@ -3,6 +3,7 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useState, useEffect, useCallback } from "react";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import {
   Truck, MapPin, User, Phone, Package,
   CheckCircle, Search, Loader2,
@@ -37,6 +38,7 @@ export default function FrontdeskDeliveryPage() {
 }
 
 function DeliveryContent() {
+  const { format } = useTenantCurrency();
   const [tickets, setTickets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -182,7 +184,7 @@ function DeliveryContent() {
                 {t.estimateAmount > 0 && (
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-emerald-600">
-                      Rs. {t.estimateAmount.toLocaleString()}
+                      {format(t.estimateAmount)}
                     </span>
                   </div>
                 )}

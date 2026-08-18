@@ -1,8 +1,10 @@
 import { NextRequest } from 'next/server';
+import crypto from 'crypto';
 import connectDB from '../../../../lib/db';
 import User from '../../../../models/user.model';
 import { sendResponse } from '../../../../utils/apiResponse';
 import { getTenantBySubdomain } from '../../../../lib/subdomain';
+import Tenant from '../../../../models/tenant.model';
 import bcrypt from 'bcryptjs';
 import { createAuditLog } from '../../../../services/auditLog.service';
 import { AUDIT_ACTIONS } from '../../../../models/auditLog.model';
@@ -47,6 +49,16 @@ export async function POST(req: NextRequest) {
 
     if (user.isActive === false) {
       return sendResponse(false, 'This account has been deactivated.', null, 403);
+    }
+
+    // A suspended/deactivated shop (owner Danger Zone, or super-admin suspension) must
+    // block every login for that tenant, not just the pages behind the auth middleware —
+    // otherwise staff can still sign in and get a fresh session after "deactivation".
+    if (user.role !== 'super_admin' && user.tenantId) {
+      const tenant = await Tenant.findById(user.tenantId).select('isActive').lean() as any;
+      if (tenant && tenant.isActive === false) {
+        return sendResponse(false, 'This shop has been deactivated. Contact platform support to reactivate.', null, 403);
+      }
     }
 
     if (isMaintenanceActive(settings) && user.role !== 'super_admin') {
@@ -96,7 +108,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (user.forcePasswordReset) {
-      return sendResponse(false, 'Your password must be reset before you can log in. Use "Forgot password" to set a new one.', null, 403);
+      // Credentials are valid (bcrypt already matched above) — this is a guided
+      // next step, not an error. The client keys off `requiresPasswordReset` the
+      // same way it keys off `requiresOtp` below. A short-lived, single-use token
+      // (same pattern as the OTP hash below) binds the completion call to *this*
+      // successful password check — without it, anyone who merely learns the
+      // userId (e.g. a teammate via /api/chat/contacts) could call
+      // complete-password-reset directly and take over the account.
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const resetTokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+      await User.findByIdAndUpdate(user._id, {
+        failedLoginAttempts: 0,
+        lockoutUntil: null,
+        forceResetTokenHash: resetTokenHash,
+        forceResetTokenExpiry: Date.now() + 10 * 60 * 1000,
+      });
+      return sendResponse(true, 'Password reset required', {
+        requiresPasswordReset: true,
+        userId: user._id,
+        resetToken,
+      });
     }
     if (settings.passwordExpiryDays > 0 && user.passwordChangedAt) {
       const ageDays = (Date.now() - new Date(user.passwordChangedAt).getTime()) / 86_400_000;

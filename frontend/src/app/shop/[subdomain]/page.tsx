@@ -1,16 +1,36 @@
 import Link from "next/link";
+import Image from "next/image";
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
 import connectDB from "@/lib/db";
 import Tenant from "@/models/tenant.model";
 import Review from "@/models/review.model";
+import { getJwtSecretBytes } from "@/lib/auth/jwtSecret";
 
 export const dynamic = "force-dynamic";
 
+// Platform staff (super_admin, scoped admin) can open ANY shop's page from the
+// admin panel for moderation/support — regardless of whether the owner has
+// opted into the public directory (`isPubliclyVisible`). Everyone else only
+// ever sees shops that are actually public.
+async function isAdminViewer(): Promise<boolean> {
+  try {
+    const token = cookies().get("token")?.value;
+    if (!token) return false;
+    const { payload } = await jwtVerify(token, getJwtSecretBytes());
+    return payload.role === "super_admin" || payload.role === "admin";
+  } catch {
+    return false;
+  }
+}
+
 async function getShop(subdomain: string) {
   await connectDB();
+  const isAdmin = await isAdminViewer();
   const tenant = await Tenant.findOne({
     subdomain: subdomain.toLowerCase(),
     isActive: true,
-    isPubliclyVisible: true,
+    ...(isAdmin ? {} : { isPubliclyVisible: true }),
   }).lean() as any;
   return tenant;
 }
@@ -60,7 +80,7 @@ export default async function ShopPage({ params }: { params: { subdomain: string
       }}>
         <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", alignItems: "center", gap: 20 }}>
           {shop.logo && (
-            <img src={shop.logo} alt={shop.name} style={{ width: 72, height: 72, borderRadius: 16, objectFit: "cover", border: "2px solid rgba(255,255,255,0.4)", background: "#fff", flexShrink: 0 }} />
+            <Image src={shop.logo} alt={shop.name} width={72} height={72} style={{ borderRadius: 16, objectFit: "cover", border: "2px solid rgba(255,255,255,0.4)", background: "#fff", flexShrink: 0 }} />
           )}
           <div>
             <p style={{ fontSize: 13, opacity: 0.85, fontWeight: 600, marginBottom: 6 }}>{shop.subdomain}.dibnow.com</p>
@@ -131,9 +151,9 @@ export default async function ShopPage({ params }: { params: { subdomain: string
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(140px,1fr))", gap: 16 }}>
               {shop.team.map((member: any, i: number) => (
                 <div key={i} style={{ textAlign: "center" }}>
-                  <div style={{ width: 64, height: 64, borderRadius: "50%", margin: "0 auto 10px", overflow: "hidden", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <div style={{ position: "relative", width: 64, height: 64, borderRadius: "50%", margin: "0 auto 10px", overflow: "hidden", background: "#eff6ff", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     {member.photoUrl
-                      ? <img src={member.photoUrl} alt={member.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      ? <Image src={member.photoUrl} alt={member.name} fill sizes="64px" style={{ objectFit: "cover" }} />
                       : <span style={{ fontSize: 20, fontWeight: 800, color: "#1d4ed8" }}>{member.name?.[0]?.toUpperCase()}</span>}
                   </div>
                   <p style={{ fontSize: 13, fontWeight: 700, color: "#0f172a" }}>{member.name}</p>

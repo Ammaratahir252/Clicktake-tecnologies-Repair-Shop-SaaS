@@ -3,6 +3,7 @@ import connectDB from '@/lib/db';
 import { sendResponse } from '@/utils/apiResponse';
 import Lead from '@/models/lead.model';
 import mongoose from 'mongoose';
+import { getManagerPermissions } from '@/lib/managerPermissions';
 
 function getCtx(req: NextRequest) {
   return {
@@ -24,6 +25,14 @@ export async function PATCH(
     if (role !== 'super_admin' && !tenantId) return sendResponse(false, 'Unauthorized', null, 401);
 
     const body = await req.json();
+
+    if (role === 'manager' && body.assignedTo !== undefined) {
+      const perms = await getManagerPermissions(tenantId);
+      if (!perms.assignWork) {
+        return sendResponse(false, 'Your shop owner has not enabled lead assignment for managers', null, 403);
+      }
+    }
+
     const allowed = ['status', 'assignedTo', 'convertedTicketId'];
     const update: Record<string, unknown> = {};
     for (const key of allowed) {

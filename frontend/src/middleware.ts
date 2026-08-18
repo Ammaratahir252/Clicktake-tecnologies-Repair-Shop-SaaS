@@ -101,12 +101,14 @@ const PUBLIC_API_EXACT = new Set([
   '/api/auth/verify-email',
   '/api/auth/verify-otp',
   '/api/auth/verify-session',
+  '/api/auth/complete-password-reset',
   '/api/admin/setup',
   '/api/billing/checkout',
   '/api/billing/plans',
   '/api/repair-requests',
   '/api/shops',
   '/api/tenant/resolve',
+  '/api/health',
 ]);
 
 const PUBLIC_API_PREFIXES = [

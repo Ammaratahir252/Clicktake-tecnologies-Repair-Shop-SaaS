@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
   <!-- Background -->
   <rect width="100" height="100" rx="22" fill="#2563eb"/>
-  
+
   <!-- Blue accent top -->
   <rect x="0" y="0" width="100" height="26" rx="22" fill="#1d4ed8"/>
   <rect x="0" y="14" width="100" height="12" fill="#1d4ed8"/>

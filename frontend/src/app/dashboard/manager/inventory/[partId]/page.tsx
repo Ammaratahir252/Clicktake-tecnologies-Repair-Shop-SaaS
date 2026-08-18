@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import {
   ArrowLeft, Package, Edit3, Save, X, AlertTriangle,
   Loader2, TrendingUp, TrendingDown, RotateCcw,
@@ -37,7 +38,6 @@ const MOVEMENT_ICONS: Record<string, React.ReactElement> = {
   adjusted: <RotateCcw size={12} />, returned: <RotateCcw size={12} />, damaged: <TrendingDown size={12} />,
 };
 
-function formatPKR(n: number) { return `PKR ${n.toLocaleString("en-PK")}`; }
 function formatDate(d: string) {
   return new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
@@ -46,6 +46,7 @@ function PartDetailContent() {
   const router   = useRouter();
   const params   = useParams();
   const partId   = params?.partId as string;
+  const { format: formatPKR, currency } = useTenantCurrency();
 
   const [part, setPart]           = useState<Part | null>(null);
   const [movements, setMovements] = useState<Movement[]>([]);
@@ -180,8 +181,8 @@ function PartDetailContent() {
               {[
                 { id: "mgr-edit-name", label: "Part Name", key: "name", type: "text" },
                 { id: "mgr-edit-category", label: "Category", key: "category", type: "text" },
-                { id: "mgr-edit-cost", label: "Cost Price (PKR)", key: "costPrice", type: "number" },
-                { id: "mgr-edit-sell", label: "Sell Price (PKR)", key: "sellPrice", type: "number" },
+                { id: "mgr-edit-cost", label: `Cost Price (${currency})`, key: "costPrice", type: "number" },
+                { id: "mgr-edit-sell", label: `Sell Price (${currency})`, key: "sellPrice", type: "number" },
                 { id: "mgr-edit-limit", label: "Low Stock Limit", key: "lowStockLimit", type: "number" },
                 { id: "mgr-edit-supplier", label: "Supplier", key: "supplier", type: "text" },
               ].map(({ id, label, key, type }) => (

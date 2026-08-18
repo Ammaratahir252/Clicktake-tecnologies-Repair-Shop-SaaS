@@ -12,6 +12,7 @@ import {
   Star, ArrowRight, X, Loader2,
 } from 'lucide-react'
 import api from '@/lib/api'
+import { useTenantCurrency } from '@/lib/useTenantCurrency'
 
 type RepairStatus = 'delivered' | 'cancelled' | 'ready' | 'in_repair' | 'received' | 'diagnosed' | 'estimate_sent' | 'approved'
 
@@ -72,6 +73,7 @@ export default function RepairHistoryPage() {
 }
 
 function HistoryContent() {
+  const { format, formatCompact } = useTenantCurrency()
   const [records, setRecords]   = useState<RepairRecord[]>([])
   const [loading, setLoading]   = useState(true)
   const [search, setSearch]     = useState('')
@@ -146,7 +148,7 @@ function HistoryContent() {
           <CardContent className="pt-6 text-center">
             <p className="text-sm text-muted-foreground mb-1">Total Spent</p>
             <h3 className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-              Rs. {(totalSpent / 1000).toFixed(1)}k
+              {formatCompact(totalSpent)}
             </h3>
           </CardContent>
         </Card>
@@ -233,7 +235,7 @@ function HistoryContent() {
                         </td>
                         <td className="px-4 py-3 text-sm">{record.completedDate}</td>
                         <td className="px-4 py-3 font-semibold text-sm">
-                          {record.cost ? `Rs. ${record.cost.toLocaleString()}` : '—'}
+                          {record.cost ? format(record.cost) : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <Button variant="ghost" size="sm" onClick={() => setSelectedOrder(record)}>
@@ -300,7 +302,7 @@ function HistoryContent() {
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Amount</p>
                   <p className="font-semibold text-primary">
-                    {selectedOrder.cost ? `Rs. ${selectedOrder.cost.toLocaleString()}` : 'N/A'}
+                    {selectedOrder.cost ? format(selectedOrder.cost) : 'N/A'}
                   </p>
                 </div>
               </div>

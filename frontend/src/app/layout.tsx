@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import { cache } from 'react';
 import { ThemeProvider } from '@/components/providers/ThemeProvider';
 import { QueryProvider } from '@/components/providers/QueryProvider';
+import PwaRegister from '@/components/PwaRegister';
 import connectDB from '@/lib/db';
 import PlatformSettings from '@/models/platformSettings.model';
 import './globals.css';
@@ -22,13 +23,13 @@ const getBranding = cache(async (): Promise<{ faviconUrl: string; darkModeDefaul
   }
 });
 
+// TODO: swap in real 192x192/512x512 PNGs (and an apple-touch-icon PNG) once
+// the platform has branded raster artwork — older iOS Safari doesn't reliably
+// render SVG as a home-screen icon. /favicon.svg covers every other browser
+// (Chrome/Edge/Android/modern Safari) for now.
 const DEFAULT_ICONS = {
-  icon: [
-    { url: '/favicon.svg', type: 'image/svg+xml' },
-    { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
-    { url: '/icon-512.png', sizes: '512x512', type: 'image/png' },
-  ],
-  apple: '/icon-192.png',
+  icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+  apple: '/favicon.svg',
   shortcut: '/favicon.svg',
 };
 
@@ -87,6 +88,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         />
       </head>
       <body>
+        <PwaRegister />
         <ThemeProvider
           attribute="class"
           defaultTheme={darkModeDefault ? 'dark' : 'light'}

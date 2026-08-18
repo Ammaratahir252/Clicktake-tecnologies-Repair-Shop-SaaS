@@ -3,8 +3,14 @@ import connectDB from '@/lib/db';
 import Ticket from '@/models/ticket.model';
 import User from '@/models/user.model';
 import Customer from '@/models/customer.model';
+import Payment from '@/models/payment.model';
+import TimeSession from '@/models/timeSession.model';
 import { sendResponse } from '@/utils/apiResponse';
 import mongoose from 'mongoose';
+
+// Reads the caller's tenant/role from verified request headers on every call —
+// must never be statically prerendered at build time (no headers exist then).
+export const dynamic = 'force-dynamic';
 
 function getCtx(req: NextRequest) {
   return {
@@ -30,7 +36,7 @@ export async function GET(req: NextRequest) {
 
     const tid = new mongoose.Types.ObjectId(requestedTenantId);
 
-    const [tickets, staffCount, customerCount, topTechs, monthlyRevenue] = await Promise.all([
+    const [tickets, staffCount, customerCount, topTechs, monthlyRevenue, collectedRevenueAgg, technicianHours] = await Promise.all([
       Ticket.find({ tenantId: tid }).lean(),
       User.countDocuments({ tenantId: tid, role: { $in: ['technician', 'manager', 'frontdesk', 'driver', 'owner'] } }),
       Customer.countDocuments({ tenantId: tid }),
@@ -77,7 +83,46 @@ export async function GET(req: NextRequest) {
         { $sort: { '_id.year': 1, '_id.month': 1 } },
         { $limit: 12 },
       ]),
+      // Real, actually-collected revenue (completed customer payments) — distinct
+      // from `totalRevenue`/`monthly[].revenue` above, which sum every ticket's
+      // *quoted* estimateAmount regardless of whether it was ever paid.
+      Payment.aggregate([
+        { $match: { tenantId: tid, kind: 'invoice', status: 'completed' } },
+        { $group: { _id: null, total: { $sum: '$amount' } } },
+      ]),
+      // Aggregate technician working hours from the start/stop timer (time-sessions) —
+      // only completed sessions (endedAt set) count toward the total.
+      TimeSession.aggregate([
+        { $match: { tenantId: tid, endedAt: { $ne: null } } },
+        {
+          $group: {
+            _id: '$technicianId',
+            totalSeconds: { $sum: '$durationSeconds' },
+            sessions: { $sum: 1 },
+          },
+        },
+        { $sort: { totalSeconds: -1 } },
+        { $limit: 10 },
+        {
+          $lookup: {
+            from: 'users',
+            localField: '_id',
+            foreignField: '_id',
+            as: 'user',
+          },
+        },
+        { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+        {
+          $project: {
+            name: '$user.name',
+            totalSeconds: 1,
+            sessions: 1,
+          },
+        },
+      ]),
     ]);
+
+    const collectedRevenue = (collectedRevenueAgg as any[])[0]?.total ?? 0;
 
     // Ticket status breakdown
     const statusCounts: Record<string, number> = {};
@@ -99,10 +144,12 @@ export async function GET(req: NextRequest) {
     return sendResponse(true, 'Analytics fetched', {
       totalTickets:   tickets.length,
       totalRevenue,
+      collectedRevenue,
       staffCount,
       customerCount,
       statusCounts,
       topTechs:       topTechs as any[],
+      technicianHours: technicianHours as any[],
       monthly,
     });
   } catch (err: any) {

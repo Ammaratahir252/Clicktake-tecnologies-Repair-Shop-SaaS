@@ -395,7 +395,8 @@ export async function adjustStockHandler(req: NextRequest, partId: string): Prom
       return sendResponse(false, 'Quantity must be a positive integer greater than 0', null, 400);
     }
 
-    // ── 4. Find the part ────────────────────────────────────────────────────
+    // ── 4. Find the part (for its lowStockLimit/name/sku — not the authoritative
+    //      stock count used below, which is re-read atomically to stay race-safe) ──
     const part = await Part.findOne({
       _id:      new mongoose.Types.ObjectId(partId),
       tenantId: new mongoose.Types.ObjectId(tenantId),
@@ -408,39 +409,62 @@ export async function adjustStockHandler(req: NextRequest, partId: string): Prom
 
     const currentStock = part.quantity;
 
-    // ── 5. Check sufficient stock for deductions ────────────────────────────
-    if ((movementType === 'used' || movementType === 'damaged') && qty > currentStock) {
-      return sendResponse(
-        false,
-        `Insufficient stock. Available: ${currentStock} unit${currentStock !== 1 ? 's' : ''}`,
-        null,
-        400
+    // ── 5-8. Atomically update the quantity — guarded against concurrent
+    // requests racing on the same part (e.g. two technicians using the last
+    // unit at once). Every branch is a single findOneAndUpdate whose FILTER
+    // (not a separately-read-then-checked JS value) enforces correctness, so
+    // only requests that are actually valid at the moment of the write land —
+    // a plain read-check-then-$set here would let two concurrent requests both
+    // pass a stale check and silently corrupt the stock count / audit trail.
+    let updatedPart;
+    if (movementType === 'used' || movementType === 'damaged') {
+      updatedPart = await Part.findOneAndUpdate(
+        { _id: partId, tenantId, isActive: true, quantity: { $gte: qty } },
+        { $inc: { quantity: -qty } },
+        { new: true }
+      );
+      if (!updatedPart) {
+        // Either genuinely insufficient, or another concurrent request just
+        // consumed the remaining stock between our read above and this write.
+        const latest = await Part.findById(partId).select('quantity').lean() as any;
+        const available = latest?.quantity ?? currentStock;
+        return sendResponse(
+          false,
+          `Insufficient stock. Available: ${available} unit${available !== 1 ? 's' : ''}`,
+          null,
+          400
+        );
+      }
+    } else if (movementType === 'added' || movementType === 'returned') {
+      updatedPart = await Part.findOneAndUpdate(
+        { _id: partId, tenantId, isActive: true },
+        { $inc: { quantity: qty } },
+        { new: true }
+      );
+    } else {
+      // 'adjusted' — an explicit absolute stock-count correction (a manual
+      // recount), not a delta, so an absolute $set is the correct semantic here.
+      updatedPart = await Part.findOneAndUpdate(
+        { _id: partId, tenantId, isActive: true },
+        { $set: { quantity: qty } },
+        { new: true }
       );
     }
+    if (!updatedPart) return sendResponse(false, 'Part not found', null, 404);
 
-    // ── 6. Calculate new stock ──────────────────────────────────────────────
-    let newStock: number;
-    switch (movementType) {
-      case 'added':
-      case 'returned':
-        newStock = currentStock + qty;
-        break;
-      case 'used':
-      case 'damaged':
-        newStock = currentStock - qty;
-        break;
-      case 'adjusted':
-        newStock = qty;  // Set directly — absolute value
-        break;
-    }
+    const newStock = updatedPart.quantity;
+    const isIncrease = movementType === 'added' || movementType === 'returned';
+    const previousStock =
+      movementType === 'adjusted' ? currentStock : isIncrease ? newStock - qty : newStock + qty;
 
-    // ── 7. Create stock movement record (append-only) ───────────────────────
+    // ── Create stock movement record (append-only) — previousStock/newStock
+    // here reflect the atomic write result, not the earlier (possibly stale) read.
     const movement = await StockMovement.create({
       tenantId:      new mongoose.Types.ObjectId(tenantId),
       partId:        new mongoose.Types.ObjectId(partId),
       type:          movementType,
       quantity:      qty,
-      previousStock: currentStock,
+      previousStock,
       newStock,
       ticketId:      ticketId && mongoose.Types.ObjectId.isValid(ticketId)
                        ? new mongoose.Types.ObjectId(ticketId)
@@ -448,13 +472,6 @@ export async function adjustStockHandler(req: NextRequest, partId: string): Prom
       performedBy:   new mongoose.Types.ObjectId(userId),
       note:          note ? String(note).trim() : undefined,
     });
-
-    // ── 8. Update part quantity ─────────────────────────────────────────────
-    const updatedPart = await Part.findByIdAndUpdate(
-      partId,
-      { $set: { quantity: newStock } },
-      { new: true }
-    );
 
     // ── 9. Low stock alert ──────────────────────────────────────────────────
     if (newStock <= part.lowStockLimit) {
@@ -476,7 +493,7 @@ export async function adjustStockHandler(req: NextRequest, partId: string): Prom
       action:   auditActionMap[movementType],
       entity:   'stockMovement',
       entityId: String(movement._id),
-      details:  { type: movementType, quantity: qty, previousStock: currentStock, newStock, partName: part.name, partSku: part.sku },
+      details:  { type: movementType, quantity: qty, previousStock, newStock, partName: part.name, partSku: part.sku },
     });
 
     return sendResponse(true, `Stock ${movementType} recorded successfully`, {
@@ -610,7 +627,8 @@ export async function recordPartUsageOnTicketHandler(req: NextRequest, ticketId:
       return sendResponse(false, 'Quantity must be a positive integer', null, 400);
     }
 
-    // Find part
+    // Find part (for name/sku/lowStockLimit — not the authoritative stock count,
+    // which is re-read atomically below to stay race-safe under concurrent use).
     const part = await Part.findOne({
       _id:      new mongoose.Types.ObjectId(partId),
       tenantId: new mongoose.Types.ObjectId(tenantId),
@@ -621,17 +639,27 @@ export async function recordPartUsageOnTicketHandler(req: NextRequest, ticketId:
       return sendResponse(false, 'Part not found', null, 404);
     }
 
-    if (qty > part.quantity) {
+    // Atomic, guarded decrement — see the identical fix + comment in
+    // adjustStockHandler above. A plain read-then-$set here would let two
+    // concurrent "use N of the last unit" requests both pass a stale check.
+    const updatedPart = await Part.findOneAndUpdate(
+      { _id: partId, tenantId, isActive: true, quantity: { $gte: qty } },
+      { $inc: { quantity: -qty } },
+      { new: true }
+    );
+    if (!updatedPart) {
+      const latest = await Part.findById(partId).select('quantity').lean() as any;
+      const available = latest?.quantity ?? part.quantity;
       return sendResponse(
         false,
-        `Insufficient stock. Available: ${part.quantity} unit${part.quantity !== 1 ? 's' : ''}`,
+        `Insufficient stock. Available: ${available} unit${available !== 1 ? 's' : ''}`,
         null,
         400
       );
     }
 
-    const previousStock = part.quantity;
-    const newStock = previousStock - qty;
+    const newStock = updatedPart.quantity;
+    const previousStock = newStock + qty;
 
     // Create stock movement (type: used, with ticketId)
     const movement = await StockMovement.create({
@@ -645,9 +673,6 @@ export async function recordPartUsageOnTicketHandler(req: NextRequest, ticketId:
       performedBy:   new mongoose.Types.ObjectId(userId),
       note:          `Used on ticket`,
     });
-
-    // Update part quantity
-    await Part.findByIdAndUpdate(partId, { $set: { quantity: newStock } });
 
     // Low stock alert
     if (newStock <= part.lowStockLimit) {

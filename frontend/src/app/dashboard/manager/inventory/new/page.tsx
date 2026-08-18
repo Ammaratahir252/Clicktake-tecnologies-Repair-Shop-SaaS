@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import DashboardShell from "@/components/DashboardShell";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import { Package, ArrowLeft, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 
 const CATEGORY_SUGGESTIONS = [
@@ -13,6 +14,7 @@ const CATEGORY_SUGGESTIONS = [
 
 function AddPartForm() {
   const router = useRouter();
+  const { currency } = useTenantCurrency();
   const [form, setForm] = useState({
     name: "", sku: "", category: "", costPrice: "",
     sellPrice: "", lowStockLimit: "5", initialQuantity: "0",
@@ -139,12 +141,12 @@ function AddPartForm() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Cost Price (PKR) <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Cost Price ({currency}) <span className="text-red-500">*</span></label>
             <input id="mgr-cost-price" type="number" min={0} step="1" placeholder="0" value={form.costPrice} onChange={e => handleChange("costPrice", e.target.value)} className={inputClass("costPrice")} />
             {errors.costPrice && <p className="text-xs text-red-500 mt-1 font-medium">{errors.costPrice}</p>}
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Sell Price (PKR) <span className="text-red-500">*</span></label>
+            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1.5">Sell Price ({currency}) <span className="text-red-500">*</span></label>
             <input id="mgr-sell-price" type="number" min={0} step="1" placeholder="0" value={form.sellPrice} onChange={e => handleChange("sellPrice", e.target.value)} className={inputClass("sellPrice")} />
             {errors.sellPrice && <p className="text-xs text-red-500 mt-1 font-medium">{errors.sellPrice}</p>}
           </div>

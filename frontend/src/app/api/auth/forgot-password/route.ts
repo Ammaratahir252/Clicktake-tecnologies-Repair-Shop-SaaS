@@ -43,10 +43,12 @@ export async function POST(req: NextRequest) {
       emailPasswordReset(user.name, resetLink)
     );
 
-    // Also return the token directly — this app has no verified email domain in most
-    // environments, so the forgot-password page is designed to show the reset link
-    // itself rather than depend solely on mail delivery (see the "Testing Mode" UI there).
-    return sendResponse(true, "If that email exists, a reset link has been sent.", { resetToken }, 200);
+    // Do NOT return the raw token here — a real email provider is configured
+    // (see lib/email/providers.ts), so the reset link only ever reaches the
+    // actual inbox. Returning it in the API response would let anyone who
+    // knows a user's email fetch a working reset token without ever touching
+    // that inbox, defeating the whole point of email-based verification.
+    return sendResponse(true, "If that email exists, a reset link has been sent.", null, 200);
 
   } catch (error: any) {
     return sendResponse(false, error.message, null, 500);

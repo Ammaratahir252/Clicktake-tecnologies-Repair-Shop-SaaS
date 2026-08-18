@@ -3,6 +3,7 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
 import {
   CreditCard, Banknote, CheckCircle, Loader2, ChevronDown,
   AlertCircle, Wallet, TrendingUp, Clock, User, Phone, Zap,
@@ -24,6 +25,7 @@ export default function DriverPaymentPage() {
 }
 
 function PaymentContent() {
+  const { format, symbol } = useTenantCurrency();
   const [jobs, setJobs]             = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
   const [selectedJob, setSelectedJob] = useState<any>(null);
@@ -159,7 +161,7 @@ function PaymentContent() {
               <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase">Total Due</p>
             </div>
             <p className="text-xl font-black text-emerald-700 dark:text-emerald-300">
-              Rs. {unpaidJobs.reduce((s, j) => s + (j.estimateAmount ?? 0), 0).toLocaleString()}
+              {format(unpaidJobs.reduce((s, j) => s + (j.estimateAmount ?? 0), 0))}
             </p>
           </div>
         </div>
@@ -196,7 +198,7 @@ function PaymentContent() {
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <span className="font-black text-lg text-primary bg-primary/10 px-3 py-1 rounded-lg">
-                        Rs. {(selectedJob.estimateAmount ?? 0).toLocaleString()}
+                        {format(selectedJob.estimateAmount ?? 0)}
                       </span>
                       <ChevronDown size={16} className={`text-muted-foreground transition-all ${open ? "rotate-180" : ""}`} />
                     </div>
@@ -216,7 +218,7 @@ function PaymentContent() {
                             <p className="font-bold text-sm text-foreground">{job.ticketNumber}</p>
                             <p className="text-xs text-muted-foreground mt-1">{job.customerId?.name ?? "Customer"}</p>
                           </div>
-                          <span className="font-black text-primary text-sm ml-2">Rs. {(job.estimateAmount ?? 0).toLocaleString()}</span>
+                          <span className="font-black text-primary text-sm ml-2">{format(job.estimateAmount ?? 0)}</span>
                         </button>
                       ))}
                     </div>
@@ -235,7 +237,7 @@ function PaymentContent() {
 
                 <div className="mt-4 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl p-5 text-center border border-primary/20">
                   <p className="text-xs text-muted-foreground font-bold uppercase tracking-wide mb-2">Amount Due</p>
-                  <p className="text-4xl font-black text-primary">Rs. {(selectedJob.estimateAmount ?? 0).toLocaleString()}</p>
+                  <p className="text-4xl font-black text-primary">{format(selectedJob.estimateAmount ?? 0)}</p>
                 </div>
               </div>
 
@@ -272,7 +274,7 @@ function PaymentContent() {
                 </p>
 
                 <div className="relative">
-                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-lg">Rs.</span>
+                  <span className="absolute left-5 top-1/2 -translate-y-1/2 text-muted-foreground font-bold text-lg">{symbol}</span>
                   <input
                     type="number"
                     value={amountReceived}
@@ -292,7 +294,7 @@ function PaymentContent() {
                       {balance >= 0 ? "💰 Change to Return" : "⚠️ Balance Remaining"}
                     </span>
                     <span className={`text-2xl font-black ${balance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                      Rs. {Math.abs(balance).toLocaleString()}
+                      {format(Math.abs(balance))}
                     </span>
                   </div>
                 )}

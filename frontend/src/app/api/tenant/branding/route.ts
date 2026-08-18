@@ -43,14 +43,22 @@ export async function PATCH(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { bio, homeWidgets, customerPortal, notificationPrefs, team } = body;
+    const { bio, homeWidgets, customerPortal, notificationPrefs, currency, team, managerPermissions } = body;
+
+    // Manager-permission toggles are owner-only — a manager must never be able to
+    // self-grant capabilities (e.g. editTeam) via a direct API call.
+    if (managerPermissions !== undefined && role !== 'owner') {
+      return sendResponse(false, 'Only the shop owner can change manager permissions', null, 403);
+    }
 
     const $set: Record<string, any> = {};
     if (bio               !== undefined) $set['branding.bio']               = bio;
     if (homeWidgets       !== undefined) $set['branding.homeWidgets']       = homeWidgets;
     if (customerPortal    !== undefined) $set['branding.customerPortal']    = customerPortal;
     if (notificationPrefs !== undefined) $set['branding.notificationPrefs'] = notificationPrefs;
+    if (currency           !== undefined) $set['branding.currency']         = currency;
     if (team              !== undefined) $set.team                         = team;
+    if (managerPermissions !== undefined) $set['branding.managerPermissions'] = managerPermissions;
 
     if (Object.keys($set).length === 0) {
       return sendResponse(false, 'No valid fields provided to update', null, 400);

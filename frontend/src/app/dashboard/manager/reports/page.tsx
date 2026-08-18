@@ -3,7 +3,15 @@
 import DashboardShell from "@/components/DashboardShell";
 import { useEffect, useState, useCallback } from "react";
 import api from "@/lib/api";
-import { TrendingUp, BarChart2, Users, Ticket, DollarSign, Download, Loader2 } from "lucide-react";
+import { useTenantCurrency } from "@/lib/useTenantCurrency";
+import WrittenReports from "@/components/reports/WrittenReports";
+import { TrendingUp, BarChart2, Users, Ticket, DollarSign, Download, Loader2, Timer } from "lucide-react";
+
+function formatHours(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  return `${h}h ${m.toString().padStart(2, "0")}m`;
+}
 
 const BAR_COLORS = ["bg-primary", "bg-blue-400", "bg-emerald-400", "bg-amber-400", "bg-purple-400"];
 
@@ -29,6 +37,7 @@ export default function ManagerReportsPage() {
 function ReportsContent() {
   const [data, setData]       = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const { format, formatCompact } = useTenantCurrency();
 
   const fetchAnalytics = useCallback(async () => {
     try {
@@ -95,7 +104,7 @@ function ReportsContent() {
         {[
           {
             label: "Total Revenue",
-            value: `Rs. ${(data.totalRevenue / 1000).toFixed(0)}K`,
+            value: formatCompact(data.totalRevenue),
             icon: DollarSign,
             color: "text-emerald-600",
             bg: "bg-emerald-50 dark:bg-emerald-900/20",
@@ -116,7 +125,7 @@ function ReportsContent() {
           },
           {
             label: "Avg Repair Value",
-            value: avgRepairValue > 0 ? `Rs. ${avgRepairValue.toLocaleString()}` : "—",
+            value: avgRepairValue > 0 ? format(avgRepairValue) : "—",
             icon: TrendingUp,
             color: "text-amber-600",
             bg: "bg-amber-50 dark:bg-amber-900/20",
@@ -183,7 +192,7 @@ function ReportsContent() {
                   return (
                     <div key={i} className="flex flex-col items-center gap-1 shrink-0 flex-1 min-w-[36px] group">
                       <span className="text-[9px] font-bold text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                        Rs. {(m.revenue / 1000).toFixed(0)}K
+                        {formatCompact(m.revenue)}
                       </span>
                       <div
                         className="w-full rounded-t-lg bg-primary/30 group-hover:bg-primary transition-all"
@@ -228,7 +237,7 @@ function ReportsContent() {
                     </td>
                     <td className="px-4 py-3 font-bold text-foreground">{t.name ?? "Unknown"}</td>
                     <td className="px-4 py-3 font-semibold text-foreground">{t.tickets}</td>
-                    <td className="px-4 py-3 font-semibold text-emerald-600">Rs. {(t.revenue ?? 0).toLocaleString()}</td>
+                    <td className="px-4 py-3 font-semibold text-emerald-600">{format(t.revenue ?? 0)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -236,6 +245,40 @@ function ReportsContent() {
           </div>
         </div>
       )}
+
+      {/* Technician Working Hours — from the technician's own start/stop timer */}
+      <div className="bg-card border border-border rounded-2xl p-5 shadow-sm space-y-4">
+        <div className="flex items-center gap-2">
+          <Timer size={18} className="text-cyan-600" />
+          <p className="font-bold text-foreground">Technician Working Hours</p>
+        </div>
+        {data.technicianHours && data.technicianHours.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted border-b border-border text-left text-xs font-bold text-muted-foreground uppercase tracking-widest">
+                  <th className="px-4 py-3">Technician</th>
+                  <th className="px-4 py-3">Hours Logged</th>
+                  <th className="px-4 py-3">Sessions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {data.technicianHours.map((t: any, i: number) => (
+                  <tr key={i} className="hover:bg-muted/50 transition-colors">
+                    <td className="px-4 py-3 font-bold text-foreground">{t.name ?? "Unknown"}</td>
+                    <td className="px-4 py-3 font-semibold text-cyan-600">{formatHours(t.totalSeconds ?? 0)}</td>
+                    <td className="px-4 py-3 font-semibold text-foreground">{t.sessions}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No time-tracking data yet — hours appear here once technicians start/stop the timer on a ticket.</p>
+        )}
+      </div>
+
+      <WrittenReports />
     </div>
   );
 }
